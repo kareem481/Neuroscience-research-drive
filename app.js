@@ -1,0 +1,4825 @@
+/* ============================================
+   SAINT LUKE'S NEUROSCIENCE RESEARCH DATABASE
+   Complete Interactive Application Logic
+   ============================================ */
+
+/* ================================================
+   0. CONSOLE BRANDING
+   ================================================ */
+console.log('%c Saint Luke\'s Neuroscience Research Database ', 'font-size:18px;font-weight:bold;color:#00d4ff;background:#0a0a1a;padding:8px 16px;border-radius:8px;border:1px solid #00d4ff;');
+console.log('%c Translational | Clinical | Computational ', 'font-size:12px;color:#7c3aed;background:#0f0f2e;padding:4px 16px;border-radius:4px;');
+console.log('%c Research Hub v2.0 ', 'font-size:10px;color:#10b981;');
+
+/* ================================================
+   1. LOADING SCREEN - Auto-hide after 2s
+   ================================================ */
+window.addEventListener('load', function () {
+    setTimeout(function () {
+        var loader = document.getElementById('loadingScreen');
+        if (loader) {
+            loader.classList.add('hidden');
+            setTimeout(function () {
+                loader.style.display = 'none';
+                // Show login screen
+                showLogin();
+            }, 600);
+        }
+    }, 2000);
+});
+
+/* ================================================
+   2. LOGIN SYSTEM (Point 10)
+   ================================================ */
+var currentUserRole = 'Admin';
+var currentUserName = '';
+var currentUserEmail = '';
+
+/* --- Admin Account Registry ---
+   These 3 accounts are the founding admins.
+   Any access request notifies ALL three; only 1 approval needed. */
+var ADMIN_ACCOUNTS = [
+    {
+        email: 'skolakowsky@saint-lukes.org',
+        name: 'Stephanie Kolakowsky-Hayner, PhD',
+        initials: 'SK',
+        role: 'Admin',
+        title: 'Neuroscience Research Director',
+        password: null
+    },
+    {
+        email: 'cabagley@saint-lukes.org',
+        name: 'Carlos A. Bagley, MD',
+        initials: 'CB',
+        role: 'Admin',
+        title: 'Neuroscience Director & Chair',
+        password: null
+    },
+    {
+        email: 'aalmekkawi@saint-lukes.org',
+        name: 'Ahmad Kareem Almekkawi, MD',
+        initials: 'AA',
+        role: 'Admin',
+        title: 'Neuroscience Research Fellow',
+        password: 'Marwa_11061997@!'
+    }
+];
+
+/* --- IRB Reviewer Account (sole access) --- */
+var IRB_ACCOUNTS = [
+    { email: 'ldrose@saint-lukes.org', name: 'LaShanda Rose', initials: 'LR', role: 'IRB', title: 'IRB Reviewer', password: 'SLNeuro_IRB2026!' }
+];
+
+/* --- All Department Users (imported from Excel files) ---
+   Faculty (MD/DO), Residents, Medical Students (UMKC AANS), APP/NP/RN/PA/APRN, Research Staff
+   Each user has: email, name, initials, role, title, credential, password, needsProfileSetup */
+var USER_ACCOUNTS = [
+    // ===== FACULTY (MD/DO) =====
+    { email: 'aabumoussa@saint-lukes.org', name: 'Andrew Abumoussa, MD', initials: 'AA', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Abumoussa1!', needsProfileSetup: true },
+    { email: 'nakhtar@saint-lukes.org', name: 'Naveed Akhtar, MD', initials: 'NA', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Akhtar1!', needsProfileSetup: true },
+    { email: 'harshad@saint-lukes.org', name: 'Hashaam Arshad, MD', initials: 'HA', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Arshad1!', needsProfileSetup: true },
+    { email: 'jahf5@umkc.edu', name: 'Joseph Ayoub, MD', initials: 'JA', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Ayoub1!', needsProfileSetup: true },
+    { email: 'mbaumgardner@saint-lukes.org', name: 'Megan Baumgardner, MD', initials: 'MB', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Baumgardner1!', needsProfileSetup: true },
+    { email: 'mbilezikjian@saintlukeskc.org', name: 'Mark Bilezikjian, MD', initials: 'MB', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Bilezikjian1!', needsProfileSetup: true },
+    { email: 'jdbreshears@saintlukes.org', name: 'Jonathan Breshears, MD', initials: 'JB', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Breshears1!', needsProfileSetup: true },
+    { email: 'tconcannon@saint-lukes.org', name: 'Tyler Concannon, MD', initials: 'TC', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Concannon1!', needsProfileSetup: true },
+    { email: 'jcroom@saint-lukes.org', name: 'John Croom, MD', initials: 'JC', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Croom1!', needsProfileSetup: true },
+    { email: 'robert.cullen@gmail.com', name: 'Robert Cullen, MD', initials: 'RC', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Cullen1!', needsProfileSetup: true },
+    { email: 'yduan@saint-lukes.org', name: 'Yifei Duan, MD', initials: 'YD', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Duan1!', needsProfileSetup: true },
+    { email: 'telahmadieh@saint-lukes.org', name: 'Tarek El Ahmadieh, MD', initials: 'TE', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_ElAhmadieh1!', needsProfileSetup: true },
+    { email: 'jelliott@saint-lukes.org', name: 'Jennifer Elliott, MD', initials: 'JE', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Elliott1!', needsProfileSetup: true },
+    { email: 'rkfields@saint-lukes.org', name: 'Ronald Fields, MD', initials: 'RF', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Fields1!', needsProfileSetup: true },
+    { email: 'gsgandhoke@saint-lukes.org', name: 'Gurpreet Gandhoke, MD', initials: 'GG', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Gandhoke1!', needsProfileSetup: true },
+    { email: 'btgrobelny@saint-lukes.org', name: 'Bartosz Grobelny, MD', initials: 'BG', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Grobelny1!', needsProfileSetup: true },
+    { email: 'jhalpin@saint-lukes.org', name: 'Jared Halpin, MD', initials: 'JH', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Halpin1!', needsProfileSetup: true },
+    { email: 'mhaines@saint-lukes.org', name: 'Michelle Haines, MD', initials: 'MH', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Haines1!', needsProfileSetup: true },
+    { email: 'lhermes@saint-lukes.org', name: 'Lisa Hermes, MD', initials: 'LH', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Hermes1!', needsProfileSetup: true },
+    { email: 'whollo01@gmail.com', name: 'William Holloway, MD', initials: 'WH', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Holloway1!', needsProfileSetup: true },
+    { email: 'sjallu@saint-lukes.org', name: 'Shais Jallu, MD', initials: 'SJ', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Jallu1!', needsProfileSetup: true },
+    { email: 'kknights@saint-lukes.org', name: 'Karl Knights, MD', initials: 'KK', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Knights1!', needsProfileSetup: true },
+    { email: 'tkulik@saint-lukes.org', name: 'Tobias Kulik, MD', initials: 'TK', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Kulik1!', needsProfileSetup: true },
+    { email: 'g.lobban@umkc.edu', name: 'Geoffrey Baillie Lobban, MD', initials: 'GL', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Lobban1!', needsProfileSetup: true },
+    { email: 'smahmood@umkc.edu', name: 'Salman Mahmood, MD', initials: 'SM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Mahmood1!', needsProfileSetup: true },
+    { email: 'mmakos@saint-lukes.org', name: 'Mignon Makos-Heme, MD', initials: 'MM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Makos1!', needsProfileSetup: true },
+    { email: 'amr7b@mail.umkc.edu', name: 'Afeerah Malik, MD', initials: 'AM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Malik1!', needsProfileSetup: true },
+    { email: 'colemanomartin@gmail.com', name: 'Coleman Martin, MD', initials: 'CM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Martin1!', needsProfileSetup: true },
+    { email: 'nmcgraw@saint-lukes.org', name: 'Nathan McGraw, MD', initials: 'NM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_McGraw1!', needsProfileSetup: true },
+    { email: 'kolds@saint-lukes.org', name: 'Karin Olds, MD', initials: 'KO', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Olds1!', needsProfileSetup: true },
+    { email: 'soliphant@saint-lukes.org', name: 'Seth Oliphant, MD', initials: 'SO', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Oliphant1!', needsProfileSetup: true },
+    { email: 'mschwartzman@saint-lukes.org', name: 'Michael Schwartzman, DO', initials: 'MS', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'DO', password: 'SLNeuro_Schwartzman1!', needsProfileSetup: true },
+    { email: 'jshay@saint-lukes.org', name: 'James Shay, MD', initials: 'JS', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Shay1!', needsProfileSetup: true },
+    { email: 'krisouthard1@saint-lukes.org', name: 'Kristopher Southard, MD', initials: 'KS', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Southard1!', needsProfileSetup: true },
+    { email: 'bsteinle@saint-lukes.org', name: 'Brad Steinle, MD', initials: 'BS', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Steinle1!', needsProfileSetup: true },
+    { email: 'mtabbosha@saint-lukes.org', name: 'Monir Tabbosha, MD', initials: 'MT', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Tabbosha1!', needsProfileSetup: true },
+    { email: 'ntamer1@cmh.edu', name: 'Nicole Tamer, MD', initials: 'NT', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Tamer1!', needsProfileSetup: true },
+    { email: 'bthedinger@juno.com', name: 'Brad Thedinger, MD', initials: 'BT', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Thedinger1!', needsProfileSetup: true },
+    { email: 'sgturner@saint-lukes.org', name: 'Scott Turner, MD', initials: 'ST', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Turner1!', needsProfileSetup: true },
+    { email: 'robert.ungerer@umkc.edu', name: 'Robert Ungerer, MD', initials: 'RU', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Ungerer1!', needsProfileSetup: true },
+
+    // ===== RESIDENTS =====
+    { email: 'jloeb@saint-lukes.org', name: 'Joseph Loeb', initials: 'JL', role: 'Resident', title: 'Resident - Neuroscience', credential: 'Resident', password: 'SLNeuro_Loeb1!', needsProfileSetup: true },
+    { email: 'aluke@umkc.edu', name: 'Alex Luke', initials: 'AL', role: 'Resident', title: 'Resident - Neuroscience', credential: 'Resident', password: 'SLNeuro_Luke1!', needsProfileSetup: true },
+    { email: 'lpdwh@umsystem.edu', name: 'Luke Pearson', initials: 'LP', role: 'Resident', title: 'Resident - Neuroscience', credential: 'Resident', password: 'SLNeuro_Pearson1!', needsProfileSetup: true },
+    { email: 'ssdwr@umsystem.edu', name: 'Shahab Sattari', initials: 'SS', role: 'Resident', title: 'Resident - Neuroscience', credential: 'Resident', password: 'SLNeuro_Sattari1!', needsProfileSetup: true },
+
+    // ===== APP / NP / RN / PA / APRN / Research Staff =====
+    { email: 'tarends@saint-lukes.org', name: 'Taylor Arends, APP', initials: 'TA', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Arends1!', needsProfileSetup: true },
+    { email: 'rarrow@saint-lukes.org', name: 'Rachel Arrow, APP', initials: 'RA', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Arrow1!', needsProfileSetup: true },
+    { email: 'ahawkins@saint-lukes.org', name: 'Angela Barber, MSN RN CCRN', initials: 'AB', role: 'RN', title: 'Research Nurse', credential: 'MSN RN CCRN', password: 'SLNeuro_Barber1!', needsProfileSetup: true },
+    { email: 'sabrown@saint-lukes.org', name: 'Sarah Brown, APP', initials: 'SB', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Brown1!', needsProfileSetup: true },
+    { email: 'kkbush@saint-lukes.org', name: 'Kelly Bush, APRN', initials: 'KB', role: 'NP', title: 'Advanced Practice RN', credential: 'APRN', password: 'SLNeuro_Bush1!', needsProfileSetup: true },
+    { email: 'dwilson@saint-lukes.org', name: 'Debbie Consiglio, RN', initials: 'DC', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Consiglio1!', needsProfileSetup: true },
+    { email: 'hdale@saint-lukes.org', name: 'Heidi Dale, RN', initials: 'HD', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Dale1!', needsProfileSetup: true },
+    { email: 'kdemuth@saintlukes.org', name: 'Kaitlyn Demuth, APP', initials: 'KD', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Demuth1!', needsProfileSetup: true },
+    { email: 'dferguson@saintlukes.org', name: 'Dawn Ferguson, APP', initials: 'DF', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Ferguson1!', needsProfileSetup: true },
+    { email: 'sfike@saint-lukes.org', name: 'Sophia Fike, RN', initials: 'SF', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Fike1!', needsProfileSetup: true },
+    { email: 'mfugate@saint-lukes.org', name: 'Madison Fugate, APP', initials: 'MF', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Fugate1!', needsProfileSetup: true },
+    { email: 'lgensch@saint-lukes.org', name: 'Lauren Gensch, APP', initials: 'LG', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Gensch1!', needsProfileSetup: true },
+    { email: 'rachel.irwin@va.gov', name: 'Rachel Irvin', initials: 'RI', role: 'APP', title: 'Clinical Staff', credential: '', password: 'SLNeuro_Irvin1!', needsProfileSetup: true },
+    { email: 'ckennish@saint-lukes.org', name: 'Christine Kennish, RN', initials: 'CK', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Kennish1!', needsProfileSetup: true },
+    { email: 'malking@saint-lukes.org', name: 'Mallory King, NP', initials: 'MK', role: 'NP', title: 'Nurse Practitioner', credential: 'NP', password: 'SLNeuro_King1!', needsProfileSetup: true },
+    { email: 'krgilmore@saint-lukes.org', name: 'Kayla Kjelshus, APP', initials: 'KK', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Kjelshus1!', needsProfileSetup: true },
+    { email: 'samnolker@saint-lukes.org', name: 'Samantha Kostelac, APP', initials: 'SK', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Kostelac1!', needsProfileSetup: true },
+    { email: 'mlammers@saintlukeskc.org', name: 'Matt Lammers, RN', initials: 'ML', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Lammers1!', needsProfileSetup: true },
+    { email: 'blee@saint-lukes.org', name: 'Beth Lee, RN', initials: 'BL', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Lee1!', needsProfileSetup: true },
+    { email: 'eparrishlittlejohn@saint-lukes.org', name: 'Edwina Littlejohn, PA-C', initials: 'EL', role: 'APP', title: 'Physician Assistant', credential: 'PA-C', password: 'SLNeuro_Littlejohn1!', needsProfileSetup: true },
+    { email: 'mloree@saint-lukes.org', name: 'Michael Loree, PA', initials: 'ML', role: 'APP', title: 'Physician Assistant', credential: 'PA', password: 'SLNeuro_Loree1!', needsProfileSetup: true },
+    { email: 'mmaloney@saint-lukes.org', name: 'Megan Maloney, APP Fellow', initials: 'MM', role: 'APP', title: 'APP Fellow', credential: 'APP Fellow', password: 'SLNeuro_Maloney1!', needsProfileSetup: true },
+    { email: 'jmergen@saint-lukes.org', name: 'Joanne Manning-Mergen, RN', initials: 'JM', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Manning1!', needsProfileSetup: true },
+    { email: 'mmartin1@saintlukes.org', name: 'Michelle Martin, APP', initials: 'MM', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_MMartin1!', needsProfileSetup: true },
+    { email: 'tmodin@saint-lukes.org', name: 'Tom Modin, RN', initials: 'TM', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Modin1!', needsProfileSetup: true },
+    { email: 'lpotter@saint-lukes.org', name: 'Lindsey Nichtals, APP', initials: 'LN', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Nichtals1!', needsProfileSetup: true },
+    { email: 'aoshea@saint-lukes.org', name: 'Arlene O\'Shea, APRN', initials: 'AO', role: 'NP', title: 'Advanced Practice RN', credential: 'APRN', password: 'SLNeuro_OShea1!', needsProfileSetup: true },
+    { email: 'calpage1@saint-lukes.org', name: 'Cali Page, APP', initials: 'CP', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Page1!', needsProfileSetup: true },
+    { email: 'apoindexter@saint-lukes.org', name: 'Amy Poindexter, NP', initials: 'AP', role: 'NP', title: 'Nurse Practitioner', credential: 'NP', password: 'SLNeuro_Poindexter1!', needsProfileSetup: true },
+    { email: 'jlawo@saint-lukes.org', name: 'Jessica Ritz, APP', initials: 'JR', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Ritz1!', needsProfileSetup: true },
+    { email: 'bschwan@saint-lukes.org', name: 'Bernadette Schwan, APP', initials: 'BS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Schwan1!', needsProfileSetup: true },
+    { email: 'ksemmes@saint-lukes.org', name: 'Kari Semmes, APP', initials: 'KS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Semmes1!', needsProfileSetup: true },
+    { email: 'jshewmaker@saint-lukes.org', name: 'Justin Shewmaker, PhD', initials: 'JS', role: 'Faculty', title: 'Research Faculty', credential: 'PhD', password: 'SLNeuro_Shewmaker1!', needsProfileSetup: true },
+    { email: 'jamsloan1@saint-lukes.org', name: 'Jamie Sloan, APP', initials: 'JS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Sloan1!', needsProfileSetup: true },
+    { email: 'sspangler@saint-lukes.org', name: 'Sam Spangler, APP', initials: 'SS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Spangler1!', needsProfileSetup: true },
+    { email: 'sstroud@saint-lukes.org', name: 'Shalan Stroud, NP-C', initials: 'SS', role: 'NP', title: 'Nurse Practitioner', credential: 'NP-C', password: 'SLNeuro_Stroud1!', needsProfileSetup: true },
+    { email: 'cstrubel1@saintlukes.org', name: 'Courtney Strubel, APP', initials: 'CS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Strubel1!', needsProfileSetup: true },
+    { email: 'dsummers@saint-lukes.org', name: 'Debbie Summers, RN', initials: 'DS', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Summers1!', needsProfileSetup: true },
+    { email: 'kbtaylor@saint-lukes.org', name: 'Kathryn Taylor, APRN', initials: 'KT', role: 'NP', title: 'Advanced Practice RN', credential: 'APRN', password: 'SLNeuro_Taylor1!', needsProfileSetup: true },
+    { email: 'etompkins@saint-lukes.org', name: 'Erin Tompkins, RN', initials: 'ET', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Tompkins1!', needsProfileSetup: true },
+    { email: 'kturner3@saintlukeskc.org', name: 'Kevin Turner, Nurse Mgr', initials: 'KT', role: 'RN', title: 'Nurse Manager', credential: 'Nurse Mgr', password: 'SLNeuro_KTurner1!', needsProfileSetup: true },
+
+    // ===== MEDICAL STUDENTS (UMKC AANS Chapter) =====
+    { email: 'asbg2r@umsystem.edu', name: 'Ashlesha Bhojane', initials: 'AB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Bhojane1!', needsProfileSetup: true },
+    { email: 'dsg8hy@umsystem.edu', name: 'Dylan Glaser', initials: 'DG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Glaser1!', needsProfileSetup: true },
+    { email: 'mka9ct@umkc.edu', name: 'Mayar Al-Shaikhli', initials: 'MA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_AlShaikhli1!', needsProfileSetup: true },
+    { email: 'as5hq@umsystem.edu', name: 'Adnan Shaikh', initials: 'AS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Shaikh1!', needsProfileSetup: true },
+    { email: 'vanibhupat@gmail.com', name: 'Vani Patel', initials: 'VP', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Patel1!', needsProfileSetup: true },
+    { email: 'akishusharma@gmail.com', name: 'Ananya Sharma', initials: 'AS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Sharma1!', needsProfileSetup: true },
+    { email: 'imbckt@umsystem.edu', name: 'Isabella Boedefeld', initials: 'IB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Boedefeld1!', needsProfileSetup: true },
+    { email: 'nshdc@umsystem.edu', name: 'Nikitha Sheth', initials: 'NS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Sheth1!', needsProfileSetup: true },
+    { email: 'rps9m7@umkc.edu', name: 'Rekha Swamy', initials: 'RS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Swamy1!', needsProfileSetup: true },
+    { email: 'agngc@mail.umkc.edu', name: 'Adeesya Gausper', initials: 'AG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Gausper1!', needsProfileSetup: true },
+    { email: 'crhck@umsystem.edu', name: 'Clarice Rodriguez', initials: 'CR', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Rodriguez1!', needsProfileSetup: true },
+    { email: 'amffk@umsystem.edu', name: 'Amulya Manchikanti', initials: 'AM', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Manchikanti1!', needsProfileSetup: true },
+    { email: 'cabnv3@umsystem.edu', name: 'Cooper Bassham', initials: 'CB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Bassham1!', needsProfileSetup: true },
+    { email: 'rrhyq@umkc.edu', name: 'Rohit Rajput', initials: 'RR', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Rajput1!', needsProfileSetup: true },
+    { email: 'acb5p@umkc.edu', name: 'Ashna Chali', initials: 'AC', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Chali1!', needsProfileSetup: true },
+    { email: 'rskzbh@umsystem.edu', name: 'Ruthvick Kasireddy', initials: 'RK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Kasireddy1!', needsProfileSetup: true },
+    { email: 'rrgh7@umkc.edu', name: 'Rayaan Rauf', initials: 'RR', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Rauf1!', needsProfileSetup: true },
+    { email: 'emm4x@umsystem.edu', name: 'Eshanika Manchanda', initials: 'EM', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Manchanda1!', needsProfileSetup: true },
+    { email: 'ezkg6k@umsystem.edu', name: 'Eshal Khan', initials: 'EK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Khan1!', needsProfileSetup: true },
+    { email: 'sjkh69@umsystem.edu', name: 'Samuel Kim', initials: 'SK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Kim1!', needsProfileSetup: true },
+    { email: 'ccynb@umsystem.edu', name: 'Christina Cacoulidis', initials: 'CC', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Cacoulidis1!', needsProfileSetup: true },
+    { email: 'ksmhbk@umkc.edu', name: 'Kushi Madduru', initials: 'KM', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Madduru1!', needsProfileSetup: true },
+    { email: 'kmbnv7@umsystem.edu', name: 'Karen Bidura', initials: 'KB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Bidura1!', needsProfileSetup: true },
+    { email: 'nlk6mf@umsystem.edu', name: 'Nivitha Kandula', initials: 'NK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Kandula1!', needsProfileSetup: true },
+    { email: 'sted6d@umkc.edu', name: 'Sarah Ebenezer', initials: 'SE', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_SEbenezer1!', needsProfileSetup: true },
+    { email: 'jtedy5@umsystem.edu', name: 'Joel Ebenezer', initials: 'JE', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_JEbenezer1!', needsProfileSetup: true },
+    { email: 'jvbvb@umsystem.edu', name: 'Janani Venkat Ramanan', initials: 'JV', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Venkat1!', needsProfileSetup: true },
+    { email: 'assd3f@umsystem.edu', name: 'Akhila Swarna', initials: 'AS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Swarna1!', needsProfileSetup: true },
+    { email: 'jrsnm7@umkc.edu', name: 'Joshna Susai', initials: 'JS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Susai1!', needsProfileSetup: true },
+    { email: 'ec8nd@umsystem.edu', name: 'Elena Chen', initials: 'EC', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Chen1!', needsProfileSetup: true },
+    { email: 'abync@umsystem.edu', name: 'Amulya Babburi', initials: 'AB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Babburi1!', needsProfileSetup: true },
+    { email: 'eak2r@umsystem.edu', name: 'Emaan Arshad', initials: 'EA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_EArshad1!', needsProfileSetup: true },
+    { email: 'aky5w@umsystem.edu', name: 'Aveney Kandiah', initials: 'AK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Kandiah1!', needsProfileSetup: true },
+    { email: 'lmrcrd@umsystem.edu', name: 'Lydia Popesku', initials: 'LP', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Popesku1!', needsProfileSetup: true },
+    { email: 'gtdpx2@umsystem.edu', name: 'Grace Dang', initials: 'GD', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Dang1!', needsProfileSetup: true },
+    { email: 'jgpvb@umsystem.edu', name: 'Jeffthan Glaster', initials: 'JG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Glaster1!', needsProfileSetup: true },
+    { email: 'sappz@umsystem.edu', name: 'Shalya Anand', initials: 'SA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Anand1!', needsProfileSetup: true },
+    { email: 'ruju.talati@umkc.edu', name: 'Ruju Talati', initials: 'RT', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Talati1!', needsProfileSetup: true },
+    { email: 'svqh9@umkc.edu', name: 'Sanchi Vishwakarma', initials: 'SV', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Vishwakarma1!', needsProfileSetup: true },
+    { email: 'slhqb@umsystem.edu', name: 'Sam Lu', initials: 'SL', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Lu1!', needsProfileSetup: true },
+    { email: 'sggdz@umsystem.edu', name: 'Saivi Gadi', initials: 'SG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Gadi1!', needsProfileSetup: true },
+    { email: 'sskbkf@umsystem.edu', name: 'Samanyu Koduri', initials: 'SK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Koduri1!', needsProfileSetup: true },
+    { email: 'amav55@umsystem.edu', name: 'Abanoub Attallah', initials: 'AA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Attallah1!', needsProfileSetup: true },
+    { email: 'jkj97c@umsystem.edu', name: 'Johanna Jeyaraj', initials: 'JJ', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Jeyaraj1!', needsProfileSetup: true },
+    { email: 'saftv@umsystem.edu', name: 'Sakina Akbar', initials: 'SA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Akbar1!', needsProfileSetup: true },
+    { email: 'tgmft@umkc.edu', name: 'Tanvi Genti', initials: 'TG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Genti1!', needsProfileSetup: true },
+    { email: 'kafhmp@umkc.edu', name: 'Kymora Freeman', initials: 'KF', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Freeman1!', needsProfileSetup: true },
+    { email: 'fahadjamal567@gmail.com', name: 'Fahad Jamal', initials: 'FJ', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Jamal1!', needsProfileSetup: true },
+    { email: 'kirsolomon11@gmail.com', name: 'Kir Solomon', initials: 'KS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Solomon1!', needsProfileSetup: true }
+];
+
+/* --- Lookup helper for all account types --- */
+function _findAnyUserByEmail(email) {
+    if (!email) return null;
+    var lower = email.toLowerCase().trim();
+    // Check admins first
+    for (var i = 0; i < ADMIN_ACCOUNTS.length; i++) {
+        if (ADMIN_ACCOUNTS[i].email === lower) return ADMIN_ACCOUNTS[i];
+    }
+    // Check IRB accounts
+    for (var j = 0; j < IRB_ACCOUNTS.length; j++) {
+        if (IRB_ACCOUNTS[j].email === lower) return IRB_ACCOUNTS[j];
+    }
+    // Check all users
+    for (var k = 0; k < USER_ACCOUNTS.length; k++) {
+        if (USER_ACCOUNTS[k].email === lower) return USER_ACCOUNTS[k];
+    }
+    return null;
+}
+
+/* --- Get all faculty users for PI dropdown --- */
+function _getFacultyList() {
+    var faculty = [];
+    // Add admin faculty (Bagley is MD)
+    ADMIN_ACCOUNTS.forEach(function(a) {
+        if (a.name.indexOf('MD') !== -1 || a.name.indexOf('PhD') !== -1 || a.name.indexOf('DO') !== -1) {
+            faculty.push(a.name);
+        }
+    });
+    // Add all faculty from USER_ACCOUNTS
+    USER_ACCOUNTS.forEach(function(u) {
+        if (u.role === 'Faculty') {
+            faculty.push(u.name);
+        }
+    });
+    return faculty.sort();
+}
+
+/* --- Notification store --- */
+var notificationStore = [];
+
+/* --- Pending Login Approvals Store --- */
+var pendingLoginApprovals = [];
+var approvedLogins = []; // emails that have been approved
+
+// Quick lookup helper
+function _findAdminByEmail(email) {
+    if (!email) return null;
+    var lower = email.toLowerCase().trim();
+    for (var i = 0; i < ADMIN_ACCOUNTS.length; i++) {
+        if (ADMIN_ACCOUNTS[i].email === lower) return ADMIN_ACCOUNTS[i];
+    }
+    return null;
+}
+
+function showLogin() {
+    _hideAllAuthScreens();
+    var el = document.getElementById('loginScreen');
+    if (el) el.style.display = 'flex';
+}
+
+function showRequestAccess() {
+    _hideAllAuthScreens();
+    var el = document.getElementById('requestAccessScreen');
+    if (el) el.style.display = 'flex';
+}
+
+function showForgotPassword() {
+    // Create a simple forgot-password inline experience
+    _hideAllAuthScreens();
+    var el = document.getElementById('loginScreen');
+    if (el) el.style.display = 'flex';
+    showToast('Password reset instructions have been sent to your email.', 'info');
+}
+
+function showChangePassword() {
+    _hideAllAuthScreens();
+    var el = document.getElementById('changePasswordScreen');
+    if (el) el.style.display = 'flex';
+}
+
+function _hideAllAuthScreens() {
+    var screens = ['loginScreen', 'requestAccessScreen', 'changePasswordScreen'];
+    screens.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+}
+
+function togglePassword(fieldId) {
+    var field = document.getElementById(fieldId);
+    if (!field) return;
+    var btn = field.parentElement.querySelector('.toggle-pw i');
+    if (field.type === 'password') {
+        field.type = 'text';
+        if (btn) { btn.classList.remove('fa-eye'); btn.classList.add('fa-eye-slash'); }
+    } else {
+        field.type = 'password';
+        if (btn) { btn.classList.remove('fa-eye-slash'); btn.classList.add('fa-eye'); }
+    }
+}
+
+function handleLogin() {
+    var emailInput = document.getElementById('loginEmail');
+    var passwordInput = document.getElementById('loginPassword');
+    var emailVal = emailInput ? emailInput.value.toLowerCase().trim() : '';
+    var passwordVal = passwordInput ? passwordInput.value : '';
+
+    if (!emailVal) {
+        showToast('Please enter your email address.', 'error');
+        return;
+    }
+    if (!passwordVal) {
+        showToast('Please enter your password.', 'error');
+        return;
+    }
+
+    // Look up the user across ALL account types
+    var user = _findAnyUserByEmail(emailVal);
+
+    if (!user) {
+        showToast('Account not found. Please request access first.', 'error');
+        return;
+    }
+
+    // Validate password
+    if (user.password && user.password !== passwordVal) {
+        showToast('Incorrect password. Please try again.', 'error');
+        if (passwordInput) { passwordInput.value = ''; passwordInput.focus(); }
+        return;
+    }
+
+    // If no password set yet (first login for admins), accept and save
+    if (!user.password) {
+        user.password = passwordVal;
+    }
+
+    // For non-admin / non-IRB users: check if login approval is needed
+    var isAdmin = (user.role === 'Admin');
+    var isIRB = (user.role === 'IRB');
+    var needsApproval = user.needsProfileSetup && !isAdmin && !isIRB;
+
+    // Check if already approved
+    if (needsApproval && approvedLogins.indexOf(emailVal) === -1) {
+        // Check if already pending
+        var alreadyPending = false;
+        for (var p = 0; p < pendingLoginApprovals.length; p++) {
+            if (pendingLoginApprovals[p].email === emailVal) { alreadyPending = true; break; }
+        }
+        if (!alreadyPending) {
+            pendingLoginApprovals.push({
+                id: Date.now(),
+                email: emailVal,
+                name: user.name,
+                role: user.role,
+                title: user.title || '',
+                requestedAt: new Date().toISOString(),
+                status: 'pending'
+            });
+            // Notify admins
+            _sendLoginApprovalNotification(user);
+        }
+        showToast('Your login request has been submitted. You will receive access once Dr. Hayner or Dr. Almekkawi approves your account.', 'info');
+        return;
+    }
+
+    currentUserEmail = emailVal;
+    currentUserRole = user.role;
+    currentUserName = user.name;
+
+    var initials = document.getElementById('userInitials');
+    if (initials) initials.textContent = user.initials;
+    var nameEl = document.getElementById('userDropdownName');
+    if (nameEl) nameEl.textContent = user.name;
+    var roleEl = document.getElementById('userDropdownRole');
+    if (roleEl) roleEl.textContent = user.title;
+
+    // Show admin tab only for admins
+    _toggleAdminTab(user.role === 'Admin');
+
+    // Show/hide IRB review button based on role
+    _toggleIRBAccess(user.role === 'IRB' || user.role === 'Admin');
+
+    // Show/hide Send Email tab (only Dr. Hayner and Ahmad)
+    _toggleSendEmailTab(emailVal === 'skolakowsky@saint-lukes.org' || emailVal === 'aalmekkawi@saint-lukes.org');
+
+    // Hide login, show app
+    _hideAllAuthScreens();
+    var mainApp = document.getElementById('mainApp');
+    if (mainApp) mainApp.style.display = '';
+
+    // Render the People Directory on login
+    setTimeout(function() { renderPeopleDirectory(); }, 200);
+
+    // Render pending login approvals for admins
+    if (isAdmin) {
+        setTimeout(function() { renderPendingLoginApprovals(); }, 300);
+    }
+
+    // Check if user needs first-login profile setup (after approval)
+    if (user.needsProfileSetup) {
+        setTimeout(function() { showProfileSetupModal(user); }, 500);
+    }
+
+    // Initialize app features
+    setTimeout(function () {
+        initAnimations();
+        initCardHoverEffects();
+        initChecklistItems();
+        initRippleEffect();
+    }, 100);
+
+    showToast('Welcome, ' + currentUserName.split(',')[0].split(' ')[0] + '!', 'success');
+}
+
+/* --- Toggle IRB access visibility --- */
+function _toggleIRBAccess(show) {
+    document.querySelectorAll('.irb-review-btn').forEach(function(el) {
+        el.style.display = show ? '' : 'none';
+    });
+}
+
+/* --- First-Login Profile Setup Modal --- */
+function showProfileSetupModal(user) {
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'Welcome! Complete Your Profile';
+
+    var html = '<form onsubmit="event.preventDefault(); completeProfileSetup(this);">' +
+        '<div class="alert-banner" style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
+        '<i class="fas fa-user-check" style="color:#00d4ff;"></i>' +
+        '<span style="font-size:0.82rem;color:var(--text-secondary);">This is your first login. Please update your password and complete your profile information.</span></div>' +
+
+        '<h4 class="form-section-title"><i class="fas fa-lock" style="margin-right:6px;"></i> Update Password</h4>' +
+        '<div class="form-row"><div class="form-group"><label>New Password *</label>' +
+        '<input type="password" id="setupNewPW" placeholder="Enter new password..." required minlength="8"></div>' +
+        '<div class="form-group"><label>Confirm Password *</label>' +
+        '<input type="password" id="setupConfirmPW" placeholder="Confirm new password..." required minlength="8"></div></div>' +
+
+        '<h4 class="form-section-title"><i class="fas fa-id-card" style="margin-right:6px;"></i> Personal Information</h4>' +
+        '<div class="form-row"><div class="form-group"><label>Full Name *</label>' +
+        '<input type="text" id="setupName" value="' + _esc(user.name) + '" required></div>' +
+        '<div class="form-group"><label>Date of Birth</label>' +
+        '<input type="date" id="setupDOB"></div></div>' +
+
+        '<div class="form-group"><label>Department *</label>' +
+        '<select id="setupDept" required><option value="">Select department...</option>' +
+        '<option>Neurology</option><option>Neurosurgery</option><option>Both</option></select></div>' +
+
+        '<div class="form-group"><label>Phone Number</label>' +
+        '<input type="tel" id="setupPhone" placeholder="(XXX) XXX-XXXX"></div>' +
+
+        '<div class="modal-actions">' +
+        '<button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Complete Setup</button>' +
+        '</div></form>';
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function completeProfileSetup(formEl) {
+    var newPW = document.getElementById('setupNewPW');
+    var confirmPW = document.getElementById('setupConfirmPW');
+
+    if (newPW.value !== confirmPW.value) {
+        showToast('Passwords do not match.', 'error');
+        return;
+    }
+    if (newPW.value.length < 8) {
+        showToast('Password must be at least 8 characters.', 'error');
+        return;
+    }
+
+    // Update user password
+    var user = _findAnyUserByEmail(currentUserEmail);
+    if (user) {
+        user.password = newPW.value;
+        user.needsProfileSetup = false;
+        var nameEl = document.getElementById('setupName');
+        if (nameEl && nameEl.value.trim()) {
+            user.name = nameEl.value.trim();
+            currentUserName = user.name;
+            var uiName = document.getElementById('userDropdownName');
+            if (uiName) uiName.textContent = user.name;
+        }
+    }
+
+    closeModal();
+    showToast('Profile setup complete! Your password has been updated.', 'success');
+
+    // Show CITI requirement reminder
+    setTimeout(function() {
+        showToast('Reminder: Please upload your CITI training certificate in the Requirements tab.', 'info');
+    }, 2000);
+}
+
+function _toggleAdminTab(show) {
+    // Hide/show admin items in the drawer
+    document.querySelectorAll('.admin-only-tab').forEach(function (el) {
+        el.style.display = show ? '' : 'none';
+    });
+    var adminGroup = document.querySelector('.admin-nav-group');
+    if (adminGroup) adminGroup.style.display = show ? '' : 'none';
+    // Also hide/show the expandable container for admin
+    document.querySelectorAll('.admin-only-tab').forEach(function (el) {
+        var expandable = el.closest('.nav-expandable');
+        if (expandable) expandable.style.display = show ? '' : 'none';
+    });
+}
+
+function submitAccessRequest() {
+    // In production, this would email all 3 admins
+    var adminNames = ADMIN_ACCOUNTS.map(function (a) { return a.name.split(',')[0]; }).join(', ');
+    showToast('Access request sent to ' + adminNames + '. Only 1 approval needed!', 'success');
+    setTimeout(function () {
+        showLogin();
+    }, 2000);
+}
+
+function checkPasswordStrength() {
+    var pw = document.getElementById('newPassword');
+    if (!pw) return;
+    var val = pw.value;
+
+    var rules = {
+        pwLen: val.length >= 12,
+        pwUpper: /[A-Z]/.test(val),
+        pwLower: /[a-z]/.test(val),
+        pwNum: /[0-9]/.test(val),
+        pwSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val)
+    };
+
+    Object.keys(rules).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+            if (rules[id]) {
+                el.classList.add('pass');
+                el.classList.remove('fail');
+                var icon = el.querySelector('i');
+                if (icon) { icon.classList.remove('fa-circle'); icon.classList.add('fa-check-circle'); icon.style.color = '#10b981'; }
+            } else {
+                el.classList.remove('pass');
+                el.classList.add('fail');
+                var icon = el.querySelector('i');
+                if (icon) { icon.classList.remove('fa-check-circle'); icon.classList.add('fa-circle'); icon.style.color = ''; }
+            }
+        }
+    });
+
+    return rules.pwLen && rules.pwUpper && rules.pwLower && rules.pwNum && rules.pwSpecial;
+}
+
+function handleChangePassword() {
+    var newPw = document.getElementById('newPassword');
+    var confirmPw = document.getElementById('confirmPassword');
+    var matchMsg = document.getElementById('pwMatchMsg');
+
+    if (!newPw || !confirmPw) return;
+
+    if (newPw.value !== confirmPw.value) {
+        if (matchMsg) { matchMsg.textContent = 'Passwords do not match'; matchMsg.style.color = '#ef4444'; }
+        return;
+    }
+
+    if (!checkPasswordStrength()) {
+        showToast('Please meet all password requirements.', 'error');
+        return;
+    }
+
+    if (matchMsg) { matchMsg.textContent = 'Passwords match!'; matchMsg.style.color = '#10b981'; }
+    showToast('Password changed successfully!', 'success');
+    setTimeout(function () { showLogin(); }, 1000);
+}
+
+function handleLogout() {
+    var mainApp = document.getElementById('mainApp');
+    if (mainApp) mainApp.style.display = 'none';
+    closeUserDropdown();
+    // Reset to dashboard tab for next login
+    switchTab('dashboard');
+    // Clear login fields
+    var emailField = document.getElementById('loginEmail');
+    var pwField = document.getElementById('loginPassword');
+    if (emailField) emailField.value = '';
+    if (pwField) pwField.value = '';
+    currentUserRole = '';
+    currentUserName = '';
+    currentUserEmail = '';
+    showLogin();
+    showToast('You have been signed out.', 'info');
+}
+
+function toggleUserMenu() {
+    var dropdown = document.getElementById('userDropdown');
+    if (dropdown) dropdown.classList.toggle('active');
+}
+
+function closeUserDropdown() {
+    var dropdown = document.getElementById('userDropdown');
+    if (dropdown) dropdown.classList.remove('active');
+}
+
+function generateTempPassword() {
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    var password = '';
+    for (var i = 0; i < 16; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+}
+
+function showProfile() {
+    closeUserDropdown();
+    showToast('Profile view coming soon.', 'info');
+}
+
+function showAccountSettings() {
+    closeUserDropdown();
+    showChangePassword();
+    var mainApp = document.getElementById('mainApp');
+    if (mainApp) mainApp.style.display = 'none';
+}
+
+// Close user dropdown when clicking outside
+document.addEventListener('click', function (e) {
+    var menu = document.getElementById('userMenu');
+    var dropdown = document.getElementById('userDropdown');
+    if (dropdown && dropdown.classList.contains('active') && menu && !menu.contains(e.target)) {
+        closeUserDropdown();
+    }
+});
+
+/* ================================================
+   3. NEURAL CANVAS BACKGROUND
+   ================================================ */
+(function initNeuralCanvas() {
+    var canvas = document.getElementById('neuralCanvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var particles = [];
+    var mouse = { x: -1000, y: -1000 };
+
+    var accentColors = [
+        { r: 0, g: 212, b: 255 },     // #00d4ff - cyan
+        { r: 124, g: 58, b: 237 },     // #7c3aed - purple
+        { r: 16, g: 185, b: 129 }      // #10b981 - green
+    ];
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    document.addEventListener('mousemove', function (e) {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+
+    function Particle() {
+        this.reset();
+    }
+
+    Particle.prototype.reset = function () {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.4;
+        this.vy = (Math.random() - 0.5) * 0.4;
+        this.radius = Math.random() * 2 + 0.5;
+        this.opacity = Math.random() * 0.5 + 0.1;
+        this.pulseSpeed = Math.random() * 0.02 + 0.005;
+        this.pulseOffset = Math.random() * Math.PI * 2;
+        this.colorIndex = Math.floor(Math.random() * 3);
+    };
+
+    Particle.prototype.update = function (time) {
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Mouse interaction
+        var dx = mouse.x - this.x;
+        var dy = mouse.y - this.y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 200) {
+            var force = (200 - dist) / 200 * 0.01;
+            this.vx += dx * force;
+            this.vy += dy * force;
+        }
+
+        this.vx *= 0.99;
+        this.vy *= 0.99;
+
+        if (this.x < 0) this.x = canvas.width;
+        if (this.x > canvas.width) this.x = 0;
+        if (this.y < 0) this.y = canvas.height;
+        if (this.y > canvas.height) this.y = 0;
+
+        // Color cycling
+        this.colorPhase = (time * 0.0001 + this.pulseOffset) % 3;
+        this.currentColorIndex = Math.floor(this.colorPhase) % 3;
+        this.currentOpacity = this.opacity + Math.sin(time * this.pulseSpeed + this.pulseOffset) * 0.1;
+    };
+
+    Particle.prototype.draw = function () {
+        var c = accentColors[this.currentColorIndex];
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + this.currentOpacity + ')';
+        ctx.fill();
+    };
+
+    var particleCount = Math.min(80, Math.floor(window.innerWidth * window.innerHeight / 15000));
+    for (var i = 0; i < particleCount; i++) {
+        particles.push(new Particle());
+    }
+
+    function drawConnections(time) {
+        for (var i = 0; i < particles.length; i++) {
+            for (var j = i + 1; j < particles.length; j++) {
+                var dx = particles[i].x - particles[j].x;
+                var dy = particles[i].y - particles[j].y;
+                var dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < 150) {
+                    var opacity = (1 - dist / 150) * 0.15;
+                    var colorIdx = (i + j + Math.floor(time * 0.001)) % 3;
+                    var c = accentColors[colorIdx];
+                    ctx.beginPath();
+                    ctx.moveTo(particles[i].x, particles[i].y);
+                    ctx.lineTo(particles[j].x, particles[j].y);
+                    ctx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + opacity + ')';
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+
+    function animate(time) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (var i = 0; i < particles.length; i++) {
+            particles[i].update(time);
+            particles[i].draw();
+        }
+        drawConnections(time);
+        requestAnimationFrame(animate);
+    }
+
+    animate(0);
+})();
+
+/* ================================================
+   4. TAB SWITCHING
+   ================================================ */
+/* --- Nav Drawer Toggle --- */
+function toggleNavDrawer() {
+    var drawer = document.getElementById('navDrawer');
+    var overlay = document.getElementById('navDrawerOverlay');
+    if (drawer) drawer.classList.toggle('active');
+    if (overlay) overlay.classList.toggle('active');
+}
+
+/* --- Nav Expandable Sub-tabs --- */
+function navToggleExpand(btn, tabName) {
+    var expandable = btn.closest('.nav-expandable');
+    if (!expandable) {
+        // No sub-tabs, just navigate
+        switchTab(tabName);
+        toggleNavDrawer();
+        return;
+    }
+
+    // If already expanded, clicking the main button navigates to the tab
+    if (expandable.classList.contains('expanded')) {
+        switchTab(tabName);
+        toggleNavDrawer();
+        return;
+    }
+
+    // Collapse all other expandables first
+    document.querySelectorAll('.nav-expandable.expanded').forEach(function (el) {
+        if (el !== expandable) el.classList.remove('expanded');
+    });
+
+    // Expand this one
+    expandable.classList.toggle('expanded');
+}
+
+/* --- Activate a sub-tab within a section --- */
+function activateSubTab(tabName, subTabText) {
+    var section = document.getElementById('tab-' + tabName);
+    if (!section) return;
+
+    // Handle subsection toggling for tabs with custom subsection switchers
+    if (tabName === 'data') { _showDataSubsection(subTabText); }
+    if (tabName === 'education') { _showEduSubsection(subTabText); }
+    if (tabName === 'students') { _showStudentSubsection(subTabText); }
+    if (tabName === 'documents') { _showDocSubsection(subTabText); }
+    if (tabName === 'people') { setTimeout(function() { renderPeopleDirectory(); }, 50); }
+
+    // Handle Projects view toggling (Pipeline/Grid/List)
+    if (tabName === 'projects') {
+        if (subTabText === 'Pipeline') {
+            _showPipelineView();
+            // Activate view button
+            document.querySelectorAll('.view-btn').forEach(function (b) { b.classList.remove('active'); });
+            var pipeBtn = document.querySelector('.view-btn[data-view="pipeline"]');
+            if (pipeBtn) pipeBtn.classList.add('active');
+        } else if (subTabText === 'List') {
+            _hidePipelineView();
+            document.querySelectorAll('.view-btn').forEach(function (b) { b.classList.remove('active'); });
+            var listBtn = document.querySelector('.view-btn[data-view="list"]');
+            if (listBtn) listBtn.classList.add('active');
+            var grid = document.getElementById('projectsGrid');
+            if (grid) grid.style.gridTemplateColumns = '1fr';
+        } else {
+            _hidePipelineView();
+            document.querySelectorAll('.view-btn').forEach(function (b) { b.classList.remove('active'); });
+            var gridBtn = document.querySelector('.view-btn[data-view="grid"]');
+            if (gridBtn) gridBtn.classList.add('active');
+            var grd = document.getElementById('projectsGrid');
+            if (grd) grd.style.gridTemplateColumns = 'repeat(auto-fill, minmax(360px, 1fr))';
+        }
+        return;
+    }
+
+    // Find the sub-tabs in this section and click the matching one
+    var subTabs = section.querySelectorAll('.sub-tab');
+    subTabs.forEach(function (st) {
+        var text = st.textContent.trim().replace(/\d+/g, '').trim();
+        if (text.indexOf(subTabText) !== -1 || subTabText.indexOf(text) !== -1) {
+            st.click();
+        }
+    });
+}
+
+/* --- Data & Resources sub-section toggling --- */
+function _showDataSubsection(name) {
+    var subs = {
+        'Datasets': 'dataSubDatasets',
+        'Statistical Resources': 'dataSubStats',
+        'Code Review': 'dataSubCode'
+    };
+
+    // Hide all data subsections
+    Object.keys(subs).forEach(function (k) {
+        var el = document.getElementById(subs[k]);
+        if (el) el.style.display = 'none';
+    });
+
+    // Show the requested one
+    var targetId = subs[name];
+    if (targetId) {
+        var target = document.getElementById(targetId);
+        if (target) target.style.display = '';
+    }
+
+    // Also activate the correct sub-tab visually
+    var dataSection = document.getElementById('tab-data');
+    if (dataSection) {
+        dataSection.querySelectorAll('.sub-tab').forEach(function (st) {
+            st.classList.remove('active');
+            if (st.textContent.trim() === name) st.classList.add('active');
+        });
+    }
+}
+
+/* --- SharePoint Links (placeholder until user provides links) --- */
+var sharePointLinks = {
+    spine: '',   // User will add link later
+    tumor: ''    // User will add link later
+};
+
+function openSharePointLink(dbName) {
+    var link = sharePointLinks[dbName];
+    if (link) {
+        window.open(link, '_blank');
+    } else {
+        showToast('SharePoint link for ' + dbName + ' database will be added soon.', 'info');
+    }
+}
+
+function switchTab(tabName) {
+    // Remove active from all drawer items and tab contents
+    document.querySelectorAll('.nav-drawer-item').forEach(function (item) { item.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function (content) { content.classList.remove('active'); });
+
+    // Activate selected drawer item (works inside expandable too)
+    var drawerItem = document.querySelector('.nav-drawer-item[data-tab="' + tabName + '"]');
+    var tabContent = document.getElementById('tab-' + tabName);
+
+    // Auto-expand the parent expandable if it exists
+    if (drawerItem) {
+        var expandable = drawerItem.closest('.nav-expandable');
+        if (expandable && !expandable.classList.contains('expanded')) {
+            expandable.classList.add('expanded');
+        }
+    }
+
+    if (drawerItem) drawerItem.classList.add('active');
+    if (tabContent) {
+        tabContent.classList.add('active');
+        // Re-trigger animations
+        tabContent.querySelectorAll('.animate-in').forEach(function (el) {
+            el.style.animation = 'none';
+            el.offsetHeight; // trigger reflow
+            el.style.animation = '';
+        });
+    }
+
+    // Handle pipeline view toggle on projects tab
+    if (tabName === 'projects') {
+        var activeView = document.querySelector('.view-btn.active');
+        if (activeView && activeView.dataset.view === 'pipeline') {
+            _showPipelineView();
+        }
+    }
+
+    // Update dashboard projects when switching to dashboard
+    if (tabName === 'dashboard') {
+        renderDashboardProjects();
+    }
+
+    // Animate stat counters on dashboard
+    if (tabName === 'dashboard') {
+        animateCounters();
+    }
+
+    // Render People Directory dynamically
+    if (tabName === 'people') {
+        renderPeopleDirectory();
+    }
+
+    // Render Send Email tab
+    if (tabName === 'sendemail') {
+        renderSendEmailTab();
+    }
+
+    // Render login approvals for admin tab
+    if (tabName === 'admin') {
+        renderPendingLoginApprovals();
+    }
+}
+
+/* ================================================
+   5. ANIMATED COUNTERS with easing, prefix/format
+   ================================================ */
+function animateCounters() {
+    var counters = document.querySelectorAll('.stat-number[data-target]');
+    counters.forEach(function (counter) {
+        var target = parseInt(counter.dataset.target) || 0;
+        var prefix = counter.dataset.prefix || '';
+        var format = counter.dataset.format || '';
+        var duration = 1500;
+        var start = performance.now();
+
+        function updateCounter(timestamp) {
+            var elapsed = timestamp - start;
+            var progress = Math.min(elapsed / duration, 1);
+            // Ease out cubic
+            var eased = 1 - Math.pow(1 - progress, 3);
+            var current = Math.round(target * eased);
+
+            if (format === 'currency') {
+                counter.textContent = prefix + current.toLocaleString();
+            } else {
+                counter.textContent = prefix + current.toLocaleString();
+            }
+
+            if (progress < 1) {
+                requestAnimationFrame(updateCounter);
+            }
+        }
+
+        requestAnimationFrame(updateCounter);
+    });
+}
+
+/* ================================================
+   6. MODAL SYSTEM - openModal(type)
+   ================================================ */
+function openModal(type, extraData) {
+    var overlay = document.getElementById('modalOverlay');
+    var title = document.getElementById('modalTitle');
+    var body = document.getElementById('modalBody');
+
+    var html = '';
+
+    switch (type) {
+
+        /* ---------- NEW PROJECT - Multi-Step Wizard ---------- */
+        case 'newProject':
+            title.textContent = 'New Research Project';
+            html = '<div id="projectWizard">' +
+                '<div class="wizard-steps" id="wizardSteps">' +
+                '<div class="wizard-step active" data-step="1"><span class="wizard-num">1</span><span class="wizard-label">Basic Info</span></div>' +
+                '<div class="wizard-step" data-step="2"><span class="wizard-num">2</span><span class="wizard-label">Protocol</span></div>' +
+                '<div class="wizard-step" data-step="3"><span class="wizard-num">3</span><span class="wizard-label">IRB / Consent</span></div>' +
+                '<div class="wizard-step" data-step="4"><span class="wizard-num">4</span><span class="wizard-label">Budget</span></div>' +
+                '<div class="wizard-step" data-step="5"><span class="wizard-num">5</span><span class="wizard-label">Notes</span></div></div>' +
+                '<div class="wizard-panel active" id="wizStep1">' +
+                '<h4 class="form-section-title"><i class="fas fa-info-circle" style="margin-right:6px;"></i> Project Information</h4>' +
+                '<div class="form-group"><label>Project Title *</label><input type="text" id="wz_title" placeholder="e.g., Neural Biomarkers in Early Alzheimer\'s..." required></div>' +
+                '<div class="form-row"><div class="form-group"><label>Study Type *</label><select id="wz_studyType" required><option value="">Select type...</option>' +
+                '<option>Prospective Cohort</option><option>Retrospective Cohort</option><option>Randomized Controlled Trial</option><option>Case-Control</option>' +
+                '<option>Cross-Sectional</option><option>Case Series / Case Report</option><option>Systematic Review / Meta-Analysis</option>' +
+                '<option>Translational / Bench-to-Bedside</option><option>Computational / AI / ML</option><option>Quality Improvement</option><option>Other</option></select></div>' +
+                '<div class="form-group"><label>Research Pillar *</label><select id="wz_pillar" required><option value="">Select pillar...</option><option>Translational</option><option>Clinical</option><option>Computational</option></select></div></div>' +
+                '<div class="form-row"><div class="form-group"><label>Department *</label><select id="wz_dept" required><option value="">Select...</option><option>Neurology</option><option>Neurosurgery</option><option>Both</option></select></div>' +
+                '<div class="form-group"><label>Principal Investigator *</label><select id="wz_pi" required><option value="">Select PI...</option></select></div></div>' +
+                '<div class="form-group"><label>Disease Focus *</label><input type="text" id="wz_disease" placeholder="e.g., Epilepsy, Stroke, TBI, Brain Tumor..." required></div>' +
+                '<div class="form-group"><label>Co-Investigators</label><input type="text" id="wz_coI" placeholder="Names separated by commas..."></div>' +
+                '<div class="form-group"><label>Brief Abstract *</label><textarea id="wz_abstract" rows="3" placeholder="Brief description of the research project..." required></textarea></div>' +
+                '<div class="form-row"><div class="form-group"><label>Existing Umbrella IRB?</label><select id="wz_umbrellaIRB" onchange="toggleUmbrellaIRB()"><option value="no">No</option><option value="yes">Yes - Link to existing IRB</option></select></div>' +
+                '<div class="form-group" id="wz_umbrellaField" style="display:none;"><label>Umbrella IRB Protocol #</label><input type="text" id="wz_umbrellaNum" placeholder="e.g., IRB-2025-1234"></div></div></div>' +
+                '<div class="wizard-panel" id="wizStep2" style="display:none;">' +
+                '<h4 class="form-section-title"><i class="fas fa-file-medical" style="margin-right:6px;"></i> Research Protocol</h4>' +
+                '<div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;"><input type="checkbox" id="wz_protocolNA" onchange="toggleWizNA(\'protocol\')" style="width:auto;"><label for="wz_protocolNA" style="margin:0;cursor:pointer;font-size:0.85rem;">Not Applicable (e.g., systematic review, meta-analysis)</label></div>' +
+                '<div id="wz_protocolFields">' +
+                '<div class="form-group"><label>1. Background & Significance *</label><textarea id="wz_protBg" rows="4" placeholder="Scientific background, knowledge gaps, clinical significance..." required></textarea></div>' +
+                '<div class="form-group"><label>2. Specific Aims *</label><textarea id="wz_protAims" rows="3" placeholder="List the specific aims..." required></textarea></div>' +
+                '<div class="form-group"><label>3. Study Design & Methods *</label><textarea id="wz_protMethods" rows="4" placeholder="Study design, inclusion/exclusion criteria, procedures..." required></textarea></div>' +
+                '<div class="form-group"><label>4. Outcome Measures</label><textarea id="wz_protOutcomes" rows="2" placeholder="Primary and secondary outcome measures..."></textarea></div>' +
+                '<div class="form-group"><label>5. Statistical Analysis Plan</label><textarea id="wz_protStats" rows="3" placeholder="Planned analyses, sample size justification..."></textarea></div>' +
+                '<div class="form-group"><label>6. Data Collection & Management</label><textarea id="wz_protData" rows="2" placeholder="REDCap, chart review, prospective enrollment..."></textarea></div>' +
+                '<div class="form-group"><label>7. Timeline</label><textarea id="wz_protTimeline" rows="2" placeholder="Project timeline and milestones..."></textarea></div></div></div>' +
+                '<div class="wizard-panel" id="wizStep3" style="display:none;">' +
+                '<h4 class="form-section-title"><i class="fas fa-shield-alt" style="margin-right:6px;"></i> IRB & Informed Consent</h4>' +
+                '<div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;"><input type="checkbox" id="wz_irbNA" onchange="toggleWizNA(\'irb\')" style="width:auto;"><label for="wz_irbNA" style="margin:0;cursor:pointer;font-size:0.85rem;">Not Applicable (no IRB required — e.g., de-identified data, QI project)</label></div>' +
+                '<div id="wz_irbFields">' +
+                '<div class="alert-banner" style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;"><i class="fas fa-info-circle" style="color:#00d4ff;"></i><span style="font-size:0.82rem;color:var(--text-secondary);">IRB protocol number will be <strong>auto-populated</strong> once IRB approves. IRB reviewers have their own access to review and approve.</span></div>' +
+                '<div class="form-group"><label>IRB Submission Type</label><select id="wz_irbType"><option>New Protocol - Full Board</option><option>New Protocol - Expedited</option><option>Exempt Determination</option></select></div>' +
+                '<div class="form-group"><label>Consent — Purpose of Study *</label><textarea id="wz_consentPurpose" rows="3" placeholder="You are being asked to participate in a research study. The purpose is..." required></textarea></div>' +
+                '<div class="form-group"><label>Consent — Procedures *</label><textarea id="wz_consentProc" rows="3" placeholder="If you agree to participate, you will be asked to..." required></textarea></div>' +
+                '<div class="form-group"><label>Consent — Risks</label><textarea id="wz_consentRisks" rows="2" placeholder="Possible risks include..."></textarea></div>' +
+                '<div class="form-group"><label>Consent — Benefits</label><textarea id="wz_consentBenefits" rows="2" placeholder="You may not benefit directly, however..."></textarea></div>' +
+                '<div class="form-group"><label>Consent — Confidentiality</label><textarea id="wz_consentConfid" rows="2" placeholder="Your records will be kept confidential by..."></textarea></div></div></div>' +
+                '<div class="wizard-panel" id="wizStep4" style="display:none;">' +
+                '<h4 class="form-section-title"><i class="fas fa-calculator" style="margin-right:6px;"></i> Budget Estimate</h4>' +
+                '<div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;"><input type="checkbox" id="wz_budgetNA" onchange="toggleWizNA(\'budget\')" style="width:auto;"><label for="wz_budgetNA" style="margin:0;cursor:pointer;font-size:0.85rem;">Not Applicable (no budget needed)</label></div>' +
+                '<div id="wz_budgetFields"><div class="table-container"><table class="data-table" id="budgetTable"><thead><tr><th>Category</th><th>Item</th><th>Details / Link</th><th>Qty</th><th>Unit Cost ($)</th><th>Total ($)</th></tr></thead>' +
+                '<tbody id="budgetTableBody">' +
+                '<tr data-cat="stats"><td>Statistical Support</td><td><select onchange="budgetAutoCalc(this)"><option value="">Select...</option><option value="consult_10">Consultation (10 hrs)</option><option value="consult_20">Consultation (20 hrs)</option><option value="consult_40">Full Analysis (40 hrs)</option><option value="consult_custom">Custom Hours</option></select></td><td><input type="text" placeholder="Notes..." class="budget-detail"></td><td><input type="number" class="budget-qty" value="0" min="0" onchange="budgetRecalcRow(this)"></td><td><input type="number" class="budget-unit" value="150" onchange="budgetRecalcRow(this)"></td><td class="budget-total">$0</td></tr>' +
+                '<tr data-cat="software"><td>Software</td><td><select onchange="budgetAutoCalc(this)"><option value="">Select...</option><option value="redcap">REDCap (Free)</option><option value="spss">SPSS License</option><option value="stata">Stata License</option><option value="sas">SAS License</option><option value="matlab">MATLAB License</option><option value="r_free">R/RStudio (Free)</option><option value="python_free">Python (Free)</option><option value="software_other">Other Software</option></select></td><td><input type="text" placeholder="License link..." class="budget-detail"></td><td><input type="number" class="budget-qty" value="1" min="0" onchange="budgetRecalcRow(this)"></td><td><input type="number" class="budget-unit" value="0" onchange="budgetRecalcRow(this)"></td><td class="budget-total">$0</td></tr>' +
+                '<tr data-cat="hardware"><td>Hardware / Equipment</td><td><input type="text" placeholder="Describe item..." class="budget-item-text"></td><td><input type="text" placeholder="Vendor link..." class="budget-detail"></td><td><input type="number" class="budget-qty" value="0" min="0" onchange="budgetRecalcRow(this)"></td><td><input type="number" class="budget-unit" value="0" onchange="budgetRecalcRow(this)"></td><td class="budget-total">$0</td></tr>' +
+                '<tr data-cat="personnel"><td>Personnel / CRC</td><td><select onchange="budgetAutoCalc(this)"><option value="">Select...</option><option value="crc_part">CRC Part-time (10 hrs/wk)</option><option value="crc_full">CRC Full-time (40 hrs/wk)</option><option value="ra_part">Research Asst Part-time</option><option value="personnel_other">Other</option></select></td><td><input type="text" placeholder="Notes..." class="budget-detail"></td><td><input type="number" class="budget-qty" value="0" min="0" onchange="budgetRecalcRow(this)"><span style="font-size:0.6rem;color:var(--text-muted);">months</span></td><td><input type="number" class="budget-unit" value="0" onchange="budgetRecalcRow(this)"></td><td class="budget-total">$0</td></tr>' +
+                '<tr data-cat="other"><td>Other Costs</td><td><input type="text" placeholder="Describe..." class="budget-item-text"></td><td><input type="text" placeholder="Details..." class="budget-detail"></td><td><input type="number" class="budget-qty" value="0" min="0" onchange="budgetRecalcRow(this)"></td><td><input type="number" class="budget-unit" value="0" onchange="budgetRecalcRow(this)"></td><td class="budget-total">$0</td></tr>' +
+                '</tbody><tfoot><tr><td colspan="5" style="text-align:right;font-weight:700;padding-right:16px;">Total Estimated Budget:</td><td id="budgetGrandTotal" style="font-weight:700;color:var(--accent-primary);font-size:1rem;">$0</td></tr></tfoot></table></div>' +
+                '<button type="button" class="btn btn-outline btn-sm" onclick="addBudgetRow()" style="margin-top:10px;"><i class="fas fa-plus"></i> Add Budget Row</button></div></div>' +
+                '<div class="wizard-panel" id="wizStep5" style="display:none;">' +
+                '<h4 class="form-section-title"><i class="fas fa-sticky-note" style="margin-right:6px;"></i> Additional Notes</h4>' +
+                '<div class="form-group"><label>Notes / Comments</label><textarea id="wz_notes" rows="5" placeholder="Any additional notes, special requirements, or comments..."></textarea></div>' +
+                '<div class="alert-banner" style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:14px 18px;margin-top:16px;display:flex;align-items:center;gap:10px;"><i class="fas fa-check-circle" style="color:#10b981;"></i><span style="font-size:0.82rem;color:var(--text-secondary);">Project will be created as <strong>Pre-submission</strong>. <strong>Dr. Kolakowsky-Hayner</strong> can update status. Project becomes <strong>Active</strong> only after IRB approval. Only IRB-listed personnel can access it.</span></div></div>' +
+                '<div class="modal-actions" style="justify-content:space-between;">' +
+                '<button type="button" class="btn btn-outline" id="wizBtnPrev" onclick="wizardPrev()" style="display:none;"><i class="fas fa-arrow-left"></i> Previous</button>' +
+                '<div style="display:flex;gap:8px;margin-left:auto;">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="button" class="btn btn-primary" id="wizBtnNext" onclick="wizardNext()">Next <i class="fas fa-arrow-right"></i></button>' +
+                '<button type="button" class="btn btn-primary" id="wizBtnSubmit" onclick="wizardSubmit()" style="display:none;"><i class="fas fa-paper-plane"></i> Submit Project</button></div></div></div>';
+            break;
+
+        /* ---------- NEW PERSON (Point 2) ---------- */
+        case 'newPerson':
+            title.textContent = 'Add Team Member';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Team member added successfully!\');">' +
+                '<div class="form-row"><div class="form-group"><label>First Name *</label>' +
+                '<input type="text" placeholder="First name" required></div>' +
+                '<div class="form-group"><label>Last Name *</label>' +
+                '<input type="text" placeholder="Last name" required></div></div>' +
+
+                '<div class="form-row"><div class="form-group"><label>Title / Role</label>' +
+                '<select id="personRole" onchange="toggleMedStudentFields()">' +
+                '<option value="">Select role...</option>' +
+                '<option>Faculty - Neurology</option>' +
+                '<option>Faculty - Neurosurgery</option>' +
+                '<option>Clinical Research Coordinator (CRC)</option>' +
+                '<option>Clinical Research Nurse (RN)</option>' +
+                '<option>Advanced Practice Provider (APP)</option>' +
+                '<option>Nurse Practitioner (NP)</option>' +
+                '<option>Physician Assistant (PA)</option>' +
+                '<option>Resident</option>' +
+                '<option>Research Fellow</option>' +
+                '<option>Medical Student</option>' +
+                '<option>Budget & Contracts</option>' +
+                '<option>Administrative Staff</option>' +
+                '<option>Statistician / Biostatistician</option>' +
+                '<option>Data Analyst / Informaticist</option>' +
+                '<option>Other</option>' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Department</label>' +
+                '<select>' +
+                '<option value="">Select department...</option>' +
+                '<option>Neurology</option>' +
+                '<option>Neurosurgery</option>' +
+                '<option>Both</option>' +
+                '</select></div></div>' +
+
+                '<div class="form-group"><label>Category</label>' +
+                '<select>' +
+                '<option value="">Select category...</option>' +
+                '<option>Faculty</option>' +
+                '<option>Research Staff</option>' +
+                '<option>Trainee</option>' +
+                '<option>Medical Student</option>' +
+                '<option>Collaborator</option>' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Email</label>' +
+                '<input type="email" placeholder="email@saintlukes.org"></div>' +
+
+                '<div class="form-group"><label>Research Interests</label>' +
+                '<input type="text" placeholder="e.g., Epilepsy, Deep Learning, fMRI..."></div>' +
+
+                '<!-- Medical Student Additional Fields -->' +
+                '<div id="medStudentFields" style="display:none;">' +
+                '<hr style="border-color:rgba(255,255,255,0.06);margin:16px 0;">' +
+                '<h4 style="color:#00d4ff;margin-bottom:12px;font-size:0.9rem;"><i class="fas fa-user-graduate"></i> Medical Student Details</h4>' +
+                '<div class="form-row"><div class="form-group"><label>Rotation Start Date</label>' +
+                '<input type="date"></div>' +
+                '<div class="form-group"><label>Rotation End Date</label>' +
+                '<input type="date"></div></div>' +
+                '<div class="form-group"><label>Assigned Project</label>' +
+                '<input type="text" placeholder="Project name..."></div>' +
+                '<div class="form-group"><label>Supervising Faculty</label>' +
+                '<select>' +
+                '<option value="">Select faculty...</option>' +
+                '<!-- Faculty options populate as members are added -->' +
+                '</select></div>' +
+                '</div>' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add Member</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- NEW GRANT (Point 3) ---------- */
+        case 'newGrant':
+            title.textContent = 'Add Grant';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Grant added successfully!\');">' +
+                '<div class="form-group"><label>Grant Title *</label>' +
+                '<input type="text" placeholder="Enter grant title..." required></div>' +
+
+                '<div class="form-row"><div class="form-group"><label>Principal Investigator</label>' +
+                '<select>' +
+                '<option value="">Select PI...</option>' +
+                '<!-- Faculty options populate as members are added -->' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Funding Agency</label>' +
+                '<select>' +
+                '<option value="">Select agency...</option>' +
+                '<option>NIH</option>' +
+                '<option>NSF</option>' +
+                '<option>DOD</option>' +
+                '<option>AHA</option>' +
+                '<option>AAN</option>' +
+                '<option>Industry</option>' +
+                '<option>Foundation</option>' +
+                '<option>Internal</option>' +
+                '<option>Other</option>' +
+                '</select></div></div>' +
+
+                '<div class="form-row"><div class="form-group"><label>Mechanism</label>' +
+                '<input type="text" placeholder="e.g., R01, R21, K23, U01..."></div>' +
+                '<div class="form-group"><label>Amount</label>' +
+                '<input type="text" placeholder="e.g., $500,000"></div></div>' +
+
+                '<div class="form-row"><div class="form-group"><label>Start Date</label>' +
+                '<input type="date"></div>' +
+                '<div class="form-group"><label>End Date</label>' +
+                '<input type="date"></div></div>' +
+
+                '<div class="form-group"><label>Status</label>' +
+                '<select>' +
+                '<option>Active</option>' +
+                '<option>Pending</option>' +
+                '<option>Submitted</option>' +
+                '<option>In Preparation</option>' +
+                '<option>Completed</option>' +
+                '<option>Not Funded</option>' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Grant Number</label>' +
+                '<input type="text" placeholder="e.g., 1R01NS123456-01"></div>' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Grant</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- NEW OPPORTUNITY (Point 3) ---------- */
+        case 'newOpportunity':
+            title.textContent = 'Add Funding Opportunity';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Funding opportunity added successfully!\');">' +
+                '<div class="form-group"><label>Opportunity Name *</label>' +
+                '<input type="text" placeholder="Enter opportunity name..." required></div>' +
+
+                '<div class="form-row"><div class="form-group"><label>Agency / Organization</label>' +
+                '<input type="text" placeholder="e.g., NIH, AAN Foundation..."></div>' +
+                '<div class="form-group"><label>Amount Available</label>' +
+                '<input type="text" placeholder="e.g., $250,000"></div></div>' +
+
+                '<div class="form-group"><label>Website / Link</label>' +
+                '<input type="url" placeholder="https://grants.nih.gov/..."></div>' +
+
+                '<div class="form-group"><label>Deadline</label>' +
+                '<input type="date"></div>' +
+
+                '<hr style="border-color:rgba(255,255,255,0.06);margin:16px 0;">' +
+                '<h4 style="color:#00d4ff;margin-bottom:12px;font-size:0.9rem;"><i class="fas fa-clipboard-check"></i> Eligibility</h4>' +
+
+                '<div class="form-row"><div class="form-group"><label>Career Stage</label>' +
+                '<select>' +
+                '<option value="">Select...</option>' +
+                '<option>Early Career K-series</option>' +
+                '<option>Mid-Career R-series</option>' +
+                '<option>Senior</option>' +
+                '<option>All</option>' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Citizenship Required</label>' +
+                '<select>' +
+                '<option>No</option>' +
+                '<option>Yes</option>' +
+                '</select></div></div>' +
+
+                '<div class="form-row"><div class="form-group"><label>Preliminary Data Required</label>' +
+                '<select>' +
+                '<option>No</option>' +
+                '<option>Yes</option>' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Limited Submission</label>' +
+                '<select>' +
+                '<option>No</option>' +
+                '<option>Yes</option>' +
+                '</select></div></div>' +
+
+                '<div class="form-group"><label>Description / Notes</label>' +
+                '<textarea rows="3" placeholder="Additional details about this opportunity..."></textarea></div>' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-star"></i> Add Opportunity</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- NEW DEADLINE (Point 9) ---------- */
+        case 'newDeadline':
+            title.textContent = 'Add Deadline';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Deadline added successfully!\');">' +
+                '<div class="form-group"><label>Deadline Title *</label>' +
+                '<input type="text" placeholder="Enter deadline title..." required></div>' +
+
+                '<div class="form-row"><div class="form-group"><label>Type</label>' +
+                '<select>' +
+                '<option value="">Select type...</option>' +
+                '<option>Grant</option>' +
+                '<option>Conference Abstract</option>' +
+                '<option>IRB</option>' +
+                '<option>Other</option>' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Date *</label>' +
+                '<input type="date" required></div></div>' +
+
+                '<div class="form-group"><label>Description</label>' +
+                '<textarea rows="3" placeholder="Describe this deadline..."></textarea></div>' +
+
+                '<div class="form-group"><label>Associated Grant / Conference</label>' +
+                '<input type="text" placeholder="e.g., R01 Renewal, AAN Annual Meeting..."></div>' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-calendar-plus"></i> Add Deadline</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- NEW PROTOCOL (Point 4) ---------- */
+        case 'newProtocol':
+            title.textContent = 'New IRB Protocol';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Protocol added successfully!\');">' +
+                '<div class="form-group"><label>Project Name (Linked) *</label>' +
+                '<input type="text" placeholder="Enter or search project name..." required></div>' +
+
+                '<div class="form-group"><label>Protocol Number *</label>' +
+                '<input type="text" placeholder="e.g., IRB-2026-0001" required></div>' +
+
+                '<div class="form-group"><label>Current Process / Phase</label>' +
+                '<select>' +
+                '<option value="">Select phase...</option>' +
+                '<option>Drafting</option>' +
+                '<option>Submitted to IRB</option>' +
+                '<option>Under Review</option>' +
+                '<option>Revisions Requested</option>' +
+                '<option>Approved</option>' +
+                '<option>Renewal Due</option>' +
+                '<option>Expired</option>' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Status</label>' +
+                '<select>' +
+                '<option>Active</option>' +
+                '<option>Pending</option>' +
+                '<option>On Hold</option>' +
+                '<option>Closed</option>' +
+                '</select></div>' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-shield-alt"></i> Add Protocol</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- NEW PUBLICATION (Point 5) ---------- */
+        case 'newPublication':
+            title.textContent = 'Add Publication / Output';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Publication added successfully!\');">' +
+                '<div class="form-group"><label>Type *</label>' +
+                '<select id="pubType" onchange="togglePubFields()" required>' +
+                '<option value="">Select type...</option>' +
+                '<option value="publication">Publication</option>' +
+                '<option value="presentation">Presentation</option>' +
+                '<option value="patent">Patent</option>' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Title *</label>' +
+                '<input type="text" placeholder="Enter title..." required></div>' +
+
+                '<div class="form-group"><label>PDF Upload</label>' +
+                '<div style="border:2px dashed rgba(255,255,255,0.1);border-radius:12px;padding:24px;text-align:center;cursor:pointer;" onclick="this.querySelector(\'input\').click()">' +
+                '<i class="fas fa-cloud-upload-alt" style="font-size:2rem;color:#00d4ff;margin-bottom:8px;display:block;"></i>' +
+                '<span style="color:#9999b8;">Click to upload PDF or drag & drop</span>' +
+                '<input type="file" accept=".pdf" style="display:none;">' +
+                '</div></div>' +
+
+                '<!-- Publication Fields -->' +
+                '<div id="pubFields" style="display:none;">' +
+                '<div class="form-row"><div class="form-group"><label>Journal Name</label>' +
+                '<input type="text" placeholder="e.g., Neurology, JAMA Neurology..."></div>' +
+                '<div class="form-group"><label>Year</label>' +
+                '<input type="number" placeholder="2026" value="2026"></div></div>' +
+                '<div class="form-group"><label>Authors</label>' +
+                '<input type="text" placeholder="Last FM, Last FM, ..."></div>' +
+                '<div class="form-group"><label>Publication Type</label>' +
+                '<select>' +
+                '<option>Original Research</option>' +
+                '<option>Review</option>' +
+                '<option>Case Report</option>' +
+                '<option>Letter</option>' +
+                '</select></div>' +
+                '</div>' +
+
+                '<!-- Presentation Fields -->' +
+                '<div id="presFields" style="display:none;">' +
+                '<div class="form-row"><div class="form-group"><label>Conference</label>' +
+                '<input type="text" placeholder="e.g., AAN Annual Meeting..."></div>' +
+                '<div class="form-group"><label>Date</label>' +
+                '<input type="date"></div></div>' +
+                '<div class="form-group"><label>Presentation Type</label>' +
+                '<select>' +
+                '<option>Poster</option>' +
+                '<option>Oral</option>' +
+                '<option>Invited</option>' +
+                '</select></div>' +
+                '</div>' +
+
+                '<!-- Patent Fields -->' +
+                '<div id="patentFields" style="display:none;">' +
+                '<div class="form-row"><div class="form-group"><label>Filing Date</label>' +
+                '<input type="date"></div>' +
+                '<div class="form-group"><label>Patent Number</label>' +
+                '<input type="text" placeholder="US Patent #..."></div></div>' +
+                '<div class="form-group"><label>Patent Status</label>' +
+                '<select>' +
+                '<option>Filed</option>' +
+                '<option>Pending</option>' +
+                '<option>Granted</option>' +
+                '<option>Expired</option>' +
+                '</select></div>' +
+                '</div>' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-book-open"></i> Add Publication</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- NEW MEETING (Point 7) ---------- */
+        case 'newMeeting':
+            title.textContent = 'Schedule Meeting';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Meeting scheduled successfully!\');">' +
+                '<div class="form-group"><label>Meeting Title *</label>' +
+                '<input type="text" placeholder="Enter meeting title..." required></div>' +
+
+                '<div class="form-row"><div class="form-group"><label>Date *</label>' +
+                '<input type="date" required></div>' +
+                '<div class="form-group"><label>Time *</label>' +
+                '<input type="time" required></div></div>' +
+
+                '<div class="form-group"><label>Attendees</label>' +
+                '<input type="text" placeholder="Enter names separated by commas..."></div>' +
+
+                '<div class="form-group"><label>Purpose / Agenda</label>' +
+                '<textarea rows="3" placeholder="Meeting agenda and discussion topics..."></textarea></div>' +
+
+                '<div class="form-group"><label>Teams Link URL</label>' +
+                '<input type="url" placeholder="https://teams.microsoft.com/l/meetup-join/..."></div>' +
+
+                '<div class="form-group"><label>Location (optional)</label>' +
+                '<input type="text" placeholder="e.g., Conference Room 3B, Zoom, etc."></div>' +
+
+                '<div class="form-group" style="display:flex;align-items:center;gap:10px;">' +
+                '<input type="checkbox" id="recurringMeeting" style="width:auto;">' +
+                '<label for="recurringMeeting" style="margin:0;cursor:pointer;">Recurring Meeting</label>' +
+                '</div>' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-calendar-plus"></i> Schedule Meeting</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- NEW REQUEST (Point 6 Forum) ---------- */
+        case 'newRequest':
+            title.textContent = 'New Support Request';
+            html = _buildRequestForm('');
+            break;
+
+        /* ---------- STAT REQUEST ---------- */
+        case 'statRequest':
+            title.textContent = 'Statistical Consultation Request';
+            html = _buildRequestForm('Statistical Consultation');
+            break;
+
+        /* ---------- RESOURCE REQUEST (routed to Dr. Kolakowsky-Hayner) ---------- */
+        case 'resourceRequest':
+            var resourceName = extraData || 'Resource';
+            title.textContent = 'Request: ' + resourceName;
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Request sent to Dr. Kolakowsky-Hayner for routing.\', \'success\');">' +
+                '<div class="alert-banner" style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">' +
+                '<i class="fas fa-info-circle" style="color:#00d4ff;"></i>' +
+                '<span style="font-size:0.82rem;color:var(--text-secondary);">This request will be sent to <strong style="color:var(--text-primary);">Dr. Kolakowsky-Hayner</strong> who will route it to the appropriate team member.</span></div>' +
+                '<div class="form-group"><label>Resource Requested</label>' +
+                '<input type="text" value="' + resourceName + '" readonly style="opacity:0.7;"></div>' +
+                '<div class="form-group"><label>Linked Project *</label>' +
+                '<select required>' +
+                '<option value="">Select project...</option>' +
+                '</select>' +
+                '<span style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;display:block;">All requests must be linked to a project.</span></div>' +
+                '<div class="form-group"><label>Description *</label>' +
+                '<textarea rows="4" placeholder="Describe what you need and why..." required></textarea></div>' +
+                '<div class="form-group"><label>Urgency</label>' +
+                '<select><option>Low</option><option selected>Medium</option><option>High</option></select></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send Request</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- CODE REVIEW (replaces GitHub) ---------- */
+        case 'codeReview':
+            title.textContent = 'Upload Code for Review';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Code uploaded! Review request sent.\', \'success\');">' +
+                '<div class="form-group"><label>Linked Project *</label>' +
+                '<select required>' +
+                '<option value="">Select project...</option>' +
+                '</select>' +
+                '<span style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;display:block;">All code uploads must be linked to a project.</span></div>' +
+                '<div class="form-group"><label>Code Title *</label>' +
+                '<input type="text" placeholder="e.g., EEG preprocessing pipeline v2..." required></div>' +
+                '<div class="form-group"><label>Language / Tool</label>' +
+                '<select><option value="">Select...</option><option>Python</option><option>R</option><option>MATLAB</option><option>SAS</option><option>SPSS Syntax</option><option>SQL</option><option>Bash/Shell</option><option>Other</option></select></div>' +
+                '<div class="form-group"><label>Upload Files</label>' +
+                '<div class="pdf-upload-area"><i class="fas fa-file-code"></i><p>Click to upload or drag & drop</p><span>.py, .R, .m, .sas, .sql, .ipynb, .zip</span></div>' +
+                '<input type="file" multiple accept=".py,.r,.R,.m,.sas,.sql,.ipynb,.zip,.tar,.gz" style="display:none;"></div>' +
+                '<div class="form-group"><label>Request Reviewer</label>' +
+                '<select>' +
+                '<option value="">Select reviewer (optional)...</option>' +
+                '<!-- Team members populate dynamically -->' +
+                '</select></div>' +
+                '<div class="form-group"><label>Notes for Reviewer</label>' +
+                '<textarea rows="3" placeholder="Describe what the code does and what you want reviewed..."></textarea></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> Upload & Request Review</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- EVALUATE STUDENT (Point 2) ---------- */
+        case 'evaluateStudent':
+            title.textContent = 'Medical Student Evaluation';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Evaluation submitted successfully!\');">' +
+                '<div class="form-row"><div class="form-group"><label>Student Name *</label>' +
+                '<select required>' +
+                '<option value="">Select student...</option>' +
+                '<option>Available students will appear here</option>' +
+                '</select></div>' +
+                '<div class="form-group"><label>Project</label>' +
+                '<input type="text" placeholder="Associated project..."></div></div>' +
+
+                '<div class="form-row"><div class="form-group"><label>Evaluation Period Start</label>' +
+                '<input type="date"></div>' +
+                '<div class="form-group"><label>Evaluation Period End</label>' +
+                '<input type="date"></div></div>' +
+
+                '<hr style="border-color:rgba(255,255,255,0.06);margin:16px 0;">' +
+                '<h4 style="color:#00d4ff;margin-bottom:16px;font-size:0.9rem;"><i class="fas fa-star"></i> Evaluation Criteria (1-5)</h4>' +
+
+                _buildEvalCriteria('Literature Review') +
+                _buildEvalCriteria('Data Collection') +
+                _buildEvalCriteria('Presentation Skills') +
+                _buildEvalCriteria('Manuscript Contribution') +
+                _buildEvalCriteria('Professionalism') +
+                _buildEvalCriteria('Initiative') +
+
+                '<div class="form-group"><label>Overall Score (1-5)</label>' +
+                '<select>' +
+                '<option value="">Select...</option>' +
+                '<option>5 - Exceptional</option>' +
+                '<option>4 - Exceeds Expectations</option>' +
+                '<option>3 - Meets Expectations</option>' +
+                '<option>2 - Needs Improvement</option>' +
+                '<option>1 - Unsatisfactory</option>' +
+                '</select></div>' +
+
+                '<div class="form-group"><label>Comments</label>' +
+                '<textarea rows="4" placeholder="Additional comments about the student\'s performance..."></textarea></div>' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-clipboard-check"></i> Submit Evaluation</button>' +
+                '</div></form>';
+            break;
+
+        /* ---------- SAMPLE SIZE CALCULATOR ---------- */
+        case 'sampleSizeCalc':
+            title.textContent = 'Sample Size Calculator';
+            html = '<div>' +
+                '<div class="form-group"><label>Test Type *</label>' +
+                '<select id="ssTestType" onchange="updateSSFields()">' +
+                '<option value="">Select test type...</option>' +
+                '<option value="ttest">Two-Sample T-Test</option>' +
+                '<option value="paired">Paired T-Test</option>' +
+                '<option value="anova">One-Way ANOVA</option>' +
+                '<option value="chi2">Chi-Square Test</option>' +
+                '<option value="proportion">Two Proportions</option>' +
+                '<option value="correlation">Correlation</option>' +
+                '<option value="survival">Survival (Log-Rank)</option>' +
+                '</select></div>' +
+
+                '<div id="ssFields"></div>' +
+
+                '<div class="form-row">' +
+                '<div class="form-group"><label>Significance Level (\u03B1)</label>' +
+                '<select id="ssAlpha"><option value="0.05" selected>0.05</option><option value="0.01">0.01</option><option value="0.10">0.10</option><option value="0.025">0.025</option></select></div>' +
+                '<div class="form-group"><label>Power (1-\u03B2)</label>' +
+                '<select id="ssPower"><option value="0.80" selected>80%</option><option value="0.85">85%</option><option value="0.90">90%</option><option value="0.95">95%</option></select></div>' +
+                '</div>' +
+
+                '<div class="form-group" style="display:flex;align-items:center;gap:10px;">' +
+                '<input type="checkbox" id="ssTwoSided" checked style="width:auto;">' +
+                '<label for="ssTwoSided" style="margin:0;cursor:pointer;">Two-sided test</label></div>' +
+
+                '<div id="ssResult" style="display:none;background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:12px;padding:20px;margin-top:16px;">' +
+                '<h4 style="color:var(--accent-primary);margin-bottom:10px;font-family:\'Space Grotesk\',sans-serif;"><i class="fas fa-calculator"></i> Result</h4>' +
+                '<div id="ssResultText"></div></div>' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="button" class="btn btn-primary" onclick="calculateSampleSize()"><i class="fas fa-calculator"></i> Calculate</button>' +
+                '</div></div>';
+            break;
+
+        /* ---------- PROJECT DETAIL VIEW ---------- */
+        case 'projectDetail':
+            var projId = parseInt(extraData);
+            var proj = _findProject(projId);
+            if (!proj) { html = '<p>Project not found.</p>'; break; }
+            title.textContent = proj.title || 'Project Details';
+
+            // Build file uploads section
+            var filesHtml = '<div class="form-section-title"><i class="fas fa-file-upload" style="margin-right:6px;"></i> Project Documents</div>';
+            var fileTypes = [
+                { key: 'protocol', label: 'Protocol', icon: 'fa-file-medical', irbOnly: false },
+                { key: 'consent', label: 'Consent Form', icon: 'fa-file-signature', irbOnly: true },
+                { key: 'irbLetter', label: 'IRB Approval Letter', icon: 'fa-shield-alt', irbOnly: true }
+            ];
+            if (!proj.files) proj.files = {};
+            var isIRBUser = (currentUserRole === 'IRB' || currentUserEmail === 'ldrose@saint-lukes.org');
+            fileTypes.forEach(function (ft) {
+                var hasFile = proj.files[ft.key];
+                var canUpload = ft.irbOnly ? (isIRBUser || currentUserRole === 'Admin') : _canEditProject(proj);
+                filesHtml += '<div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;margin-bottom:8px;">' +
+                    '<i class="fas ' + ft.icon + '" style="color:' + (hasFile ? '#10b981' : 'var(--text-muted)') + ';font-size:1.1rem;width:24px;text-align:center;"></i>' +
+                    '<div style="flex:1;"><strong style="font-size:0.85rem;">' + ft.label + '</strong>' +
+                    (hasFile ? '<span style="display:block;font-size:0.72rem;color:#10b981;margin-top:2px;">\u2713 ' + _esc(hasFile) + '</span>' : '<span style="display:block;font-size:0.72rem;color:var(--text-muted);margin-top:2px;">' + (ft.irbOnly ? 'Uploaded by IRB only' : 'Not uploaded') + '</span>') + '</div>' +
+                    (canUpload ? '<label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;"><i class="fas fa-upload"></i> Upload<input type="file" style="display:none;" onchange="uploadProjectFile(' + projId + ',\'' + ft.key + '\',this)"></label>' : (ft.irbOnly ? '<span style="font-size:0.7rem;color:var(--text-muted);"><i class="fas fa-lock"></i> IRB Only</span>' : '')) +
+                    '</div>';
+            });
+
+            // Data collection monitoring
+            var dataCollHtml = '<div class="form-section-title"><i class="fas fa-chart-line" style="margin-right:6px;"></i> Data Collection Monitoring</div>';
+            if (proj.redcapLinked) {
+                var enrolled = proj.enrolledCount || 0;
+                var target = proj.targetEnrollment || 0;
+                var pct = target > 0 ? Math.round((enrolled / target) * 100) : 0;
+                dataCollHtml += '<div style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;">' +
+                    '<div style="display:flex;justify-content:space-between;margin-bottom:10px;">' +
+                    '<span style="font-size:0.85rem;font-weight:600;">Enrollment Progress</span>' +
+                    '<span style="font-size:0.85rem;font-weight:700;color:var(--accent-primary);">' + enrolled + ' / ' + target + '</span></div>' +
+                    '<div class="progress-bar" style="height:8px;"><div class="progress-fill" style="width:' + pct + '%;"></div></div>' +
+                    '<p style="font-size:0.72rem;color:var(--text-muted);margin-top:8px;">' + pct + '% complete</p></div>';
+            } else {
+                dataCollHtml += '<div style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;text-align:center;">' +
+                    '<p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:10px;">No REDCap data collection linked to this project.</p>' +
+                    '<div class="form-row" style="max-width:400px;margin:0 auto;">' +
+                    '<div class="form-group"><label>Target Enrollment</label><input type="number" id="projTargetN" value="' + (proj.targetEnrollment || '') + '" placeholder="e.g., 100" min="0"></div>' +
+                    '<div class="form-group"><label>Enrolled So Far</label><input type="number" id="projEnrolledN" value="' + (proj.enrolledCount || '') + '" placeholder="e.g., 25" min="0"></div></div>' +
+                    '<button class="btn btn-outline btn-sm" onclick="linkProjectREDCap(' + projId + ')"><i class="fas fa-link"></i> Link REDCap & Save Enrollment</button></div>';
+            }
+
+            // Linked publications
+            var pubsHtml = '<div class="form-section-title"><i class="fas fa-book-open" style="margin-right:6px;"></i> Linked Publications & Abstracts</div>';
+            if (proj.publications && proj.publications.length > 0) {
+                proj.publications.forEach(function (pub, pi) {
+                    pubsHtml += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;margin-bottom:6px;">' +
+                        '<i class="fas fa-file-alt" style="color:var(--accent-primary);"></i>' +
+                        '<span style="flex:1;font-size:0.82rem;">' + _esc(pub) + '</span>' +
+                        '<button class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="removeProjectPub(' + projId + ',' + pi + ')"><i class="fas fa-times"></i></button></div>';
+                });
+            } else {
+                pubsHtml += '<p style="color:var(--text-muted);font-size:0.82rem;padding:8px 0;">No publications linked yet.</p>';
+            }
+            pubsHtml += '<div style="display:flex;gap:8px;margin-top:8px;">' +
+                '<input type="text" id="newProjPub" placeholder="Publication title or abstract..." style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-family:inherit;font-size:0.82rem;">' +
+                '<button class="btn btn-primary btn-sm" onclick="addProjectPub(' + projId + ')"><i class="fas fa-plus"></i> Link</button></div>';
+
+            // Manuscript section
+            var msHtml = '<div class="form-section-title"><i class="fas fa-pen-fancy" style="margin-right:6px;"></i> Manuscript Preparation</div>';
+            msHtml += '<div style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;margin-bottom:16px;">';
+            if (proj.manuscript && proj.manuscript.title) {
+                msHtml += '<p style="font-size:0.85rem;font-weight:600;margin-bottom:4px;">' + _esc(proj.manuscript.title) + '</p>';
+                msHtml += '<p style="font-size:0.72rem;color:var(--text-muted);">Last edited by ' + _esc(proj.manuscript.lastEditedBy || 'N/A') + '</p>';
+            } else {
+                msHtml += '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px;">No manuscript started yet.</p>';
+            }
+            msHtml += '<button class="btn btn-outline btn-sm" onclick="closeModal(); setTimeout(function(){openManuscript(' + projId + ')},200);"><i class="fas fa-pen-fancy"></i> Open Manuscript Editor</button></div>';
+
+            // Admin approval section (for new projects needing review)
+            var approvalHtml = '';
+            if (currentUserRole === 'Admin' && !proj.adminApproved && proj.status === 'Pre-submission') {
+                approvalHtml = '<div class="form-section-title"><i class="fas fa-clipboard-check" style="margin-right:6px;"></i> Admin Review</div>' +
+                    '<div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:16px;margin-bottom:16px;">' +
+                    '<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">This project is awaiting admin review. Approve to forward to departments.</p>' +
+                    '<div style="display:flex;gap:8px;">' +
+                    '<button class="btn btn-primary btn-sm" onclick="approveProject(' + projId + ')"><i class="fas fa-check"></i> Approve Project</button>' +
+                    '<button class="btn btn-outline btn-sm" onclick="sendProjectQuestion(' + projId + ')"><i class="fas fa-question-circle"></i> Send Question</button>' +
+                    '</div></div>';
+            }
+
+            html = '<div style="max-height:65vh;overflow-y:auto;">' +
+                '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">' +
+                '<span class="project-pillar ' + (proj.pillar || '').toLowerCase() + '">' + _esc(proj.pillar || 'Unassigned') + '</span>' +
+                '<span class="project-status ' + (proj.status || 'active').toLowerCase() + '">' + _esc(proj.status || 'Active') + '</span>' +
+                (proj.phase ? '<span class="tag"><i class="fas fa-stream" style="margin-right:4px;"></i>' + _esc(proj.phase) + '</span>' : '') +
+                (proj.adminApproved ? '<span class="tag" style="background:rgba(16,185,129,0.15);color:#10b981;"><i class="fas fa-check-circle" style="margin-right:4px;"></i>Approved</span>' : '') +
+                '</div>' +
+                (proj.pi ? '<p style="color:var(--accent-primary);font-size:0.88rem;margin-bottom:6px;"><i class="fas fa-user-md" style="margin-right:6px;"></i>' + _esc(proj.pi) + '</p>' : '') +
+                (proj.abstract ? '<p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">' + _esc(proj.abstract) + '</p>' : '') +
+                '<div class="project-progress" style="margin-bottom:20px;"><div class="progress-bar"><div class="progress-fill" style="width:' + (proj.progress || 0) + '%;"></div></div><span>' + (proj.progress || 0) + '%</span></div>' +
+                approvalHtml +
+                dataCollHtml +
+                filesHtml +
+                msHtml +
+                pubsHtml +
+                '<div class="modal-actions" style="flex-wrap:wrap;">' +
+                (_canEditProject(proj) ? '<button type="button" class="btn btn-outline" onclick="closeModal(); editProject(' + projId + ');"><i class="fas fa-edit"></i> Edit</button>' : '') +
+                (_canAccessProject(proj) && proj.irbApproved ? '<button type="button" class="btn btn-outline" style="border-color:#10b981;color:#10b981;" onclick="closeModal(); setTimeout(function(){openManuscript(' + projId + ')},200);"><i class="fas fa-pen-fancy"></i> Manuscript</button>' : '') +
+                '<button type="button" class="btn btn-primary" onclick="closeModal()"><i class="fas fa-check"></i> Done</button>' +
+                '</div></div>';
+            break;
+
+        /* ---------- UPLOAD CITI CERTIFICATE ---------- */
+        case 'uploadCITI':
+            title.textContent = 'Submit CITI Training Certificate';
+            html = '<form onsubmit="event.preventDefault(); submitCITICert(this); closeModal();">' +
+                '<div class="alert-banner" style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
+                '<i class="fas fa-info-circle" style="color:#00d4ff;"></i>' +
+                '<span style="font-size:0.82rem;color:var(--text-secondary);">Certificates are reviewed by <strong>Dr. Kolakowsky-Hayner</strong> before status is updated.</span></div>' +
+                '<div class="form-group"><label>Your Name *</label><input type="text" value="' + _esc(currentUserName) + '" required></div>' +
+                '<div class="form-group"><label>Training Type *</label><select required>' +
+                '<option value="">Select training...</option>' +
+                '<option>CITI Human Subjects</option><option>HIPAA Training</option>' +
+                '<option>Good Clinical Practice (GCP)</option><option>Responsible Conduct of Research</option>' +
+                '<option>Biosafety Training</option><option>Other</option></select></div>' +
+                '<div class="form-row"><div class="form-group"><label>Completion Date *</label><input type="date" required></div>' +
+                '<div class="form-group"><label>Expiration Date</label><input type="date"></div></div>' +
+                '<div class="form-group"><label>Certificate Number</label><input type="text" placeholder="e.g., CITI-12345678"></div>' +
+                '<div class="form-group"><label>Upload Certificate (PDF/Image)</label>' +
+                '<div class="pdf-upload-area" onclick="this.querySelector(\'input\').click()"><i class="fas fa-cloud-upload-alt"></i><p>Click to upload certificate</p><span>.pdf, .jpg, .png</span></div>' +
+                '<input type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none;"></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit for Review</button></div></form>';
+            break;
+
+        /* ---------- SUBMIT CME CREDITS ---------- */
+        case 'submitCME':
+            title.textContent = 'Submit CME Credits';
+            html = '<form onsubmit="event.preventDefault(); submitCMECredits(this); closeModal();">' +
+                '<div class="alert-banner" style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
+                '<i class="fas fa-info-circle" style="color:#f59e0b;"></i>' +
+                '<span style="font-size:0.82rem;color:var(--text-secondary);">CME credits are reviewed by <strong>Dr. Kolakowsky-Hayner</strong> before status is updated.</span></div>' +
+                '<div class="form-group"><label>Your Name *</label><input type="text" value="' + _esc(currentUserName) + '" required></div>' +
+                '<div class="form-row"><div class="form-group"><label>Activity Title *</label><input type="text" placeholder="e.g., AAN Annual Meeting 2026..." required></div>' +
+                '<div class="form-group"><label>Credits Earned *</label><input type="number" min="0.25" step="0.25" placeholder="e.g., 25" required></div></div>' +
+                '<div class="form-row"><div class="form-group"><label>Activity Date *</label><input type="date" required></div>' +
+                '<div class="form-group"><label>Category</label><select>' +
+                '<option>Category 1 (CME)</option><option>Category 2 (Self-Assessment)</option>' +
+                '<option>MOC Part 2</option><option>MOC Part 4</option><option>Other</option></select></div></div>' +
+                '<div class="form-group"><label>Upload Certificate (optional)</label>' +
+                '<div class="pdf-upload-area" onclick="this.querySelector(\'input\').click()"><i class="fas fa-cloud-upload-alt"></i><p>Click to upload</p><span>.pdf, .jpg, .png</span></div>' +
+                '<input type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none;"></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit for Review</button></div></form>';
+            break;
+
+        /* ---------- STUDENT MONTHLY ASSESSMENT ---------- */
+        case 'studentAssessment':
+            title.textContent = 'Monthly Student Assessment';
+            html = '<form onsubmit="event.preventDefault(); submitStudentAssessment(this); closeModal();">' +
+                '<div class="alert-banner" style="background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
+                '<i class="fas fa-clipboard-check" style="color:#7c3aed;"></i>' +
+                '<span style="font-size:0.82rem;color:var(--text-secondary);">Validated monthly assessment using a <strong>5-point Likert scale</strong>. Completed by supervising faculty.</span></div>' +
+                '<div class="form-row"><div class="form-group"><label>Student *</label><select id="assessStudent" required>' +
+                '<option value="">Select student...</option></select></div>' +
+                '<div class="form-group"><label>Assessment Month *</label><input type="month" required></div></div>' +
+                '<div class="form-group"><label>Linked Project</label><select><option value="">Select project...</option></select></div>' +
+                '<hr style="border-color:rgba(255,255,255,0.06);margin:16px 0;">' +
+                '<h4 style="color:var(--accent-primary);margin-bottom:4px;font-size:0.9rem;"><i class="fas fa-star"></i> Performance Domains (1=Poor, 5=Excellent)</h4>' +
+                '<p style="font-size:0.72rem;color:var(--text-muted);margin-bottom:16px;">Rate each domain on a 1-5 Likert scale based on observed performance.</p>' +
+                _buildLikertRow('Medical Knowledge & Literature Review') +
+                _buildLikertRow('Data Collection & Accuracy') +
+                _buildLikertRow('Analytical & Critical Thinking') +
+                _buildLikertRow('Communication & Presentation Skills') +
+                _buildLikertRow('Professionalism & Reliability') +
+                _buildLikertRow('Initiative & Self-Direction') +
+                _buildLikertRow('Teamwork & Collaboration') +
+                _buildLikertRow('Manuscript / Abstract Contribution') +
+                '<div class="form-group" style="margin-top:16px;"><label>Overall Performance *</label>' +
+                '<select required><option value="">Select...</option><option value="5">5 - Exceptional</option><option value="4">4 - Exceeds Expectations</option>' +
+                '<option value="3">3 - Meets Expectations</option><option value="2">2 - Needs Improvement</option><option value="1">1 - Unsatisfactory</option></select></div>' +
+                '<div class="form-group"><label>Strengths</label><textarea rows="2" placeholder="Key strengths observed this month..."></textarea></div>' +
+                '<div class="form-group"><label>Areas for Growth</label><textarea rows="2" placeholder="Areas for improvement..."></textarea></div>' +
+                '<div class="form-group"><label>Goals for Next Month</label><textarea rows="2" placeholder="Specific goals to work on..."></textarea></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Submit Assessment</button></div></form>';
+            break;
+
+        /* ---------- STUDENT PROJECT REQUEST ---------- */
+        case 'studentProjectRequest':
+            title.textContent = 'Request to Join a Project';
+            html = '<form onsubmit="event.preventDefault(); submitStudentProjectRequest(this); closeModal();">' +
+                '<div class="alert-banner" style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
+                '<i class="fas fa-info-circle" style="color:#10b981;"></i>' +
+                '<span style="font-size:0.82rem;color:var(--text-secondary);">Your request will be sent to the <strong>PI</strong> for approval. Once approved, you will complete IRB onboarding and gain access to the project protocol and data collection.</span></div>' +
+                '<div class="form-group"><label>Your Name *</label><input type="text" value="' + _esc(currentUserName) + '" required></div>' +
+                '<div class="form-group"><label>Project *</label><select required><option value="">Select project...</option></select></div>' +
+                '<div class="form-group"><label>Research Interest / Motivation *</label>' +
+                '<textarea rows="4" placeholder="Describe why you are interested in this project and what you hope to contribute..." required></textarea></div>' +
+                '<div class="form-group"><label>Availability (hours/week)</label>' +
+                '<input type="number" min="1" max="40" placeholder="e.g., 10"></div>' +
+                '<div class="form-group"><label>Relevant Experience</label>' +
+                '<textarea rows="2" placeholder="Previous research experience, skills, etc."></textarea></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit Request</button></div></form>';
+            break;
+
+        /* ---------- TEMPLATE: RESEARCH PROTOCOL ---------- */
+        case 'templateProtocol':
+            title.textContent = 'Research Protocol Template';
+            html = '<form onsubmit="event.preventDefault(); exportTemplate(\'protocol\', this);" style="max-height:65vh;overflow-y:auto;">' +
+                '<div class="alert-banner" style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
+                '<i class="fas fa-file-medical" style="color:#00d4ff;"></i>' +
+                '<span style="font-size:0.82rem;color:var(--text-secondary);">Fill in each section. You can export to Word when complete.</span></div>' +
+                '<div class="form-group"><label>Protocol Title *</label><input type="text" placeholder="Full protocol title..." required></div>' +
+                '<div class="form-group"><label>Linked Project</label><select><option value="">Select project...</option></select></div>' +
+                '<div class="form-row"><div class="form-group"><label>Principal Investigator *</label><input type="text" placeholder="PI name..." required></div>' +
+                '<div class="form-group"><label>Version / Date</label><input type="text" placeholder="e.g., v1.0 - Feb 2026"></div></div>' +
+                '<div class="form-group"><label>1. Background & Significance *</label><textarea rows="5" placeholder="Describe the scientific background, current knowledge gaps, and clinical significance..." required></textarea></div>' +
+                '<div class="form-group"><label>2. Specific Aims *</label><textarea rows="4" placeholder="List the specific aims of the study..." required></textarea></div>' +
+                '<div class="form-group"><label>3. Study Design & Methods *</label><textarea rows="5" placeholder="Describe the study design (RCT, cohort, etc.), inclusion/exclusion criteria, and procedures..." required></textarea></div>' +
+                '<div class="form-group"><label>4. Outcome Measures</label><textarea rows="3" placeholder="Primary and secondary outcome measures..."></textarea></div>' +
+                '<div class="form-group"><label>5. Statistical Analysis Plan</label><textarea rows="4" placeholder="Describe the planned statistical analyses, sample size justification, and analysis software..."></textarea></div>' +
+                '<div class="form-group"><label>6. Data Collection & Management</label><textarea rows="3" placeholder="Describe how data will be collected (REDCap, chart review, etc.), stored, and managed..."></textarea></div>' +
+                '<div class="form-group"><label>7. Ethical Considerations</label><textarea rows="3" placeholder="IRB approval plan, informed consent process, data privacy measures..."></textarea></div>' +
+                '<div class="form-group"><label>8. Timeline</label><textarea rows="2" placeholder="Project timeline and milestones..."></textarea></div>' +
+                '<div class="form-group"><label>9. References</label><textarea rows="3" placeholder="Key references cited in the protocol..."></textarea></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="button" class="btn btn-outline" onclick="saveTemplateDraft(\'protocol\', this.closest(\'form\'))"><i class="fas fa-save"></i> Save Draft</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-file-word"></i> Export to Word</button></div></form>';
+            break;
+
+        /* ---------- TEMPLATE: CONSENT FORM ---------- */
+        case 'templateConsent':
+            title.textContent = 'Informed Consent Form Template';
+            html = '<form onsubmit="event.preventDefault(); exportTemplate(\'consent\', this);" style="max-height:65vh;overflow-y:auto;">' +
+                '<div class="form-group"><label>Study Title *</label><input type="text" placeholder="Full study title..." required></div>' +
+                '<div class="form-group"><label>Linked Project</label><select><option value="">Select project...</option></select></div>' +
+                '<div class="form-row"><div class="form-group"><label>Principal Investigator</label><input type="text" placeholder="PI name..."></div>' +
+                '<div class="form-group"><label>IRB Protocol Number</label><input type="text" placeholder="e.g., IRB-2026-XXXX"></div></div>' +
+                '<div class="form-group"><label>1. Purpose of the Study *</label><textarea rows="3" placeholder="You are being asked to participate in a research study. The purpose of this study is..." required></textarea></div>' +
+                '<div class="form-group"><label>2. Study Procedures *</label><textarea rows="4" placeholder="If you agree to participate, you will be asked to..." required></textarea></div>' +
+                '<div class="form-group"><label>3. Risks & Discomforts</label><textarea rows="3" placeholder="The possible risks of participating in this study include..."></textarea></div>' +
+                '<div class="form-group"><label>4. Benefits</label><textarea rows="2" placeholder="You may not benefit directly from this study, however..."></textarea></div>' +
+                '<div class="form-group"><label>5. Alternatives</label><textarea rows="2" placeholder="Instead of participating, you may choose to..."></textarea></div>' +
+                '<div class="form-group"><label>6. Confidentiality</label><textarea rows="3" placeholder="Your records will be kept confidential. Your identity will be protected by..."></textarea></div>' +
+                '<div class="form-group"><label>7. Voluntary Participation</label><textarea rows="2" placeholder="Your participation is voluntary. You may refuse to participate or withdraw at any time..."></textarea></div>' +
+                '<div class="form-group"><label>8. Contact Information</label><textarea rows="2" placeholder="If you have questions about this study, please contact..."></textarea></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="button" class="btn btn-outline" onclick="saveTemplateDraft(\'consent\', this.closest(\'form\'))"><i class="fas fa-save"></i> Save Draft</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-file-word"></i> Export to Word</button></div></form>';
+            break;
+
+        /* ---------- TEMPLATE: IRB COVER LETTER ---------- */
+        case 'templateIRBLetter':
+            title.textContent = 'IRB Submission Cover Letter';
+            html = '<form onsubmit="event.preventDefault(); exportTemplate(\'irbLetter\', this);" style="max-height:65vh;overflow-y:auto;">' +
+                '<div class="form-row"><div class="form-group"><label>Submission Type *</label><select required>' +
+                '<option value="">Select...</option><option>New Protocol</option><option>Amendment</option>' +
+                '<option>Continuing Review</option><option>Adverse Event Report</option></select></div>' +
+                '<div class="form-group"><label>Date</label><input type="date" value="' + new Date().toISOString().split('T')[0] + '"></div></div>' +
+                '<div class="form-group"><label>Protocol Title *</label><input type="text" placeholder="Protocol title..." required></div>' +
+                '<div class="form-group"><label>Protocol Number</label><input type="text" placeholder="IRB-2026-XXXX"></div>' +
+                '<div class="form-group"><label>Principal Investigator</label><input type="text" placeholder="PI name and credentials..."></div>' +
+                '<div class="form-group"><label>Study Summary *</label><textarea rows="4" placeholder="Brief summary of the study for the IRB..." required></textarea></div>' +
+                '<div class="form-group"><label>Changes / Key Points</label><textarea rows="3" placeholder="For amendments: describe changes. For new protocols: key design points. For continuing review: enrollment status..."></textarea></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-file-word"></i> Export to Word</button></div></form>';
+            break;
+
+        /* ---------- TEMPLATE: DATA MANAGEMENT PLAN ---------- */
+        case 'templateDMP':
+            title.textContent = 'Data Management Plan Template';
+            html = '<form onsubmit="event.preventDefault(); exportTemplate(\'dmp\', this);" style="max-height:65vh;overflow-y:auto;">' +
+                '<div class="form-group"><label>Project Title *</label><input type="text" placeholder="Project title..." required></div>' +
+                '<div class="form-group"><label>Linked Project</label><select><option value="">Select project...</option></select></div>' +
+                '<div class="form-group"><label>1. Data Types & Formats</label><textarea rows="3" placeholder="What types of data will be collected? (clinical, imaging, genomic, survey, etc.) What formats? (CSV, DICOM, FASTA, etc.)"></textarea></div>' +
+                '<div class="form-group"><label>2. Data Collection Methods</label><textarea rows="3" placeholder="How will data be collected? (REDCap, chart review, prospective enrollment, devices, etc.)"></textarea></div>' +
+                '<div class="form-group"><label>3. Data Storage & Security</label><textarea rows="3" placeholder="Where will data be stored? Security measures? Encryption? Access controls?"></textarea></div>' +
+                '<div class="form-group"><label>4. Data Sharing Plan</label><textarea rows="2" placeholder="Will data be shared? Under what conditions? De-identification procedures?"></textarea></div>' +
+                '<div class="form-group"><label>5. Data Retention & Archiving</label><textarea rows="2" placeholder="How long will data be retained? Archiving procedures? Destruction timelines?"></textarea></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-file-word"></i> Export to Word</button></div></form>';
+            break;
+
+        /* ---------- UPLOAD DOCUMENT ---------- */
+        case 'uploadDocument':
+            title.textContent = 'Upload Document';
+            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Document uploaded!\', \'success\');">' +
+                '<div class="form-group"><label>Document Title *</label><input type="text" placeholder="Document title..." required></div>' +
+                '<div class="form-group"><label>Category *</label><select required>' +
+                '<option value="">Select category...</option><option>Policy</option><option>Template</option>' +
+                '<option>Guideline</option><option>SOP</option><option>Training Material</option><option>Other</option></select></div>' +
+                '<div class="form-group"><label>Upload File *</label>' +
+                '<div class="pdf-upload-area" onclick="this.querySelector(\'input\').click()"><i class="fas fa-cloud-upload-alt"></i><p>Click to upload or drag & drop</p><span>.pdf, .doc, .docx, .xlsx, .pptx</span></div>' +
+                '<input type="file" accept=".pdf,.doc,.docx,.xlsx,.pptx,.txt" required style="display:none;"></div>' +
+                '<div class="form-group"><label>Description</label><textarea rows="2" placeholder="Brief description..."></textarea></div>' +
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> Upload</button></div></form>';
+            break;
+
+        /* ---------- REDCAP FORM BUILDER ---------- */
+        case 'redcapBuilder':
+            title.textContent = 'REDCap Form Builder';
+            html = '<div style="margin-bottom:20px;">' +
+                '<div class="alert-banner" style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:16px;">' +
+                '<i class="fas fa-magic" style="color:#f59e0b;"></i>' +
+                '<span style="font-size:0.82rem;color:var(--text-secondary);">Import a REDCap data dictionary CSV <strong style="color:var(--text-primary);">or</strong> manually define variables below. The form will be auto-generated.</span></div>' +
+
+                '<div class="form-group"><label>Linked Project *</label>' +
+                '<select id="redcapProject" required>' +
+                '<option value="">Select project...</option></select></div>' +
+
+                '<div class="form-group"><label>Form / Instrument Name *</label>' +
+                '<input type="text" id="redcapFormName" placeholder="e.g., Baseline Demographics, Follow-Up Visit..."></div>' +
+
+                '<h4 class="form-section-title"><i class="fas fa-file-csv" style="margin-right:6px;"></i> Option 1: Import Data Dictionary (CSV)</h4>' +
+                '<div class="form-group">' +
+                '<div class="pdf-upload-area" id="csvDropZone" onclick="document.getElementById(\'csvFileInput\').click();">' +
+                '<i class="fas fa-file-csv" style="color:#f59e0b;"></i>' +
+                '<p>Click to upload REDCap Data Dictionary CSV</p>' +
+                '<span>Expects columns: Variable, Form, Field Type, Field Label, Choices</span>' +
+                '</div>' +
+                '<input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="parseRedcapCSV(this)">' +
+                '</div>' +
+                '<div id="csvParseResult" style="display:none;"></div>' +
+
+                '<h4 class="form-section-title"><i class="fas fa-pencil-alt" style="margin-right:6px;"></i> Option 2: Define Variables Manually</h4>' +
+                '<div id="redcapVarList"></div>' +
+                '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">' +
+                '<input type="text" id="newVarName" placeholder="Variable name..." style="flex:2;min-width:140px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-family:inherit;font-size:0.82rem;">' +
+                '<select id="newVarType" style="flex:1;min-width:120px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-family:inherit;font-size:0.82rem;">' +
+                '<option value="text">Text</option>' +
+                '<option value="number">Number</option>' +
+                '<option value="date">Date</option>' +
+                '<option value="dropdown">Dropdown</option>' +
+                '<option value="radio">Radio Buttons</option>' +
+                '<option value="checkbox">Checkbox</option>' +
+                '<option value="yesno">Yes/No</option>' +
+                '<option value="textarea">Notes / Textarea</option>' +
+                '<option value="calc">Calculated Field</option>' +
+                '<option value="file">File Upload</option>' +
+                '<option value="slider">Slider (0-100)</option>' +
+                '</select>' +
+                '<input type="text" id="newVarLabel" placeholder="Field label..." style="flex:3;min-width:180px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-family:inherit;font-size:0.82rem;">' +
+                '<button type="button" class="btn btn-primary btn-sm" onclick="addRedcapVar()"><i class="fas fa-plus"></i></button>' +
+                '</div>' +
+                '<input type="text" id="newVarChoices" placeholder="For dropdown/radio/checkbox: choices separated by | (e.g., Male | Female | Other)" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-family:inherit;font-size:0.82rem;margin-bottom:16px;">' +
+
+                '<div class="modal-actions">' +
+                '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+                '<button type="button" class="btn btn-primary" onclick="generateRedcapForm()"><i class="fas fa-magic"></i> Generate Form</button>' +
+                '</div></div>';
+            break;
+
+        default:
+            title.textContent = 'Modal';
+            html = '<p>Unknown modal type: ' + type + '</p>';
+    }
+
+    body.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Populate project dropdowns in modal
+    _populateProjectDropdowns();
+
+    // Populate PI dropdowns from faculty list
+    _populatePIDropdowns();
+
+    // Re-init ripple effects for new buttons inside modal
+    setTimeout(function () { initRippleEffect(); }, 50);
+}
+
+// Helper: Build support request form (shared between newRequest and statRequest)
+function _buildRequestForm(prefilledCategory) {
+    var categorySelected = function (val) {
+        return prefilledCategory === val ? ' selected' : '';
+    };
+
+    return '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Request submitted successfully!\');">' +
+        '<div class="form-group"><label>Request Title *</label>' +
+        '<input type="text" placeholder="Brief title for your request..." required></div>' +
+
+        '<div class="form-row"><div class="form-group"><label>Category</label>' +
+        '<select>' +
+        '<option value="">Select category...</option>' +
+        '<option' + categorySelected('Statistical Consultation') + '>Statistical Consultation</option>' +
+        '<option' + categorySelected('Data Query') + '>Data Query</option>' +
+        '<option' + categorySelected('Regulatory Question') + '>Regulatory Question</option>' +
+        '<option' + categorySelected('Resource Request') + '>Resource Request</option>' +
+        '<option' + categorySelected('IT Support') + '>IT Support</option>' +
+        '<option' + categorySelected('Other') + '>Other</option>' +
+        '</select></div>' +
+
+        '<div class="form-group"><label>Send To</label>' +
+        '<select>' +
+        '<option value="">Select recipient...</option>' +
+        '<option>Research Director</option>' +
+        '<option>Department Chair</option>' +
+        '<option>CRC</option>' +
+        '<option>Statistician</option>' +
+        '<option>Informaticist</option>' +
+        '<option>All Admins</option>' +
+        '<option>Other</option>' +
+        '</select></div></div>' +
+
+        '<div class="form-row"><div class="form-group"><label>Priority</label>' +
+        '<select>' +
+        '<option>Low</option>' +
+        '<option selected>Medium</option>' +
+        '<option>High</option>' +
+        '</select></div>' +
+
+        '<div class="form-group"><label>Linked Project *</label>' +
+        '<select required>' +
+        '<option value="">Select project...</option>' +
+        '</select>' +
+        '<span style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;display:block;">All requests must be linked to a project.</span></div></div>' +
+
+        '<div class="form-group"><label>Description *</label>' +
+        '<textarea rows="4" placeholder="Describe your request in detail..." required></textarea></div>' +
+
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+        '<button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit Request</button>' +
+        '</div></form>';
+}
+
+// Helper: Build evaluation criteria row
+function _buildEvalCriteria(label) {
+    return '<div class="form-group" style="display:flex;align-items:center;gap:12px;">' +
+        '<label style="flex:1;min-width:160px;margin:0;">' + label + '</label>' +
+        '<select style="flex:0 0 140px;">' +
+        '<option value="">Score...</option>' +
+        '<option>5</option>' +
+        '<option>4</option>' +
+        '<option>3</option>' +
+        '<option>2</option>' +
+        '<option>1</option>' +
+        '</select></div>';
+}
+
+// Toggle medical student fields
+function toggleMedStudentFields() {
+    var role = document.getElementById('personRole');
+    var fields = document.getElementById('medStudentFields');
+    if (role && fields) {
+        fields.style.display = role.value === 'Medical Student' ? 'block' : 'none';
+    }
+}
+
+// Toggle publication type fields
+function togglePubFields() {
+    var type = document.getElementById('pubType');
+    var pubFields = document.getElementById('pubFields');
+    var presFields = document.getElementById('presFields');
+    var patentFields = document.getElementById('patentFields');
+
+    if (!type) return;
+
+    if (pubFields) pubFields.style.display = 'none';
+    if (presFields) presFields.style.display = 'none';
+    if (patentFields) patentFields.style.display = 'none';
+
+    switch (type.value) {
+        case 'publication':
+            if (pubFields) pubFields.style.display = 'block';
+            break;
+        case 'presentation':
+            if (presFields) presFields.style.display = 'block';
+            break;
+        case 'patent':
+            if (patentFields) patentFields.style.display = 'block';
+            break;
+    }
+}
+
+/* ================================================
+   6b. PROJECT WIZARD + MANAGEMENT
+   ================================================ */
+var projectStore = [];
+var projectIdCounter = 0;
+var _wizStep = 1;
+var _wizTotalSteps = 5;
+
+/* --- Wizard Navigation --- */
+function wizardNext() {
+    // Validate step 1 required fields
+    if (_wizStep === 1) {
+        var req = ['wz_title', 'wz_studyType', 'wz_pillar', 'wz_dept', 'wz_pi', 'wz_disease', 'wz_abstract'];
+        for (var i = 0; i < req.length; i++) {
+            var el = document.getElementById(req[i]);
+            if (el && !el.value.trim()) {
+                el.focus();
+                showToast('Please fill in all required (*) fields.', 'error');
+                return;
+            }
+        }
+    }
+
+    // Validate step 2: Protocol fields required if NA not checked
+    if (_wizStep === 2) {
+        var protNA = document.getElementById('wz_protocolNA');
+        if (protNA && !protNA.checked) {
+            var protReq = ['wz_protBg', 'wz_protAims', 'wz_protMethods'];
+            for (var p = 0; p < protReq.length; p++) {
+                var pEl = document.getElementById(protReq[p]);
+                if (pEl && !pEl.value.trim()) {
+                    pEl.focus();
+                    showToast('Protocol fields are required unless marked N/A. Please fill in Background, Aims, and Methods.', 'error');
+                    return;
+                }
+            }
+        }
+    }
+
+    // Validate step 3: IRB fields required if NA not checked
+    if (_wizStep === 3) {
+        var irbNA = document.getElementById('wz_irbNA');
+        if (irbNA && !irbNA.checked) {
+            var irbReq = ['wz_consentPurpose', 'wz_consentProc'];
+            for (var ir = 0; ir < irbReq.length; ir++) {
+                var irEl = document.getElementById(irbReq[ir]);
+                if (irEl && !irEl.value.trim()) {
+                    irEl.focus();
+                    showToast('IRB/Consent fields are required unless marked N/A. Please fill in the consent information.', 'error');
+                    return;
+                }
+            }
+        }
+    }
+
+    if (_wizStep < _wizTotalSteps) {
+        _wizStep++;
+        _updateWizardUI();
+    }
+}
+
+function wizardPrev() {
+    if (_wizStep > 1) {
+        _wizStep--;
+        _updateWizardUI();
+    }
+}
+
+function _updateWizardUI() {
+    // Hide all panels, show current
+    for (var s = 1; s <= _wizTotalSteps; s++) {
+        var panel = document.getElementById('wizStep' + s);
+        var stepEl = document.querySelector('.wizard-step[data-step="' + s + '"]');
+        if (panel) panel.style.display = (s === _wizStep) ? '' : 'none';
+        if (panel && s === _wizStep) panel.classList.add('active');
+        if (stepEl) {
+            stepEl.classList.remove('active', 'completed');
+            if (s === _wizStep) stepEl.classList.add('active');
+            else if (s < _wizStep) stepEl.classList.add('completed');
+        }
+    }
+    // Toggle buttons
+    var prevBtn = document.getElementById('wizBtnPrev');
+    var nextBtn = document.getElementById('wizBtnNext');
+    var submitBtn = document.getElementById('wizBtnSubmit');
+    if (prevBtn) prevBtn.style.display = _wizStep > 1 ? '' : 'none';
+    if (nextBtn) nextBtn.style.display = _wizStep < _wizTotalSteps ? '' : 'none';
+    if (submitBtn) submitBtn.style.display = _wizStep === _wizTotalSteps ? '' : 'none';
+}
+
+function toggleUmbrellaIRB() {
+    var sel = document.getElementById('wz_umbrellaIRB');
+    var field = document.getElementById('wz_umbrellaField');
+    if (sel && field) field.style.display = sel.value === 'yes' ? '' : 'none';
+}
+
+function toggleWizNA(section) {
+    var map = { protocol: 'wz_protocolFields', irb: 'wz_irbFields', budget: 'wz_budgetFields' };
+    var checkId = { protocol: 'wz_protocolNA', irb: 'wz_irbNA', budget: 'wz_budgetNA' };
+    var fields = document.getElementById(map[section]);
+    var check = document.getElementById(checkId[section]);
+    if (fields && check) {
+        fields.style.display = check.checked ? 'none' : '';
+        fields.style.opacity = check.checked ? '0.3' : '1';
+    }
+}
+
+/* --- Budget Auto-Calculate --- */
+function budgetAutoCalc(sel) {
+    var row = sel.closest('tr');
+    if (!row) return;
+    var qtyInput = row.querySelector('.budget-qty');
+    var unitInput = row.querySelector('.budget-unit');
+    if (!qtyInput || !unitInput) return;
+
+    var presets = {
+        'consult_10': { qty: 10, unit: 150 },
+        'consult_20': { qty: 20, unit: 150 },
+        'consult_40': { qty: 40, unit: 150 },
+        'consult_custom': { qty: 0, unit: 150 },
+        'redcap': { qty: 1, unit: 0 },
+        'spss': { qty: 1, unit: 1200 },
+        'stata': { qty: 1, unit: 1800 },
+        'sas': { qty: 1, unit: 8800 },
+        'matlab': { qty: 1, unit: 2150 },
+        'r_free': { qty: 1, unit: 0 },
+        'python_free': { qty: 1, unit: 0 },
+        'software_other': { qty: 1, unit: 0 },
+        'crc_part': { qty: 12, unit: 2500 },
+        'crc_full': { qty: 12, unit: 5000 },
+        'ra_part': { qty: 12, unit: 2000 },
+        'personnel_other': { qty: 0, unit: 0 }
+    };
+
+    var preset = presets[sel.value];
+    if (preset) {
+        qtyInput.value = preset.qty;
+        unitInput.value = preset.unit;
+    }
+    budgetRecalcRow(qtyInput);
+}
+
+function budgetRecalcRow(el) {
+    var row = el.closest('tr');
+    if (!row) return;
+    var qty = parseFloat(row.querySelector('.budget-qty').value) || 0;
+    var unit = parseFloat(row.querySelector('.budget-unit').value) || 0;
+    var totalCell = row.querySelector('.budget-total');
+    if (totalCell) totalCell.textContent = '$' + (qty * unit).toLocaleString();
+    _recalcBudgetTotal();
+}
+
+function _recalcBudgetTotal() {
+    var total = 0;
+    document.querySelectorAll('#budgetTableBody .budget-total').forEach(function (cell) {
+        var val = cell.textContent.replace(/[$,]/g, '');
+        total += parseFloat(val) || 0;
+    });
+    var gt = document.getElementById('budgetGrandTotal');
+    if (gt) gt.textContent = '$' + total.toLocaleString();
+}
+
+/* --- Add Budget Row dynamically --- */
+function addBudgetRow() {
+    var tbody = document.getElementById('budgetTableBody');
+    if (!tbody) return;
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-cat', 'custom');
+    tr.innerHTML = '<td><input type="text" placeholder="Category..." style="background:transparent;border:none;color:var(--text-primary);font-family:inherit;font-size:0.82rem;width:100%;"></td>' +
+        '<td><input type="text" placeholder="Item description..." class="budget-item-text"></td>' +
+        '<td><input type="text" placeholder="Details / Link..." class="budget-detail"></td>' +
+        '<td><input type="number" class="budget-qty" value="1" min="0" onchange="budgetRecalcRow(this)"></td>' +
+        '<td><input type="number" class="budget-unit" value="0" onchange="budgetRecalcRow(this)"></td>' +
+        '<td class="budget-total">$0</td>';
+    tbody.appendChild(tr);
+    showToast('Budget row added.', 'success');
+}
+
+/* --- Submit Project from Wizard --- */
+function wizardSubmit() {
+    var data = {
+        id: ++projectIdCounter,
+        title: _val('wz_title'),
+        studyType: _val('wz_studyType'),
+        pillar: _val('wz_pillar'),
+        department: _val('wz_dept'),
+        pi: _val('wz_pi'),
+        diseaseFocus: _val('wz_disease'),
+        coInvestigators: _val('wz_coI'),
+        abstract: _val('wz_abstract'),
+        umbrellaIRB: _val('wz_umbrellaIRB') === 'yes' ? _val('wz_umbrellaNum') : '',
+        status: 'Pre-submission',
+        phase: 'Protocol Preparation',
+        startDate: new Date().toISOString().split('T')[0],
+        progress: 0,
+        members: [],
+        irbPersonnel: [],
+        irbApproved: false,
+        irbProtocolNumber: '',
+        createdBy: currentUserEmail,
+        createdAt: new Date().toISOString(),
+        files: {},
+        publications: [],
+        protocol: {
+            na: document.getElementById('wz_protocolNA') ? document.getElementById('wz_protocolNA').checked : false,
+            background: _val('wz_protBg'),
+            aims: _val('wz_protAims'),
+            methods: _val('wz_protMethods'),
+            outcomes: _val('wz_protOutcomes'),
+            statPlan: _val('wz_protStats'),
+            dataCollection: _val('wz_protData'),
+            timeline: _val('wz_protTimeline')
+        },
+        irb: {
+            na: document.getElementById('wz_irbNA') ? document.getElementById('wz_irbNA').checked : false,
+            submissionType: _val('wz_irbType'),
+            consentPurpose: _val('wz_consentPurpose'),
+            consentProc: _val('wz_consentProc'),
+            consentRisks: _val('wz_consentRisks'),
+            consentBenefits: _val('wz_consentBenefits'),
+            consentConfid: _val('wz_consentConfid')
+        },
+        budget: {
+            na: document.getElementById('wz_budgetNA') ? document.getElementById('wz_budgetNA').checked : false,
+            totalEstimate: document.getElementById('budgetGrandTotal') ? document.getElementById('budgetGrandTotal').textContent : '$0'
+        },
+        notes: _val('wz_notes')
+    };
+
+    if (!data.title) { showToast('Project title is required.', 'error'); return; }
+
+    // Mark protocol/IRB as created during wizard (documents from wizard)
+    if (!data.protocol.na && data.protocol.background) {
+        data.files.protocol = 'Protocol (created in wizard)';
+    }
+
+    // Save manuscript draft storage
+    data.manuscript = { content: '', lastEditedBy: '', lastEditedAt: '' };
+
+    projectStore.push(data);
+    renderProjects();
+    _populateProjectDropdowns();
+    closeModal();
+    _wizStep = 1;
+    showToast('Project "' + data.title + '" submitted as Pre-submission!', 'success');
+
+    // Send notification to Dr. Hayner and Ahmad for review
+    _sendProjectNotification(data, 'new');
+}
+
+function _val(id) {
+    var el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+}
+
+/* --- Legacy createProject for backward compat --- */
+function createProject(formEl) {
+    if (!formEl) return;
+    var inputs = formEl.querySelectorAll('input, select, textarea');
+    var data = {};
+    var fieldMap = ['title', 'studyType', 'pillar', 'department', 'pi', 'coInvestigators', 'status', 'phase', 'startDate', 'endDate', 'diseaseFocus', 'fundingSource', 'irbNumber', 'abstract'];
+    inputs.forEach(function (el, i) { if (fieldMap[i]) data[fieldMap[i]] = el.value; });
+    data.id = ++projectIdCounter;
+    data.members = [];
+    data.progress = 0;
+    data.createdBy = currentUserEmail;
+    data.createdAt = new Date().toISOString();
+    projectStore.push(data);
+    renderProjects();
+    _populateProjectDropdowns();
+    closeModal();
+    showToast('Project created!', 'success');
+}
+
+/* --- IRB Approval Workflow --- */
+function openIRBReview(projId) {
+    var proj = _findProject(projId);
+    if (!proj) return;
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'IRB Review: ' + (proj.title || 'Project');
+
+    var html = '<div>' +
+        '<div class="alert-banner" style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
+        '<i class="fas fa-shield-alt" style="color:#f59e0b;"></i>' +
+        '<span style="font-size:0.82rem;color:var(--text-secondary);">IRB reviewer access. Review the project and upload the approval document to activate it.</span></div>' +
+        '<div class="form-group"><label>Project Title</label><input type="text" value="' + _esc(proj.title) + '" readonly style="opacity:0.7;"></div>' +
+        '<div class="form-group"><label>PI</label><input type="text" value="' + _esc(proj.pi) + '" readonly style="opacity:0.7;"></div>' +
+        '<div class="form-group"><label>IRB Decision *</label><select id="irbDecision" required>' +
+        '<option value="">Select decision...</option><option value="approved">Approved</option>' +
+        '<option value="conditional">Approved with Conditions</option>' +
+        '<option value="deferred">Deferred / Revisions Required</option>' +
+        '<option value="denied">Not Approved</option></select></div>' +
+        '<div class="form-group"><label>IRB Protocol Number *</label><input type="text" id="irbProtNum" placeholder="e.g., IRB-2026-0042" required></div>' +
+        '<div class="form-group"><label>Upload Approval Document *</label>' +
+        '<div class="pdf-upload-area" onclick="this.querySelector(\'input\').click()"><i class="fas fa-file-pdf" style="color:#ef4444;"></i><p>Click to upload IRB approval letter</p><span>.pdf</span></div>' +
+        '<input type="file" id="irbApprovalFile" accept=".pdf" style="display:none;"></div>' +
+        '<div class="form-group"><label>IRB Personnel (who can access this project)</label>' +
+        '<textarea id="irbPersonnelList" rows="3" placeholder="List all personnel approved on the IRB protocol, one per line...">' + (proj.irbPersonnel || []).join('\\n') + '</textarea></div>' +
+        '<div class="form-group"><label>Comments</label><textarea id="irbComments" rows="2" placeholder="Any reviewer comments..."></textarea></div>' +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+        '<button type="button" class="btn btn-primary" onclick="submitIRBDecision(' + projId + ')"><i class="fas fa-gavel"></i> Submit Decision</button></div></div>';
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function submitIRBDecision(projId) {
+    var proj = _findProject(projId);
+    if (!proj) return;
+    var decision = document.getElementById('irbDecision');
+    var protNum = document.getElementById('irbProtNum');
+    if (!decision || !decision.value) { showToast('Select a decision.', 'error'); return; }
+    if (!protNum || !protNum.value.trim()) { showToast('Enter the IRB protocol number.', 'error'); return; }
+
+    proj.irbProtocolNumber = protNum.value.trim();
+    proj.irbDecision = decision.value;
+
+    // Parse personnel list
+    var personnelEl = document.getElementById('irbPersonnelList');
+    if (personnelEl) {
+        proj.irbPersonnel = personnelEl.value.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l; });
+    }
+
+    var fileInput = document.getElementById('irbApprovalFile');
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+        proj.files.irbApproval = fileInput.files[0].name;
+    }
+
+    if (decision.value === 'approved' || decision.value === 'conditional') {
+        proj.irbApproved = true;
+        proj.status = 'Active';
+        proj.phase = 'Data Collection';
+        showToast('IRB Approved! Project is now Active. Protocol #: ' + proj.irbProtocolNumber, 'success');
+    } else if (decision.value === 'deferred') {
+        proj.status = 'Pre-submission';
+        proj.phase = 'IRB Review';
+        showToast('IRB deferred. Revisions required.', 'info');
+    } else {
+        showToast('IRB decision recorded.', 'info');
+    }
+
+    // Notify PI about IRB decision
+    _sendProjectNotification(proj, 'irb_decision');
+
+    renderProjects();
+    closeModal();
+}
+
+/* --- Project Access Check (IRB personnel) --- */
+function _canAccessProject(proj) {
+    // Admins always have access
+    if (currentUserRole === 'Admin') return true;
+    // Creator always has access
+    if (proj.createdBy === currentUserEmail) return true;
+    // If project has no IRB or IRB not yet approved, creator and admins only
+    if (!proj.irbApproved && !proj.irb?.na) return proj.createdBy === currentUserEmail;
+    // If IRB is NA (not needed), anyone can access
+    if (proj.irb && proj.irb.na) return true;
+    // If IRB approved, check if user is on the IRB personnel list
+    if (proj.irbPersonnel && proj.irbPersonnel.length > 0) {
+        var userName = currentUserName.toLowerCase();
+        var userEmail = currentUserEmail.toLowerCase();
+        for (var i = 0; i < proj.irbPersonnel.length; i++) {
+            var person = proj.irbPersonnel[i].toLowerCase();
+            if (person.indexOf(userName) !== -1 || person.indexOf(userEmail) !== -1) return true;
+        }
+        return false;
+    }
+    return true;
+}
+
+function editProject(id) {
+    var proj = _findProject(id);
+    if (!proj) return;
+
+    // Only PI or admins can edit
+    if (!_canEditProject(proj)) {
+        showToast('Only the PI or an admin can edit this project.', 'error');
+        return;
+    }
+
+    var overlay = document.getElementById('modalOverlay');
+    var title = document.getElementById('modalTitle');
+    var body = document.getElementById('modalBody');
+    title.textContent = 'Edit Project';
+
+    var memberListHtml = '';
+    if (proj.members && proj.members.length > 0) {
+        proj.members.forEach(function (m, i) {
+            memberListHtml += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' +
+                '<span style="flex:1;font-size:0.82rem;">' + m.name + ' <span style="color:var(--text-muted);font-size:0.72rem;">(' + m.role + ')</span></span>' +
+                '<button type="button" class="btn btn-danger btn-sm" onclick="removeProjectMember(' + proj.id + ',' + i + ')"><i class="fas fa-times"></i></button></div>';
+        });
+    } else {
+        memberListHtml = '<p style="color:var(--text-muted);font-size:0.82rem;padding:8px 0;">No team members added yet.</p>';
+    }
+
+    var html = '<form onsubmit="event.preventDefault(); saveProjectEdits(' + proj.id + ', this);">' +
+        '<div class="form-group"><label>Project Title *</label>' +
+        '<input type="text" value="' + _esc(proj.title) + '" required></div>' +
+
+        '<div class="form-row"><div class="form-group"><label>Status</label>' +
+        '<select>' +
+        _opt('Pre-submission', proj.status) +
+        _opt('IRB Review', proj.status) +
+        _opt('Active', proj.status) +
+        _opt('Enrolling', proj.status) +
+        _opt('Data Collection', proj.status) +
+        _opt('Analysis', proj.status) +
+        _opt('Completed', proj.status) +
+        _opt('On Hold', proj.status) +
+        '</select></div>' +
+
+        '<div class="form-group"><label>Pipeline Phase</label>' +
+        '<select>' +
+        _opt('Protocol Preparation', proj.phase) +
+        _opt('IRB Review', proj.phase) +
+        _opt('Contracts', proj.phase) +
+        _opt('Funding', proj.phase) +
+        _opt('Data Collection', proj.phase) +
+        _opt('Analysis', proj.phase) +
+        _opt('Paper Write-Up', proj.phase) +
+        _opt('Submitted', proj.phase) +
+        _opt('Accepted', proj.phase) +
+        '</select></div></div>' +
+
+        '<div class="form-group"><label>Progress (%)</label>' +
+        '<input type="number" min="0" max="100" value="' + (proj.progress || 0) + '"></div>' +
+
+        '<div class="form-group"><label>Co-Investigators</label>' +
+        '<input type="text" value="' + _esc(proj.coInvestigators) + '" placeholder="Comma-separated names..."></div>' +
+
+        '<div class="form-group"><label>Disease Focus</label>' +
+        '<input type="text" value="' + _esc(proj.diseaseFocus) + '"></div>' +
+
+        '<div class="form-group"><label>Abstract</label>' +
+        '<textarea rows="3">' + _esc(proj.abstract) + '</textarea></div>' +
+
+        '<h4 class="form-section-title"><i class="fas fa-users" style="margin-right:6px;"></i> Team Members</h4>' +
+        '<div id="editProjectMembers">' + memberListHtml + '</div>' +
+        '<div class="form-row" style="margin-top:12px;">' +
+        '<div class="form-group"><label>Add Member Name</label>' +
+        '<input type="text" id="newMemberName" placeholder="Full name..."></div>' +
+        '<div class="form-group"><label>Role</label>' +
+        '<div style="display:flex;gap:6px;">' +
+        '<select id="newMemberRole" style="flex:1;">' +
+        '<option value="">Select role...</option>' +
+        '<option>Resident</option>' +
+        '<option>Medical Student</option>' +
+        '<option>Research Fellow</option>' +
+        '<option>CRC</option>' +
+        '<option>Research Nurse</option>' +
+        '<option>Statistician</option>' +
+        '<option>Other</option>' +
+        '</select>' +
+        '<button type="button" class="btn btn-primary btn-sm" onclick="addProjectMember(' + proj.id + ')"><i class="fas fa-plus"></i></button>' +
+        '</div></div></div>' +
+
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+        '<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>' +
+        '</div></form>';
+
+    body.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function saveProjectEdits(id, formEl) {
+    var proj = _findProject(id);
+    if (!proj) return;
+
+    var inputs = formEl.querySelectorAll('input, select, textarea');
+    var oldStatus = proj.status;
+    proj.title = inputs[0].value;
+    proj.status = inputs[1].value;
+    proj.phase = inputs[2].value;
+    proj.progress = parseInt(inputs[3].value) || 0;
+    proj.coInvestigators = inputs[4].value;
+    proj.diseaseFocus = inputs[5].value;
+    proj.abstract = inputs[6].value;
+
+    // Notify PI if status changed
+    if (oldStatus !== proj.status) {
+        _sendProjectNotification(proj, 'status_change');
+    }
+
+    renderProjects();
+    closeModal();
+    showToast('Project updated!', 'success');
+}
+
+function addProjectMember(projectId) {
+    var proj = _findProject(projectId);
+    if (!proj) return;
+
+    var nameEl = document.getElementById('newMemberName');
+    var roleEl = document.getElementById('newMemberRole');
+    if (!nameEl || !nameEl.value.trim()) {
+        showToast('Enter a member name.', 'error');
+        return;
+    }
+
+    proj.members.push({
+        name: nameEl.value.trim(),
+        role: roleEl ? roleEl.value || 'Team Member' : 'Team Member'
+    });
+
+    // Refresh the edit modal
+    editProject(projectId);
+    showToast(nameEl.value.trim() + ' added to the project.', 'success');
+}
+
+function removeProjectMember(projectId, index) {
+    var proj = _findProject(projectId);
+    if (!proj) return;
+    var removed = proj.members.splice(index, 1);
+    editProject(projectId);
+    showToast((removed[0] ? removed[0].name : 'Member') + ' removed.', 'info');
+}
+
+function deleteProject(id) {
+    if (!confirm('Are you sure you want to delete this project?')) return;
+    projectStore = projectStore.filter(function (p) { return p.id !== id; });
+    renderProjects();
+    _populateProjectDropdowns();
+    showToast('Project deleted.', 'info');
+}
+
+function renderProjects() {
+    var grid = document.getElementById('projectsGrid');
+    if (!grid) return;
+
+    if (projectStore.length === 0) {
+        grid.innerHTML = '<div class="empty-state-large"><i class="fas fa-project-diagram"></i><h3>No Research Projects Yet</h3><p>Click "New Project" to add your first research project.</p><button class="btn btn-primary" onclick="openModal(\'newProject\')"><i class="fas fa-plus"></i> Add First Project</button></div>';
+        return;
+    }
+
+    var html = '';
+    projectStore.forEach(function (p, i) {
+        var pillar = (p.pillar || '').toLowerCase();
+        var status = (p.status || 'active').toLowerCase();
+        var canEdit = _canEditProject(p);
+        var canAccess = _canAccessProject(p);
+
+        // IRB badge
+        var irbBadge = '';
+        if (p.irb && p.irb.na) {
+            irbBadge = '<span class="irb-badge na"><i class="fas fa-minus-circle"></i> No IRB</span>';
+        } else if (p.irbApproved) {
+            irbBadge = '<span class="irb-badge approved"><i class="fas fa-check-circle"></i> IRB ' + _esc(p.irbProtocolNumber || 'Approved') + '</span>';
+        } else {
+            irbBadge = '<span class="irb-badge pending"><i class="fas fa-clock"></i> IRB Pending</span>';
+        }
+
+        html += '<div class="project-card" data-pillar="' + pillar + '" data-status="' + status + '" data-dept="' + (p.department || '').toLowerCase() + '" style="animation-delay:' + (i * 0.05) + 's;' + (!canAccess ? 'opacity:0.5;' : '') + '" onclick="' + (canAccess ? 'openModal(\'projectDetail\', ' + p.id + ')' : 'showToast(\'Access restricted. You must be listed on the IRB protocol to view this project.\', \'error\')') + '">' +
+            '<div class="project-card-header">' +
+            '<span class="project-pillar ' + pillar + '">' + (p.pillar || 'Unassigned') + '</span>' +
+            '<span class="project-status ' + status + '">' + (p.status || 'Active') + '</span>' +
+            '</div>' +
+            '<h3 class="project-title">' + _esc(p.title || 'Untitled') + '</h3>' +
+            '<p class="project-pi"><i class="fas fa-user-md"></i> ' + _esc(p.pi || 'No PI assigned') + '</p>' +
+            irbBadge +
+            (canAccess && p.abstract ? '<p class="project-desc">' + _esc(p.abstract) + '</p>' : '') +
+            (p.diseaseFocus ? '<div class="project-tags"><span class="tag">' + _esc(p.diseaseFocus) + '</span></div>' : '') +
+            '<div class="project-meta">' +
+            (p.phase ? '<span><i class="fas fa-stream"></i> ' + p.phase + '</span>' : '') +
+            (p.members && p.members.length > 0 ? '<span><i class="fas fa-users"></i> ' + p.members.length + ' members</span>' : '') +
+            '</div>' +
+            '<div class="project-progress"><div class="progress-bar"><div class="progress-fill" style="width:' + (p.progress || 0) + '%;"></div></div><span>' + (p.progress || 0) + '%</span></div>' +
+            '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">' +
+            (canEdit ? '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); editProject(' + p.id + ')"><i class="fas fa-edit"></i> Edit</button>' : '') +
+            ((currentUserRole === 'IRB' || currentUserEmail === 'ldrose@saint-lukes.org' || currentUserRole === 'Admin') && !p.irbApproved && !(p.irb && p.irb.na) ? '<button class="btn btn-outline btn-sm irb-review-btn" style="border-color:#f59e0b;color:#f59e0b;" onclick="event.stopPropagation(); openIRBReview(' + p.id + ')"><i class="fas fa-gavel"></i> IRB Review</button>' : '') +
+            (canEdit ? '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProject(' + p.id + ')"><i class="fas fa-trash"></i></button>' : '') +
+            '</div></div>';
+    });
+
+    grid.innerHTML = html;
+    initCardHoverEffects();
+    animateProgressBars();
+    renderDashboardProjects();
+}
+
+function renderDashboardProjects() {
+    var container = document.getElementById('dashboardProjects');
+    if (!container) return;
+
+    if (projectStore.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-project-diagram"></i><p>No active projects</p><span>Create a project to see it here.</span></div>';
+        return;
+    }
+
+    var html = '';
+    projectStore.forEach(function (p) {
+        var pillar = (p.pillar || '').toLowerCase();
+        var status = (p.status || 'Active');
+        var statusClass = status.toLowerCase();
+
+        html += '<div class="dash-project-item" style="cursor:pointer;" onclick="openModal(\'projectDetail\', ' + p.id + ')">' +
+            '<div class="dash-project-pillar ' + pillar + '"></div>' +
+            '<div class="dash-project-info">' +
+            '<h4>' + _esc(p.title || 'Untitled') + '</h4>' +
+            '<p>' + _esc(p.pi || 'No PI') + ' · ' + (p.phase || 'No phase') + '</p>' +
+            '</div>' +
+            '<span class="dash-project-status ' + statusClass + '" style="background:rgba(16,185,129,0.12);color:var(--status-active);">' + status + '</span>' +
+            '<div class="dash-project-progress"><div class="progress-bar"><div class="progress-fill" style="width:' + (p.progress || 0) + '%;"></div></div></div>' +
+            '</div>';
+    });
+
+    container.innerHTML = html;
+
+    // Update the stat card count
+    var activeCount = projectStore.length;
+    var statNumbers = document.querySelectorAll('.stat-number');
+    if (statNumbers[0]) {
+        statNumbers[0].textContent = activeCount;
+        statNumbers[0].dataset.target = activeCount;
+    }
+}
+
+function _findProject(id) {
+    for (var i = 0; i < projectStore.length; i++) {
+        if (projectStore[i].id === id) return projectStore[i];
+    }
+    return null;
+}
+
+function _canEditProject(proj) {
+    // Admins can always edit
+    if (currentUserRole === 'Admin') return true;
+    // PI can edit their own project
+    if (proj.createdBy && proj.createdBy === currentUserEmail) return true;
+    return false;
+}
+
+function _esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _opt(value, selected) {
+    return '<option' + (value === selected ? ' selected' : '') + '>' + value + '</option>';
+}
+
+// Populate project dropdowns in all modals that need them
+function _populateProjectDropdowns() {
+    // Find all selects that have "Select project..." as first option
+    setTimeout(function () {
+        document.querySelectorAll('select').forEach(function (sel) {
+            var first = sel.querySelector('option');
+            if (first && first.textContent.indexOf('Select project') !== -1) {
+                // Clear existing project options (keep the first placeholder)
+                while (sel.options.length > 1) sel.remove(1);
+                projectStore.forEach(function (p) {
+                    var opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.title || 'Untitled Project #' + p.id;
+                    sel.appendChild(opt);
+                });
+            }
+        });
+    }, 50);
+}
+
+/* --- Populate PI dropdowns from faculty list --- */
+function _populatePIDropdowns() {
+    setTimeout(function() {
+        var piSelect = document.getElementById('wz_pi');
+        if (piSelect && piSelect.options.length <= 1) {
+            var faculty = _getFacultyList();
+            faculty.forEach(function(name) {
+                var opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                piSelect.appendChild(opt);
+            });
+        }
+        // Also populate any PI selects in other modals
+        document.querySelectorAll('select').forEach(function(sel) {
+            var first = sel.querySelector('option');
+            if (first && first.textContent.indexOf('Select PI') !== -1 && sel.options.length <= 1) {
+                var faculty = _getFacultyList();
+                faculty.forEach(function(name) {
+                    var opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    sel.appendChild(opt);
+                });
+            }
+        });
+    }, 60);
+}
+
+/* ================================================
+   6c. REDCAP FORM BUILDER
+   ================================================ */
+var redcapVars = [];
+
+function addRedcapVar() {
+    var nameEl = document.getElementById('newVarName');
+    var typeEl = document.getElementById('newVarType');
+    var labelEl = document.getElementById('newVarLabel');
+    var choicesEl = document.getElementById('newVarChoices');
+
+    if (!nameEl || !nameEl.value.trim()) {
+        showToast('Enter a variable name.', 'error');
+        return;
+    }
+
+    redcapVars.push({
+        name: nameEl.value.trim().replace(/\s+/g, '_').toLowerCase(),
+        type: typeEl ? typeEl.value : 'text',
+        label: labelEl ? labelEl.value.trim() || nameEl.value.trim() : nameEl.value.trim(),
+        choices: choicesEl ? choicesEl.value.trim() : ''
+    });
+
+    nameEl.value = '';
+    labelEl.value = '';
+    choicesEl.value = '';
+    _renderRedcapVarList();
+    showToast('Variable added.', 'success');
+}
+
+function removeRedcapVar(index) {
+    redcapVars.splice(index, 1);
+    _renderRedcapVarList();
+}
+
+function _renderRedcapVarList() {
+    var container = document.getElementById('redcapVarList');
+    if (!container) return;
+
+    if (redcapVars.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted);font-size:0.82rem;padding:8px 0;">No variables defined yet.</p>';
+        return;
+    }
+
+    var typeIcons = {
+        text: 'fa-font', number: 'fa-hashtag', date: 'fa-calendar-day',
+        dropdown: 'fa-chevron-down', radio: 'fa-dot-circle', checkbox: 'fa-check-square',
+        yesno: 'fa-toggle-on', textarea: 'fa-align-left', calc: 'fa-calculator',
+        file: 'fa-paperclip', slider: 'fa-sliders-h'
+    };
+
+    var html = '<div style="margin-bottom:12px;">';
+    redcapVars.forEach(function (v, i) {
+        var icon = typeIcons[v.type] || 'fa-font';
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;margin-bottom:6px;">' +
+            '<i class="fas ' + icon + '" style="color:var(--accent-primary);width:16px;text-align:center;font-size:0.8rem;"></i>' +
+            '<code style="font-size:0.78rem;color:#f59e0b;background:rgba(245,158,11,0.1);padding:2px 6px;border-radius:4px;">' + _esc(v.name) + '</code>' +
+            '<span style="flex:1;font-size:0.82rem;color:var(--text-secondary);">' + _esc(v.label) + '</span>' +
+            '<span style="font-size:0.7rem;color:var(--text-muted);background:var(--bg-elevated);padding:2px 8px;border-radius:4px;">' + v.type + '</span>' +
+            '<button type="button" class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="removeRedcapVar(' + i + ')"><i class="fas fa-times"></i></button>' +
+            '</div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function parseRedcapCSV(input) {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    var reader = new FileReader();
+
+    reader.onload = function (e) {
+        var text = e.target.result;
+        var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
+        if (lines.length < 2) {
+            showToast('CSV file appears empty or invalid.', 'error');
+            return;
+        }
+
+        // Parse header to find column indices
+        var header = _parseCSVLine(lines[0]);
+        var hLower = header.map(function (h) { return h.toLowerCase().trim(); });
+
+        var varIdx = _findCol(hLower, ['variable', 'variable / field name', 'field_name', 'variable_name']);
+        var typeIdx = _findCol(hLower, ['field type', 'field_type', 'type']);
+        var labelIdx = _findCol(hLower, ['field label', 'field_label', 'label']);
+        var choicesIdx = _findCol(hLower, ['choices', 'choices, calculations, or slider labels', 'choices_calculations_or_slider_labels']);
+
+        if (varIdx === -1) {
+            showToast('Could not find a "Variable" column in the CSV. Check format.', 'error');
+            return;
+        }
+
+        redcapVars = [];
+        for (var i = 1; i < lines.length; i++) {
+            var cols = _parseCSVLine(lines[i]);
+            var varName = cols[varIdx] ? cols[varIdx].trim() : '';
+            if (!varName) continue;
+
+            var rawType = cols[typeIdx] ? cols[typeIdx].trim().toLowerCase() : 'text';
+            var mappedType = _mapRedcapType(rawType);
+
+            redcapVars.push({
+                name: varName,
+                type: mappedType,
+                label: cols[labelIdx] ? cols[labelIdx].trim() : varName,
+                choices: cols[choicesIdx] ? cols[choicesIdx].trim() : ''
+            });
+        }
+
+        _renderRedcapVarList();
+        var resultEl = document.getElementById('csvParseResult');
+        if (resultEl) {
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = '<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.82rem;">' +
+                '<i class="fas fa-check-circle" style="color:#10b981;margin-right:8px;"></i>' +
+                '<strong>' + redcapVars.length + ' variables</strong> imported from <em>' + _esc(file.name) + '</em></div>';
+        }
+        showToast(redcapVars.length + ' variables imported from CSV!', 'success');
+    };
+
+    reader.readAsText(file);
+}
+
+function _parseCSVLine(line) {
+    var result = [];
+    var current = '';
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (ch === '"') { inQuotes = !inQuotes; }
+        else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
+        else { current += ch; }
+    }
+    result.push(current);
+    return result;
+}
+
+function _findCol(headers, candidates) {
+    for (var c = 0; c < candidates.length; c++) {
+        for (var h = 0; h < headers.length; h++) {
+            if (headers[h].indexOf(candidates[c]) !== -1) return h;
+        }
+    }
+    return -1;
+}
+
+function _mapRedcapType(raw) {
+    var map = {
+        'text': 'text', 'notes': 'textarea', 'dropdown': 'dropdown', 'radio': 'radio',
+        'checkbox': 'checkbox', 'yesno': 'yesno', 'truefalse': 'yesno',
+        'calc': 'calc', 'file': 'file', 'slider': 'slider', 'descriptive': 'text',
+        'sql': 'text'
+    };
+    return map[raw] || 'text';
+}
+
+function generateRedcapForm() {
+    var formName = document.getElementById('redcapFormName');
+    if (!formName || !formName.value.trim()) {
+        showToast('Enter a form name.', 'error');
+        return;
+    }
+    if (redcapVars.length === 0) {
+        showToast('Add at least one variable or import a CSV.', 'error');
+        return;
+    }
+
+    var name = formName.value.trim();
+    closeModal();
+
+    // Build the form and show it in a new modal
+    setTimeout(function () {
+        var overlay = document.getElementById('modalOverlay');
+        var titleEl = document.getElementById('modalTitle');
+        var bodyEl = document.getElementById('modalBody');
+        titleEl.textContent = name;
+
+        var formHtml = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Record saved!\', \'success\');" style="max-height:60vh;overflow-y:auto;">';
+
+        redcapVars.forEach(function (v) {
+            formHtml += '<div class="form-group">';
+            formHtml += '<label>' + _esc(v.label) + ' <code style="font-size:0.68rem;color:var(--text-muted);margin-left:4px;">[' + _esc(v.name) + ']</code></label>';
+
+            switch (v.type) {
+                case 'text':
+                    formHtml += '<input type="text" placeholder="Enter ' + _esc(v.label) + '...">';
+                    break;
+                case 'number':
+                    formHtml += '<input type="number" placeholder="Enter number...">';
+                    break;
+                case 'date':
+                    formHtml += '<input type="date">';
+                    break;
+                case 'textarea':
+                    formHtml += '<textarea rows="3" placeholder="Enter notes..."></textarea>';
+                    break;
+                case 'yesno':
+                    formHtml += '<select><option value="">Select...</option><option>Yes</option><option>No</option></select>';
+                    break;
+                case 'dropdown':
+                    formHtml += '<select><option value="">Select...</option>';
+                    if (v.choices) {
+                        v.choices.split('|').forEach(function (c) {
+                            var val = c.trim();
+                            // Handle "1, Male" format
+                            var label = val.indexOf(',') !== -1 ? val.split(',').slice(1).join(',').trim() : val;
+                            formHtml += '<option>' + _esc(label) + '</option>';
+                        });
+                    }
+                    formHtml += '</select>';
+                    break;
+                case 'radio':
+                    if (v.choices) {
+                        formHtml += '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;">';
+                        v.choices.split('|').forEach(function (c, i) {
+                            var val = c.trim();
+                            var label = val.indexOf(',') !== -1 ? val.split(',').slice(1).join(',').trim() : val;
+                            formHtml += '<label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;margin:0;">' +
+                                '<input type="radio" name="' + _esc(v.name) + '" style="accent-color:var(--accent-primary);"> ' + _esc(label) + '</label>';
+                        });
+                        formHtml += '</div>';
+                    }
+                    break;
+                case 'checkbox':
+                    if (v.choices) {
+                        formHtml += '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;">';
+                        v.choices.split('|').forEach(function (c) {
+                            var val = c.trim();
+                            var label = val.indexOf(',') !== -1 ? val.split(',').slice(1).join(',').trim() : val;
+                            formHtml += '<label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;margin:0;">' +
+                                '<input type="checkbox" style="accent-color:var(--accent-primary);"> ' + _esc(label) + '</label>';
+                        });
+                        formHtml += '</div>';
+                    }
+                    break;
+                case 'calc':
+                    formHtml += '<input type="text" readonly style="opacity:0.6;" placeholder="[Calculated field]">';
+                    break;
+                case 'file':
+                    formHtml += '<input type="file">';
+                    break;
+                case 'slider':
+                    formHtml += '<input type="range" min="0" max="100" style="width:100%;accent-color:var(--accent-primary);">';
+                    break;
+                default:
+                    formHtml += '<input type="text" placeholder="Enter ' + _esc(v.label) + '...">';
+            }
+
+            formHtml += '</div>';
+        });
+
+        formHtml += '<div class="modal-actions" style="flex-wrap:wrap;">' +
+            '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+            '<button type="button" class="btn btn-outline" onclick="exportFormCSV()"><i class="fas fa-file-csv"></i> Export Data to CSV</button>' +
+            '<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Record</button>' +
+            '</div></form>';
+
+        bodyEl.innerHTML = formHtml;
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+        showToast('Form "' + name + '" generated with ' + redcapVars.length + ' fields!', 'success');
+    }, 300);
+}
+
+/* ================================================
+   6d. SAMPLE SIZE CALCULATOR
+   ================================================ */
+function updateSSFields() {
+    var type = document.getElementById('ssTestType');
+    var container = document.getElementById('ssFields');
+    if (!type || !container) return;
+
+    var html = '';
+    switch (type.value) {
+        case 'ttest':
+        case 'paired':
+            html = '<div class="form-row"><div class="form-group"><label>Effect Size (Cohen\'s d)</label>' +
+                '<select id="ssEffectSize"><option value="0.2">Small (0.2)</option><option value="0.5" selected>Medium (0.5)</option><option value="0.8">Large (0.8)</option><option value="custom">Custom</option></select></div>' +
+                '<div class="form-group"><label>Custom Effect Size</label><input type="number" id="ssCustomEffect" step="0.01" placeholder="e.g., 0.35" disabled></div></div>' +
+                '<div class="form-group"><label>Allocation Ratio (n2/n1)</label><input type="number" id="ssRatio" value="1" min="0.1" step="0.1"></div>';
+            break;
+        case 'anova':
+            html = '<div class="form-row"><div class="form-group"><label>Effect Size (Cohen\'s f)</label>' +
+                '<select id="ssEffectSize"><option value="0.1">Small (0.1)</option><option value="0.25" selected>Medium (0.25)</option><option value="0.4">Large (0.4)</option><option value="custom">Custom</option></select></div>' +
+                '<div class="form-group"><label>Number of Groups</label><input type="number" id="ssGroups" value="3" min="2" max="20"></div></div>';
+            break;
+        case 'chi2':
+            html = '<div class="form-row"><div class="form-group"><label>Effect Size (Cohen\'s w)</label>' +
+                '<select id="ssEffectSize"><option value="0.1">Small (0.1)</option><option value="0.3" selected>Medium (0.3)</option><option value="0.5">Large (0.5)</option><option value="custom">Custom</option></select></div>' +
+                '<div class="form-group"><label>Degrees of Freedom</label><input type="number" id="ssDf" value="1" min="1"></div></div>';
+            break;
+        case 'proportion':
+            html = '<div class="form-row"><div class="form-group"><label>Proportion 1 (p\u2081)</label>' +
+                '<input type="number" id="ssP1" step="0.01" min="0" max="1" value="0.50" placeholder="e.g., 0.50"></div>' +
+                '<div class="form-group"><label>Proportion 2 (p\u2082)</label>' +
+                '<input type="number" id="ssP2" step="0.01" min="0" max="1" value="0.30" placeholder="e.g., 0.30"></div></div>';
+            break;
+        case 'correlation':
+            html = '<div class="form-group"><label>Expected Correlation (r)</label>' +
+                '<input type="number" id="ssCorr" step="0.01" min="0.01" max="0.99" value="0.30" placeholder="e.g., 0.30"></div>';
+            break;
+        case 'survival':
+            html = '<div class="form-row"><div class="form-group"><label>Hazard Ratio</label>' +
+                '<input type="number" id="ssHR" step="0.01" min="0.01" value="0.70" placeholder="e.g., 0.70"></div>' +
+                '<div class="form-group"><label>Event Probability</label>' +
+                '<input type="number" id="ssEventProb" step="0.01" min="0.01" max="1" value="0.50" placeholder="e.g., 0.50"></div></div>';
+            break;
+    }
+    container.innerHTML = html;
+
+    // Toggle custom effect size field
+    var effectSel = document.getElementById('ssEffectSize');
+    var customInput = document.getElementById('ssCustomEffect');
+    if (effectSel && customInput) {
+        effectSel.addEventListener('change', function () {
+            customInput.disabled = effectSel.value !== 'custom';
+            if (effectSel.value !== 'custom') customInput.value = '';
+        });
+    }
+}
+
+function calculateSampleSize() {
+    var type = document.getElementById('ssTestType');
+    if (!type || !type.value) { showToast('Select a test type first.', 'error'); return; }
+
+    var alpha = parseFloat(document.getElementById('ssAlpha').value) || 0.05;
+    var power = parseFloat(document.getElementById('ssPower').value) || 0.80;
+    var twoSided = document.getElementById('ssTwoSided').checked;
+
+    // Z-values for power and alpha
+    var zAlpha = _zScore(twoSided ? alpha / 2 : alpha);
+    var zBeta = _zScore(1 - power);
+
+    var n = 0;
+    var resultText = '';
+
+    switch (type.value) {
+        case 'ttest':
+        case 'paired':
+            var effectSel = document.getElementById('ssEffectSize');
+            var d = effectSel.value === 'custom' ? parseFloat(document.getElementById('ssCustomEffect').value) : parseFloat(effectSel.value);
+            if (!d || d <= 0) { showToast('Enter a valid effect size.', 'error'); return; }
+            var ratio = parseFloat(document.getElementById('ssRatio').value) || 1;
+
+            if (type.value === 'paired') {
+                n = Math.ceil(Math.pow(zAlpha + zBeta, 2) / (d * d));
+                resultText = '<p style="font-size:1.3rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;">' + n + ' pairs needed</p>' +
+                    '<p style="font-size:0.82rem;color:var(--text-secondary);">Paired t-test | d=' + d + ' | \u03B1=' + alpha + ' | Power=' + (power * 100) + '%</p>';
+            } else {
+                var n1 = Math.ceil(Math.pow(zAlpha + zBeta, 2) * (1 + 1 / ratio) / (d * d));
+                var n2 = Math.ceil(n1 * ratio);
+                n = n1 + n2;
+                resultText = '<p style="font-size:1.3rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;">' + n + ' total (' + n1 + ' + ' + n2 + ')</p>' +
+                    '<p style="font-size:0.82rem;color:var(--text-secondary);">Two-sample t-test | d=' + d + ' | Ratio=' + ratio + ' | \u03B1=' + alpha + ' | Power=' + (power * 100) + '%</p>';
+            }
+            break;
+
+        case 'anova':
+            var fEffect = document.getElementById('ssEffectSize');
+            var f = fEffect.value === 'custom' ? parseFloat(document.getElementById('ssCustomEffect').value) : parseFloat(fEffect.value);
+            if (!f || f <= 0) { showToast('Enter a valid effect size.', 'error'); return; }
+            var groups = parseInt(document.getElementById('ssGroups').value) || 3;
+            var nPerGroup = Math.ceil(Math.pow(zAlpha + zBeta, 2) / (f * f));
+            n = nPerGroup * groups;
+            resultText = '<p style="font-size:1.3rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;">' + n + ' total (' + nPerGroup + ' per group)</p>' +
+                '<p style="font-size:0.82rem;color:var(--text-secondary);">One-way ANOVA | f=' + f + ' | ' + groups + ' groups | \u03B1=' + alpha + ' | Power=' + (power * 100) + '%</p>';
+            break;
+
+        case 'chi2':
+            var wEffect = document.getElementById('ssEffectSize');
+            var w = wEffect.value === 'custom' ? parseFloat(document.getElementById('ssCustomEffect').value) : parseFloat(wEffect.value);
+            if (!w || w <= 0) { showToast('Enter a valid effect size.', 'error'); return; }
+            n = Math.ceil(Math.pow(zAlpha + zBeta, 2) / (w * w));
+            resultText = '<p style="font-size:1.3rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;">' + n + ' total sample</p>' +
+                '<p style="font-size:0.82rem;color:var(--text-secondary);">Chi-square test | w=' + w + ' | \u03B1=' + alpha + ' | Power=' + (power * 100) + '%</p>';
+            break;
+
+        case 'proportion':
+            var p1 = parseFloat(document.getElementById('ssP1').value);
+            var p2 = parseFloat(document.getElementById('ssP2').value);
+            if (isNaN(p1) || isNaN(p2) || p1 === p2) { showToast('Enter two different proportions.', 'error'); return; }
+            var pBar = (p1 + p2) / 2;
+            var nProp = Math.ceil(Math.pow(zAlpha * Math.sqrt(2 * pBar * (1 - pBar)) + zBeta * Math.sqrt(p1 * (1 - p1) + p2 * (1 - p2)), 2) / Math.pow(p1 - p2, 2));
+            n = nProp * 2;
+            resultText = '<p style="font-size:1.3rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;">' + n + ' total (' + nProp + ' per group)</p>' +
+                '<p style="font-size:0.82rem;color:var(--text-secondary);">Two proportions | p\u2081=' + p1 + ' vs p\u2082=' + p2 + ' | \u03B1=' + alpha + ' | Power=' + (power * 100) + '%</p>';
+            break;
+
+        case 'correlation':
+            var r = parseFloat(document.getElementById('ssCorr').value);
+            if (!r || r <= 0 || r >= 1) { showToast('Enter a valid correlation (0-1).', 'error'); return; }
+            var zr = 0.5 * Math.log((1 + r) / (1 - r)); // Fisher z-transform
+            n = Math.ceil(Math.pow(zAlpha + zBeta, 2) / (zr * zr)) + 3;
+            resultText = '<p style="font-size:1.3rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;">' + n + ' subjects needed</p>' +
+                '<p style="font-size:0.82rem;color:var(--text-secondary);">Correlation test | r=' + r + ' | \u03B1=' + alpha + ' | Power=' + (power * 100) + '%</p>';
+            break;
+
+        case 'survival':
+            var hr = parseFloat(document.getElementById('ssHR').value);
+            var eventProb = parseFloat(document.getElementById('ssEventProb').value);
+            if (!hr || hr <= 0 || hr === 1) { showToast('Enter a valid hazard ratio (\u2260 1).', 'error'); return; }
+            if (!eventProb || eventProb <= 0 || eventProb > 1) { showToast('Enter a valid event probability.', 'error'); return; }
+            var events = Math.ceil(4 * Math.pow(zAlpha + zBeta, 2) / Math.pow(Math.log(hr), 2));
+            n = Math.ceil(events / eventProb);
+            resultText = '<p style="font-size:1.3rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;">' + n + ' total (' + events + ' events needed)</p>' +
+                '<p style="font-size:0.82rem;color:var(--text-secondary);">Log-rank test | HR=' + hr + ' | Event prob=' + eventProb + ' | \u03B1=' + alpha + ' | Power=' + (power * 100) + '%</p>';
+            break;
+    }
+
+    var resultDiv = document.getElementById('ssResult');
+    var resultTextDiv = document.getElementById('ssResultText');
+    if (resultDiv) resultDiv.style.display = '';
+    if (resultTextDiv) resultTextDiv.innerHTML = resultText;
+}
+
+// Approximate inverse normal CDF (z-score) using rational approximation
+function _zScore(p) {
+    if (p <= 0) return -4;
+    if (p >= 1) return 4;
+    if (p < 0.5) return -_zScore(1 - p);
+
+    var t = Math.sqrt(-2 * Math.log(1 - p));
+    var c0 = 2.515517, c1 = 0.802853, c2 = 0.010328;
+    var d1 = 1.432788, d2 = 0.189269, d3 = 0.001308;
+    return t - (c0 + c1 * t + c2 * t * t) / (1 + d1 * t + d2 * t * t + d3 * t * t * t);
+}
+
+/* ================================================
+   6e. EDUCATION & TRAINING FUNCTIONS
+   ================================================ */
+function submitCITICert(formEl) {
+    showToast('Certificate submitted for review by Dr. Kolakowsky-Hayner.', 'success');
+}
+
+function submitCMECredits(formEl) {
+    showToast('CME credits submitted for review by Dr. Kolakowsky-Hayner.', 'success');
+}
+
+// Likert scale row builder for student assessments
+function _buildLikertRow(label) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">' +
+        '<span style="flex:1;font-size:0.82rem;color:var(--text-secondary);min-width:200px;">' + label + '</span>' +
+        '<div style="display:flex;gap:6px;">' +
+        '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;margin:0;"><input type="radio" name="likert_' + label.replace(/\s+/g, '_') + '" value="1" style="accent-color:var(--accent-primary);"><span style="font-size:0.65rem;color:var(--text-muted);">1</span></label>' +
+        '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;margin:0;"><input type="radio" name="likert_' + label.replace(/\s+/g, '_') + '" value="2" style="accent-color:var(--accent-primary);"><span style="font-size:0.65rem;color:var(--text-muted);">2</span></label>' +
+        '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;margin:0;"><input type="radio" name="likert_' + label.replace(/\s+/g, '_') + '" value="3" style="accent-color:var(--accent-primary);"><span style="font-size:0.65rem;color:var(--text-muted);">3</span></label>' +
+        '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;margin:0;"><input type="radio" name="likert_' + label.replace(/\s+/g, '_') + '" value="4" style="accent-color:var(--accent-primary);"><span style="font-size:0.65rem;color:var(--text-muted);">4</span></label>' +
+        '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;margin:0;"><input type="radio" name="likert_' + label.replace(/\s+/g, '_') + '" value="5" style="accent-color:var(--accent-primary);"><span style="font-size:0.65rem;color:var(--text-muted);">5</span></label>' +
+        '</div></div>';
+}
+
+/* ================================================
+   6f. STUDENT MODULE FUNCTIONS
+   ================================================ */
+function submitStudentAssessment(formEl) {
+    showToast('Assessment submitted and saved!', 'success');
+}
+
+function submitStudentProjectRequest(formEl) {
+    showToast('Project request submitted! Awaiting PI approval.', 'success');
+}
+
+/* ================================================
+   6g. TEMPLATE & DOCUMENT FUNCTIONS
+   ================================================ */
+function exportTemplate(type, formEl) {
+    if (!formEl) return;
+    var inputs = formEl.querySelectorAll('input, textarea, select');
+    var content = '';
+
+    inputs.forEach(function (el) {
+        if (el.type === 'file' || el.type === 'submit' || el.type === 'button') return;
+        var label = el.closest('.form-group');
+        var labelText = label ? label.querySelector('label') : null;
+        if (labelText && el.value) {
+            content += labelText.textContent.replace('*', '').trim() + '\n' +
+                '='.repeat(40) + '\n' + el.value + '\n\n';
+        }
+    });
+
+    // Create a downloadable text file (Word-compatible .doc with HTML)
+    var templateNames = {
+        protocol: 'Research_Protocol',
+        consent: 'Informed_Consent_Form',
+        irbLetter: 'IRB_Cover_Letter',
+        dmp: 'Data_Management_Plan'
+    };
+    var fileName = (templateNames[type] || 'Document') + '_' + new Date().toISOString().slice(0, 10) + '.doc';
+
+    var htmlContent = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+        '<head><meta charset="utf-8"><title>' + _esc(templateNames[type] || 'Document') + '</title>' +
+        '<style>body{font-family:Calibri,sans-serif;font-size:11pt;line-height:1.5;margin:1in;}h1{font-size:16pt;color:#003366;}h2{font-size:13pt;color:#003366;border-bottom:1px solid #ccc;padding-bottom:4px;}p{margin:8px 0;}</style></head><body>';
+
+    htmlContent += '<h1>' + _esc(templateNames[type] || 'Document') + '</h1>';
+    htmlContent += '<p style="color:#666;">Saint Luke\'s Neuroscience Research Department</p>';
+    htmlContent += '<p style="color:#666;">Generated: ' + new Date().toLocaleDateString() + '</p><hr>';
+
+    inputs.forEach(function (el) {
+        if (el.type === 'file' || el.type === 'submit' || el.type === 'button') return;
+        var label = el.closest('.form-group');
+        var labelText = label ? label.querySelector('label') : null;
+        if (labelText && el.value) {
+            var heading = labelText.textContent.replace('*', '').trim();
+            htmlContent += '<h2>' + _esc(heading) + '</h2>';
+            htmlContent += '<p>' + _esc(el.value).replace(/\n/g, '<br>') + '</p>';
+        }
+    });
+
+    htmlContent += '</body></html>';
+
+    var blob = new Blob([htmlContent], { type: 'application/msword' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    closeModal();
+    showToast('Template exported as ' + fileName, 'success');
+}
+
+function saveTemplateDraft(type, formEl) {
+    showToast('Draft saved! You can return to edit later.', 'success');
+}
+
+/* ================================================
+   6h. SUBSECTION SWITCHERS
+   ================================================ */
+// Education sub-tab switcher
+function _showEduSubsection(name) {
+    var subs = {
+        'CITI Training Status': 'eduSubCITI',
+        'CME Tracking': 'eduSubCME'
+    };
+    Object.keys(subs).forEach(function (k) {
+        var el = document.getElementById(subs[k]);
+        if (el) el.style.display = 'none';
+    });
+    var targetId = subs[name];
+    if (targetId) { var target = document.getElementById(targetId); if (target) target.style.display = ''; }
+}
+
+// Student sub-tab switcher
+function _showStudentSubsection(name) {
+    var subs = {
+        'All Students': 'studentSubAll',
+        'Onboarding': 'studentSubOnboarding',
+        'Monthly Assessment': 'studentSubAssessment',
+        'Project Requests': 'studentSubRequests',
+        'Mentorship': 'studentSubMentorship'
+    };
+    Object.keys(subs).forEach(function (k) {
+        var el = document.getElementById(subs[k]);
+        if (el) el.style.display = 'none';
+    });
+    var targetId = subs[name];
+    if (targetId) { var target = document.getElementById(targetId); if (target) target.style.display = ''; }
+}
+
+// Documents sub-tab switcher
+function _showDocSubsection(name) {
+    var subs = {
+        'Templates': 'docSubTemplates',
+        'Policies': 'docSubPolicies',
+        'Guidelines': 'docSubGuidelines',
+        'Uploaded Documents': 'docSubUploaded'
+    };
+    Object.keys(subs).forEach(function (k) {
+        var el = document.getElementById(subs[k]);
+        if (el) el.style.display = 'none';
+    });
+    var targetId = subs[name];
+    if (targetId) { var target = document.getElementById(targetId); if (target) target.style.display = ''; }
+}
+
+/* ================================================
+   6i. PROJECT DETAIL FUNCTIONS
+   ================================================ */
+function uploadProjectFile(projId, fileKey, inputEl) {
+    var proj = _findProject(projId);
+    if (!proj || !inputEl.files || !inputEl.files[0]) return;
+    if (!proj.files) proj.files = {};
+    proj.files[fileKey] = inputEl.files[0].name;
+    showToast(inputEl.files[0].name + ' uploaded!', 'success');
+    // Refresh the detail modal
+    closeModal();
+    setTimeout(function () { openModal('projectDetail', projId); }, 200);
+}
+
+function linkProjectREDCap(projId) {
+    var proj = _findProject(projId);
+    if (!proj) return;
+    var targetEl = document.getElementById('projTargetN');
+    var enrolledEl = document.getElementById('projEnrolledN');
+    proj.targetEnrollment = targetEl ? parseInt(targetEl.value) || 0 : 0;
+    proj.enrolledCount = enrolledEl ? parseInt(enrolledEl.value) || 0 : 0;
+    proj.redcapLinked = true;
+    showToast('Enrollment data saved!', 'success');
+    closeModal();
+    setTimeout(function () { openModal('projectDetail', projId); }, 200);
+}
+
+function addProjectPub(projId) {
+    var proj = _findProject(projId);
+    if (!proj) return;
+    var input = document.getElementById('newProjPub');
+    if (!input || !input.value.trim()) { showToast('Enter a publication title.', 'error'); return; }
+    if (!proj.publications) proj.publications = [];
+    proj.publications.push(input.value.trim());
+    showToast('Publication linked!', 'success');
+    closeModal();
+    setTimeout(function () { openModal('projectDetail', projId); }, 200);
+}
+
+function removeProjectPub(projId, index) {
+    var proj = _findProject(projId);
+    if (!proj || !proj.publications) return;
+    proj.publications.splice(index, 1);
+    closeModal();
+    setTimeout(function () { openModal('projectDetail', projId); }, 200);
+}
+
+/* ================================================
+   6j. NOTIFICATION SYSTEM
+   ================================================ */
+function _sendProjectNotification(project, type) {
+    var notification = {
+        id: Date.now(),
+        projectId: project.id,
+        projectTitle: project.title,
+        type: type, // 'new', 'status_change', 'irb_decision', 'approval'
+        from: currentUserName,
+        fromEmail: currentUserEmail,
+        date: new Date().toISOString(),
+        read: false,
+        message: ''
+    };
+
+    switch(type) {
+        case 'new':
+            notification.message = 'New project "' + project.title + '" submitted by ' + currentUserName + '. Review and approve.';
+            notification.recipients = ['skolakowsky@saint-lukes.org', 'aalmekkawi@saint-lukes.org'];
+            break;
+        case 'irb_submitted':
+            notification.message = 'Project "' + project.title + '" has been submitted for IRB review.';
+            notification.recipients = ['ldrose@saint-lukes.org'];
+            break;
+        case 'irb_decision':
+            notification.message = 'IRB decision for "' + project.title + '": ' + (project.irbDecision || 'pending');
+            notification.recipients = [project.createdBy];
+            // Also notify PI
+            var piUser = _findPIByName(project.pi);
+            if (piUser) notification.recipients.push(piUser.email);
+            break;
+        case 'status_change':
+            notification.message = 'Project "' + project.title + '" status changed to ' + project.status;
+            notification.recipients = [project.createdBy];
+            var piU = _findPIByName(project.pi);
+            if (piU) notification.recipients.push(piU.email);
+            break;
+        case 'approved':
+            notification.message = 'Project "' + project.title + '" has been approved and forwarded to required departments.';
+            notification.recipients = [project.createdBy];
+            var piA = _findPIByName(project.pi);
+            if (piA) notification.recipients.push(piA.email);
+            break;
+    }
+
+    notificationStore.push(notification);
+    _updateNotificationBadge();
+
+    // Show email simulation toast
+    if (notification.recipients) {
+        notification.recipients.forEach(function(email) {
+            if (email === currentUserEmail) return; // Don't notify yourself
+        });
+        showToast('Notification sent to reviewers.', 'info');
+    }
+}
+
+function _findPIByName(piName) {
+    if (!piName) return null;
+    var lower = piName.toLowerCase();
+    for (var i = 0; i < USER_ACCOUNTS.length; i++) {
+        if (USER_ACCOUNTS[i].name.toLowerCase() === lower) return USER_ACCOUNTS[i];
+    }
+    for (var j = 0; j < ADMIN_ACCOUNTS.length; j++) {
+        if (ADMIN_ACCOUNTS[j].name.toLowerCase() === lower) return ADMIN_ACCOUNTS[j];
+    }
+    return null;
+}
+
+function _updateNotificationBadge() {
+    var unread = notificationStore.filter(function(n) {
+        return !n.read && n.recipients && n.recipients.indexOf(currentUserEmail) !== -1;
+    }).length;
+    var badge = document.querySelector('.notification-badge');
+    if (badge) {
+        badge.textContent = unread;
+        badge.style.display = unread > 0 ? '' : 'none';
+    }
+}
+
+/* --- Project Review/Approval by Admin --- */
+function approveProject(projId) {
+    var proj = _findProject(projId);
+    if (!proj) return;
+    if (currentUserRole !== 'Admin') {
+        showToast('Only admins can approve projects.', 'error');
+        return;
+    }
+    proj.adminApproved = true;
+    proj.approvedBy = currentUserName;
+    proj.approvedAt = new Date().toISOString();
+    _sendProjectNotification(proj, 'approved');
+    showToast('Project approved and forwarded to departments!', 'success');
+    closeModal();
+    renderProjects();
+}
+
+function sendProjectQuestion(projId) {
+    var proj = _findProject(projId);
+    if (!proj) return;
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'Send Question about: ' + (proj.title || 'Project');
+
+    var html = '<form onsubmit="event.preventDefault(); submitProjectQuestion(' + projId + ', this);">' +
+        '<div class="form-group"><label>Your Question *</label>' +
+        '<textarea rows="4" placeholder="Type your question about this project..." required></textarea></div>' +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+        '<button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send Question</button></div></form>';
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function submitProjectQuestion(projId, formEl) {
+    var proj = _findProject(projId);
+    if (!proj) return;
+    showToast('Question sent to the project creator.', 'success');
+    closeModal();
+}
+
+/* ================================================
+   6k. MANUSCRIPT PREPARATION
+   ================================================ */
+function openManuscript(projId) {
+    var proj = _findProject(projId);
+    if (!proj) return;
+
+    // Check access
+    if (!_canAccessProject(proj)) {
+        showToast('You must be listed on the IRB protocol to access this project.', 'error');
+        return;
+    }
+
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'Manuscript: ' + (proj.title || 'Project');
+
+    if (!proj.manuscript) proj.manuscript = { content: '', lastEditedBy: '', lastEditedAt: '' };
+
+    var html = '<div style="max-height:70vh;overflow-y:auto;">' +
+        '<div class="alert-banner" style="background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
+        '<i class="fas fa-pen-fancy" style="color:#7c3aed;"></i>' +
+        '<span style="font-size:0.82rem;color:var(--text-secondary);">Collaborative manuscript editor. All changes are saved automatically. Anyone on the IRB/project can edit.</span></div>' +
+
+        (proj.manuscript.lastEditedBy ? '<p style="font-size:0.72rem;color:var(--text-muted);margin-bottom:12px;"><i class="fas fa-clock"></i> Last edited by <strong>' + _esc(proj.manuscript.lastEditedBy) + '</strong> on ' + new Date(proj.manuscript.lastEditedAt).toLocaleString() + '</p>' : '') +
+
+        '<div class="form-group"><label>Title</label>' +
+        '<input type="text" id="msTitle" value="' + _esc(proj.manuscript.title || proj.title || '') + '" placeholder="Manuscript title..."></div>' +
+
+        '<div class="form-group"><label>Authors</label>' +
+        '<input type="text" id="msAuthors" value="' + _esc(proj.manuscript.authors || '') + '" placeholder="Author names in order..."></div>' +
+
+        '<div class="form-group"><label>Abstract</label>' +
+        '<textarea id="msAbstract" rows="4" placeholder="Manuscript abstract...">' + _esc(proj.manuscript.abstract || '') + '</textarea></div>' +
+
+        '<div class="form-group"><label>Introduction</label>' +
+        '<textarea id="msIntro" rows="5" placeholder="Introduction section...">' + _esc(proj.manuscript.intro || '') + '</textarea></div>' +
+
+        '<div class="form-group"><label>Methods</label>' +
+        '<textarea id="msMethods" rows="5" placeholder="Methods section...">' + _esc(proj.manuscript.methods || '') + '</textarea></div>' +
+
+        '<div class="form-group"><label>Results</label>' +
+        '<textarea id="msResults" rows="5" placeholder="Results section...">' + _esc(proj.manuscript.results || '') + '</textarea></div>' +
+
+        '<div class="form-group"><label>Discussion</label>' +
+        '<textarea id="msDiscussion" rows="5" placeholder="Discussion section...">' + _esc(proj.manuscript.discussion || '') + '</textarea></div>' +
+
+        '<div class="form-group"><label>Conclusion</label>' +
+        '<textarea id="msConclusion" rows="3" placeholder="Conclusion...">' + _esc(proj.manuscript.conclusion || '') + '</textarea></div>' +
+
+        '<div class="form-group"><label>References</label>' +
+        '<textarea id="msReferences" rows="4" placeholder="References...">' + _esc(proj.manuscript.references || '') + '</textarea></div>' +
+
+        '<div class="modal-actions" style="flex-wrap:wrap;">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Close</button>' +
+        '<button type="button" class="btn btn-outline" onclick="exportManuscript(' + projId + ')"><i class="fas fa-file-word"></i> Export to Word</button>' +
+        '<button type="button" class="btn btn-primary" onclick="saveManuscript(' + projId + ')"><i class="fas fa-save"></i> Save Manuscript</button>' +
+        '</div></div>';
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function saveManuscript(projId) {
+    var proj = _findProject(projId);
+    if (!proj) return;
+
+    proj.manuscript = {
+        title: _val('msTitle'),
+        authors: _val('msAuthors'),
+        abstract: _val('msAbstract'),
+        intro: _val('msIntro'),
+        methods: _val('msMethods'),
+        results: _val('msResults'),
+        discussion: _val('msDiscussion'),
+        conclusion: _val('msConclusion'),
+        references: _val('msReferences'),
+        lastEditedBy: currentUserName,
+        lastEditedAt: new Date().toISOString()
+    };
+
+    showToast('Manuscript saved!', 'success');
+}
+
+function exportManuscript(projId) {
+    var proj = _findProject(projId);
+    if (!proj || !proj.manuscript) return;
+    var ms = proj.manuscript;
+
+    var htmlContent = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+        '<head><meta charset="utf-8"><title>' + _esc(ms.title || 'Manuscript') + '</title>' +
+        '<style>body{font-family:Times New Roman,serif;font-size:12pt;line-height:2;margin:1in;}h1{font-size:14pt;text-align:center;font-weight:bold;}h2{font-size:12pt;font-weight:bold;margin-top:24pt;}p{margin:0 0 12pt 0;text-indent:0.5in;}</style></head><body>';
+
+    htmlContent += '<h1>' + _esc(ms.title || '') + '</h1>';
+    if (ms.authors) htmlContent += '<p style="text-align:center;text-indent:0;">' + _esc(ms.authors) + '</p>';
+    htmlContent += '<p style="text-align:center;text-indent:0;">Saint Luke\'s Neuroscience Research Department</p><br>';
+
+    if (ms.abstract) { htmlContent += '<h2>Abstract</h2><p>' + _esc(ms.abstract).replace(/\n/g, '<br>') + '</p>'; }
+    if (ms.intro) { htmlContent += '<h2>Introduction</h2><p>' + _esc(ms.intro).replace(/\n/g, '<br>') + '</p>'; }
+    if (ms.methods) { htmlContent += '<h2>Methods</h2><p>' + _esc(ms.methods).replace(/\n/g, '<br>') + '</p>'; }
+    if (ms.results) { htmlContent += '<h2>Results</h2><p>' + _esc(ms.results).replace(/\n/g, '<br>') + '</p>'; }
+    if (ms.discussion) { htmlContent += '<h2>Discussion</h2><p>' + _esc(ms.discussion).replace(/\n/g, '<br>') + '</p>'; }
+    if (ms.conclusion) { htmlContent += '<h2>Conclusion</h2><p>' + _esc(ms.conclusion).replace(/\n/g, '<br>') + '</p>'; }
+    if (ms.references) { htmlContent += '<h2>References</h2><p style="text-indent:0;">' + _esc(ms.references).replace(/\n/g, '<br>') + '</p>'; }
+
+    htmlContent += '</body></html>';
+
+    var blob = new Blob([htmlContent], { type: 'application/msword' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (ms.title || 'Manuscript').replace(/\s+/g, '_') + '.doc';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Manuscript exported to Word!', 'success');
+}
+
+/* --- CSV Export from REDCap Form --- */
+function exportFormCSV() {
+    if (redcapVars.length === 0) {
+        showToast('No variables to export.', 'error');
+        return;
+    }
+
+    // Build CSV header from variable names
+    var header = redcapVars.map(function (v) { return '"' + v.name + '"'; }).join(',');
+    var csv = header + '\n';
+
+    // Add empty data row as template
+    var emptyRow = redcapVars.map(function () { return '""'; }).join(',');
+    csv += emptyRow + '\n';
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'data_export_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('CSV template exported! Open in Excel to add your data.', 'success');
+}
+
+/* ================================================
+   7. CLOSE MODAL
+   ================================================ */
+function closeModal() {
+    var overlay = document.getElementById('modalOverlay');
+    if (overlay) overlay.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+/* ================================================
+   8. FILTER CHIPS
+   ================================================ */
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.filter-chips').forEach(function (group) {
+        group.querySelectorAll('.chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                group.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('active'); });
+                chip.classList.add('active');
+                filterProjects();
+            });
+        });
+    });
+});
+
+function filterProjects() {
+    var pillarFilter = 'all';
+    var statusFilter = 'all-status';
+    var deptFilter = 'all-dept';
+
+    var filterGroups = document.querySelectorAll('.filter-group');
+    filterGroups.forEach(function (group) {
+        var label = group.querySelector('label');
+        var active = group.querySelector('.chip.active');
+        if (!label || !active) return;
+
+        var labelText = label.textContent.trim().toLowerCase();
+        var filter = active.dataset.filter;
+
+        if (labelText === 'pillar') pillarFilter = filter;
+        else if (labelText === 'status') statusFilter = filter;
+        else if (labelText === 'department') deptFilter = filter;
+    });
+
+    var cards = document.querySelectorAll('.project-card');
+    cards.forEach(function (card, index) {
+        var show = true;
+
+        if (pillarFilter !== 'all' && card.dataset.pillar !== pillarFilter) show = false;
+        if (statusFilter !== 'all-status' && card.dataset.status !== statusFilter) show = false;
+        if (deptFilter !== 'all-dept' && card.dataset.dept !== deptFilter) show = false;
+
+        if (show) {
+            card.style.display = '';
+            card.style.animation = 'fadeInUp 0.4s ease ' + (index * 0.05) + 's both';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+/* ================================================
+   9. SUB-TAB SWITCHING
+   ================================================ */
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.sub-tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            var parent = tab.closest('.sub-tabs');
+            if (parent) {
+                parent.querySelectorAll('.sub-tab').forEach(function (t) { t.classList.remove('active'); });
+                tab.classList.add('active');
+            }
+
+            // Data tab: toggle data subsections
+            var dataTab = document.getElementById('tab-data');
+            if (dataTab && dataTab.classList.contains('active')) {
+                var subText = tab.textContent.trim();
+                _showDataSubsection(subText);
+            }
+
+            // Education tab
+            var eduTab = document.getElementById('tab-education');
+            if (eduTab && eduTab.classList.contains('active')) {
+                _showEduSubsection(tab.textContent.trim());
+            }
+
+            // Students tab
+            var studentsTab = document.getElementById('tab-students');
+            if (studentsTab && studentsTab.classList.contains('active')) {
+                _showStudentSubsection(tab.textContent.trim());
+            }
+
+            // Documents tab
+            var docsTab = document.getElementById('tab-documents');
+            if (docsTab && docsTab.classList.contains('active')) {
+                _showDocSubsection(tab.textContent.trim());
+            }
+
+            // Admin tab: toggle visibility of admin sections
+            var adminTab = document.getElementById('tab-admin');
+            if (adminTab && adminTab.classList.contains('active')) {
+                var tabText = tab.textContent.trim().toLowerCase();
+                var accessReq = document.getElementById('accessRequestsSection');
+                var roles = document.getElementById('rolesSection');
+                var audit = document.getElementById('auditSection');
+
+                if (accessReq) accessReq.style.display = 'none';
+                if (roles) roles.style.display = 'none';
+                if (audit) audit.style.display = 'none';
+
+                if (tabText.indexOf('access') !== -1 || tabText.indexOf('all users') !== -1) {
+                    if (accessReq) accessReq.style.display = '';
+                } else if (tabText.indexOf('roles') !== -1) {
+                    if (roles) roles.style.display = '';
+                } else if (tabText.indexOf('audit') !== -1) {
+                    if (audit) audit.style.display = '';
+                } else {
+                    // Default: show access requests
+                    if (accessReq) accessReq.style.display = '';
+                }
+            }
+        });
+    });
+});
+
+/* ================================================
+   10. VIEW TOGGLE - Grid/List/Pipeline
+   ================================================ */
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.view-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.view-btn').forEach(function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+
+            var view = btn.dataset.view;
+            var grid = document.getElementById('projectsGrid');
+            var pipeline = document.getElementById('pipelineView');
+
+            if (view === 'pipeline') {
+                _showPipelineView();
+            } else {
+                _hidePipelineView();
+                if (grid) {
+                    if (view === 'list') {
+                        grid.style.gridTemplateColumns = '1fr';
+                    } else {
+                        grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(360px, 1fr))';
+                    }
+                }
+            }
+        });
+    });
+});
+
+function _showPipelineView() {
+    var grid = document.getElementById('projectsGrid');
+    var pipeline = document.getElementById('pipelineView');
+    if (pipeline) pipeline.style.display = '';
+    if (grid) grid.style.display = 'none';
+}
+
+function _hidePipelineView() {
+    var grid = document.getElementById('projectsGrid');
+    var pipeline = document.getElementById('pipelineView');
+    if (pipeline) pipeline.style.display = 'none';
+    if (grid) grid.style.display = '';
+}
+
+/* ================================================
+   11. TOAST SYSTEM
+   ================================================ */
+// Inject toast keyframes once
+(function () {
+    var style = document.createElement('style');
+    style.textContent =
+        '@keyframes toastIn { from { transform: translateY(20px) translateX(20px); opacity: 0; } to { transform: translateY(0) translateX(0); opacity: 1; } }' +
+        '@keyframes toastOut { from { transform: translateY(0) translateX(0); opacity: 1; } to { transform: translateY(20px) translateX(20px); opacity: 0; } }' +
+        '@keyframes rippleEffect { to { transform: scale(4); opacity: 0; } }' +
+        '@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }';
+    document.head.appendChild(style);
+})();
+
+function showToast(message, type) {
+    type = type || 'success';
+    var toast = document.createElement('div');
+    var bgColor = type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6';
+    var icon = type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle';
+
+    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:14px 24px;' +
+        'background:' + bgColor + ';color:white;border-radius:12px;font-size:0.88rem;' +
+        'font-weight:500;font-family:Inter,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,0.3);' +
+        'z-index:5000;animation:toastIn 0.4s ease;display:flex;align-items:center;gap:10px;' +
+        'max-width:400px;';
+
+    toast.innerHTML = '<i class="fas fa-' + icon + '"></i> ' + message;
+    document.body.appendChild(toast);
+
+    setTimeout(function () {
+        toast.style.animation = 'toastOut 0.4s ease forwards';
+        setTimeout(function () {
+            if (toast.parentNode) toast.remove();
+        }, 400);
+    }, 3000);
+}
+
+/* ================================================
+   12. NOTIFICATION PANEL
+   ================================================ */
+function toggleNotifications() {
+    var panel = document.getElementById('notificationPanel');
+    if (panel) {
+        panel.classList.toggle('active');
+        if (panel.classList.contains('active')) {
+            _renderNotifications();
+        }
+    }
+}
+
+function _renderNotifications() {
+    var list = document.querySelector('.notif-list');
+    if (!list) return;
+
+    // Filter notifications for current user
+    var myNotifs = notificationStore.filter(function(n) {
+        return n.recipients && n.recipients.indexOf(currentUserEmail) !== -1;
+    }).reverse(); // newest first
+
+    if (myNotifs.length === 0) {
+        list.innerHTML = '<div class="empty-state" style="padding:40px 20px;"><i class="fas fa-bell"></i><p>No notifications</p><span>You\'re all caught up!</span></div>';
+        return;
+    }
+
+    var html = '';
+    myNotifs.forEach(function(n) {
+        var icon = n.type === 'new' ? 'fa-plus-circle' : n.type === 'irb_decision' ? 'fa-gavel' : n.type === 'approved' ? 'fa-check-circle' : 'fa-info-circle';
+        var color = n.type === 'approved' ? '#10b981' : n.type === 'irb_decision' ? '#f59e0b' : '#00d4ff';
+        html += '<div class="notif-item' + (n.read ? '' : ' unread') + '" onclick="markNotifRead(' + n.id + ')" style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;' + (!n.read ? 'background:rgba(0,212,255,0.04);' : '') + '">' +
+            '<div style="display:flex;align-items:start;gap:10px;">' +
+            '<i class="fas ' + icon + '" style="color:' + color + ';margin-top:2px;"></i>' +
+            '<div style="flex:1;"><p style="font-size:0.82rem;color:var(--text-primary);margin-bottom:4px;">' + _esc(n.message) + '</p>' +
+            '<span style="font-size:0.7rem;color:var(--text-muted);">' + new Date(n.date).toLocaleString() + ' · from ' + _esc(n.from) + '</span></div>' +
+            (!n.read ? '<span style="width:8px;height:8px;background:#00d4ff;border-radius:50;flex-shrink:0;margin-top:6px;"></span>' : '') +
+            '</div></div>';
+    });
+
+    list.innerHTML = html;
+}
+
+function markNotifRead(notifId) {
+    for (var i = 0; i < notificationStore.length; i++) {
+        if (notificationStore[i].id === notifId) {
+            notificationStore[i].read = true;
+            break;
+        }
+    }
+    _updateNotificationBadge();
+    _renderNotifications();
+}
+
+function closeNotifications() {
+    var panel = document.getElementById('notificationPanel');
+    if (panel) panel.classList.remove('active');
+}
+
+// Close notification panel when clicking outside
+document.addEventListener('click', function (e) {
+    var panel = document.getElementById('notificationPanel');
+    var btn = document.querySelector('.notification-btn');
+    if (panel && panel.classList.contains('active') && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
+        closeNotifications();
+    }
+});
+
+/* ================================================
+   13. KEYBOARD SHORTCUTS
+   ================================================ */
+document.addEventListener('keydown', function (e) {
+    // Ctrl+K for search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        var search = document.getElementById('globalSearch');
+        if (search) search.focus();
+    }
+
+    // Alt+1 through Alt+9 for tabs
+    if (e.altKey && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        var tabs = ['dashboard', 'projects', 'people', 'grants', 'deadlines', 'irb', 'publications', 'data', 'students'];
+        var index = parseInt(e.key) - 1;
+        if (tabs[index]) {
+            switchTab(tabs[index]);
+        }
+    }
+
+    // Escape for modal/notification/drawer close
+    if (e.key === 'Escape') {
+        closeModal();
+        closeNotifications();
+        closeUserDropdown();
+        // Close nav drawer if open
+        var drawer = document.getElementById('navDrawer');
+        var dOverlay = document.getElementById('navDrawerOverlay');
+        if (drawer && drawer.classList.contains('active')) {
+            drawer.classList.remove('active');
+            if (dOverlay) dOverlay.classList.remove('active');
+        }
+    }
+});
+
+/* ================================================
+   14. CARD HOVER - Mouse-follow glow effect
+   ================================================ */
+function initCardHoverEffects() {
+    var selectors = '.project-card, .person-card, .resource-card, .stat-card, .dashboard-card, .cert-card, .role-card, .funding-card, .metric-card';
+    document.querySelectorAll(selectors).forEach(function (card) {
+        card.addEventListener('mousemove', function (e) {
+            var rect = card.getBoundingClientRect();
+            var x = ((e.clientX - rect.left) / rect.width) * 100;
+            var y = ((e.clientY - rect.top) / rect.height) * 100;
+            card.style.setProperty('--mouse-x', x + '%');
+            card.style.setProperty('--mouse-y', y + '%');
+        });
+    });
+}
+
+/* ================================================
+   15. RIPPLE EFFECT - Buttons and chips
+   ================================================ */
+function initRippleEffect() {
+    document.querySelectorAll('.btn, .nav-tab, .chip, .sub-tab').forEach(function (btn) {
+        // Prevent double-binding
+        if (btn.dataset.rippleBound) return;
+        btn.dataset.rippleBound = 'true';
+
+        btn.addEventListener('click', function (e) {
+            var ripple = document.createElement('span');
+            var rect = this.getBoundingClientRect();
+            var size = Math.max(rect.width, rect.height);
+            var x = e.clientX - rect.left - size / 2;
+            var y = e.clientY - rect.top - size / 2;
+
+            ripple.style.cssText = 'position:absolute;width:' + size + 'px;height:' + size + 'px;' +
+                'border-radius:50%;background:rgba(0,212,255,0.15);transform:scale(0);' +
+                'animation:rippleEffect 0.6s ease-out;left:' + x + 'px;top:' + y + 'px;' +
+                'pointer-events:none;';
+
+            this.style.position = this.style.position || 'relative';
+            this.style.overflow = 'hidden';
+            this.appendChild(ripple);
+
+            setTimeout(function () { ripple.remove(); }, 600);
+        });
+    });
+}
+
+/* ================================================
+   16. CHECKLIST ITEMS - Toggle check/uncheck
+   ================================================ */
+function initChecklistItems() {
+    document.querySelectorAll('.checklist-item').forEach(function (item) {
+        if (item.dataset.checkBound) return;
+        item.dataset.checkBound = 'true';
+
+        item.addEventListener('click', function () {
+            var icon = item.querySelector('i');
+            if (!icon) return;
+
+            if (icon.classList.contains('fa-circle')) {
+                // Check it
+                icon.classList.remove('far', 'fa-circle');
+                icon.classList.add('fas', 'fa-check-circle');
+                icon.style.color = '#10b981';
+                item.style.color = '#10b981';
+                item.style.textDecoration = 'line-through';
+            } else {
+                // Uncheck it
+                icon.classList.remove('fas', 'fa-check-circle');
+                icon.classList.add('far', 'fa-circle');
+                icon.style.color = '';
+                item.style.color = '';
+                item.style.textDecoration = '';
+            }
+        });
+
+        item.style.cursor = 'pointer';
+    });
+}
+
+/* ================================================
+   17. GLOBAL SEARCH - Filter visible cards
+   ================================================ */
+(function () {
+    document.addEventListener('DOMContentLoaded', function () {
+        var searchInput = document.getElementById('globalSearch');
+        if (!searchInput) return;
+
+        searchInput.addEventListener('input', function () {
+            var query = this.value.toLowerCase().trim();
+            var allCards = document.querySelectorAll('.project-card, .person-card, .pub-item, .resource-card, .cert-card, .role-card, .checklist-item, .deadline-card, .forum-item, .meeting-item');
+
+            if (query.length < 2) {
+                allCards.forEach(function (card) {
+                    card.style.opacity = '';
+                    card.style.transform = '';
+                });
+                return;
+            }
+
+            allCards.forEach(function (card) {
+                var text = card.textContent.toLowerCase();
+                if (text.indexOf(query) !== -1) {
+                    card.style.opacity = '1';
+                    card.style.transform = '';
+                } else {
+                    card.style.opacity = '0.3';
+                }
+            });
+        });
+
+        searchInput.addEventListener('blur', function () {
+            if (this.value === '') {
+                document.querySelectorAll('.project-card, .person-card, .pub-item, .resource-card').forEach(function (card) {
+                    card.style.opacity = '';
+                    card.style.transform = '';
+                });
+            }
+        });
+    });
+})();
+
+/* ================================================
+   INITIALIZATION HELPERS
+   ================================================ */
+function initAnimations() {
+    animateCounters();
+    initIntersectionObserver();
+    initCardHoverEffects();
+}
+
+function initIntersectionObserver() {
+    if (!('IntersectionObserver' in window)) return;
+    var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.animate-on-scroll').forEach(function (el) {
+        observer.observe(el);
+    });
+}
+
+/* ================================================
+   MISC: Progress bars, donut chart, scroll effects
+   ================================================ */
+function animateProgressBars() {
+    document.querySelectorAll('.progress-fill').forEach(function (bar) {
+        var width = bar.style.width;
+        bar.style.width = '0%';
+        setTimeout(function () { bar.style.width = width; }, 300);
+    });
+}
+
+function animateDonutChart() {
+    var segments = document.querySelectorAll('.ring-segment');
+    segments.forEach(function (seg) {
+        var dasharray = seg.getAttribute('stroke-dasharray');
+        seg.setAttribute('stroke-dasharray', '0 503');
+        setTimeout(function () {
+            seg.style.transition = 'stroke-dasharray 1s ease';
+            seg.setAttribute('stroke-dasharray', dasharray);
+        }, 500);
+    });
+}
+
+// Nav scroll shadow
+window.addEventListener('scroll', function () {
+    var mainNav = document.getElementById('mainNav');
+    if (mainNav) {
+        if (window.scrollY > 10) {
+            mainNav.classList.add('scrolled');
+        } else {
+            mainNav.classList.remove('scrolled');
+        }
+    }
+});
+
+// Parallax on stats
+window.addEventListener('scroll', function () {
+    var scrolled = window.scrollY;
+    var statsGrid = document.querySelector('.stats-grid');
+    if (statsGrid) {
+        statsGrid.style.transform = 'translateY(' + (scrolled * 0.02) + 'px)';
+    }
+});
+
+// Export buttons
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.btn-outline').forEach(function (btn) {
+        if (btn.textContent.indexOf('Export') !== -1) {
+            btn.addEventListener('click', function () {
+                showToast('Export feature ready for SharePoint integration', 'info');
+            });
+        }
+    });
+});
+
+// Table row hover
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.data-table tbody tr').forEach(function (row) {
+        row.addEventListener('mouseenter', function () {
+            row.style.cursor = 'pointer';
+        });
+    });
+});
+
+// MutationObserver for tab activation
+document.addEventListener('DOMContentLoaded', function () {
+    var observer = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+            if (mutation.target.classList && mutation.target.classList.contains('active') && mutation.target.id === 'tab-projects') {
+                setTimeout(animateProgressBars, 200);
+            }
+        });
+    });
+
+    document.querySelectorAll('.tab-content').forEach(function (tab) {
+        observer.observe(tab, { attributes: true, attributeFilter: ['class'] });
+    });
+
+    // Initial donut chart animation
+    setTimeout(animateDonutChart, 2500);
+
+    // Init ripple on existing elements
+    initRippleEffect();
+});
+
+/* ================================================
+   PEOPLE DIRECTORY: Render all users dynamically
+   ================================================ */
+function renderPeopleDirectory(filterRole) {
+    var grid = document.getElementById('peopleGrid');
+    if (!grid) return;
+
+    // Gather ALL users from all account arrays
+    var allPeople = [];
+    ADMIN_ACCOUNTS.forEach(function(a) {
+        allPeople.push({ name: a.name, email: a.email, role: a.role, title: a.title, initials: a.initials, credential: '', status: 'Active' });
+    });
+    IRB_ACCOUNTS.forEach(function(a) {
+        allPeople.push({ name: a.name, email: a.email, role: a.role, title: a.title, initials: a.initials, credential: '', status: 'Active' });
+    });
+    USER_ACCOUNTS.forEach(function(u) {
+        var status = u.needsProfileSetup ? 'Pending Setup' : 'Active';
+        // Check if approved but not yet set up
+        if (u.needsProfileSetup && approvedLogins.indexOf(u.email) !== -1) {
+            status = 'Approved - Awaiting Setup';
+        }
+        allPeople.push({ name: u.name, email: u.email, role: u.role, title: u.title, initials: u.initials, credential: u.credential || '', status: status });
+    });
+
+    // Sort alphabetically
+    allPeople.sort(function(a, b) { return a.name.localeCompare(b.name); });
+
+    // Categorize
+    var categories = {
+        'Faculty': [],
+        'Admin': [],
+        'Resident': [],
+        'APP': [],
+        'NP': [],
+        'RN': [],
+        'Medical Student': [],
+        'IRB': [],
+        'Research Fellow': [],
+        'CRC': [],
+        'Statistician': [],
+        'Other': []
+    };
+
+    allPeople.forEach(function(p) {
+        if (categories[p.role]) {
+            categories[p.role].push(p);
+        } else {
+            categories['Other'].push(p);
+        }
+    });
+
+    // Map sub-tab filters to categories
+    var subTabMap = {
+        'faculty': ['Faculty', 'Admin'],
+        'staff': ['APP', 'NP', 'RN', 'CRC', 'Statistician', 'Other'],
+        'trainees': ['Resident', 'Research Fellow'],
+        'medstudents': ['Medical Student'],
+        'collaborators': [],
+        'irb': ['IRB']
+    };
+
+    // Determine which people to show based on active sub-tab
+    var activeSubTab = 'faculty';
+    var peopleSection = document.getElementById('tab-people');
+    if (peopleSection) {
+        var activeST = peopleSection.querySelector('.sub-tab.active');
+        if (activeST) {
+            var stText = activeST.textContent.trim().replace(/\d+/g, '').trim().toLowerCase();
+            if (stText.indexOf('research staff') !== -1) activeSubTab = 'staff';
+            else if (stText.indexOf('trainee') !== -1) activeSubTab = 'trainees';
+            else if (stText.indexOf('medical student') !== -1) activeSubTab = 'medstudents';
+            else if (stText.indexOf('collaborator') !== -1) activeSubTab = 'collaborators';
+            else activeSubTab = 'faculty';
+        }
+    }
+
+    // Override with direct filter if passed
+    if (filterRole) activeSubTab = filterRole;
+
+    var showRoles = subTabMap[activeSubTab] || ['Faculty', 'Admin'];
+    var filteredPeople = allPeople.filter(function(p) {
+        return showRoles.indexOf(p.role) !== -1;
+    });
+
+    // Update sub-tab counts
+    if (peopleSection) {
+        var subTabs = peopleSection.querySelectorAll('.sub-tab');
+        subTabs.forEach(function(st) {
+            var countEl = st.querySelector('.sub-tab-count');
+            if (!countEl) return;
+            var stName = st.textContent.trim().replace(/\d+/g, '').trim().toLowerCase();
+            var mappedKey = 'faculty';
+            if (stName.indexOf('research staff') !== -1) mappedKey = 'staff';
+            else if (stName.indexOf('trainee') !== -1) mappedKey = 'trainees';
+            else if (stName.indexOf('medical student') !== -1) mappedKey = 'medstudents';
+            else if (stName.indexOf('collaborator') !== -1) mappedKey = 'collaborators';
+
+            var rolesToCount = subTabMap[mappedKey] || [];
+            var count = allPeople.filter(function(p) { return rolesToCount.indexOf(p.role) !== -1; }).length;
+            countEl.textContent = count;
+        });
+    }
+
+    // Build HTML
+    if (filteredPeople.length === 0) {
+        grid.innerHTML = '<div class="empty-state-large"><i class="fas fa-users"></i><h3>No Members in This Category</h3><p>No team members match the current filter.</p></div>';
+        return;
+    }
+
+    var html = '';
+    filteredPeople.forEach(function(p) {
+        var roleColor = _getRoleColor(p.role);
+        var statusBadge = '';
+        if (p.status === 'Pending Setup') {
+            statusBadge = '<span style="font-size:0.68rem;background:rgba(245,158,11,0.15);color:#f59e0b;padding:2px 8px;border-radius:20px;margin-left:6px;">Pending</span>';
+        } else if (p.status === 'Active') {
+            statusBadge = '<span style="font-size:0.68rem;background:rgba(16,185,129,0.15);color:#10b981;padding:2px 8px;border-radius:20px;margin-left:6px;">Active</span>';
+        }
+
+        html += '<div class="person-card" style="padding:20px;border-radius:14px;background:var(--card-bg);border:1px solid var(--border-color);position:relative;overflow:hidden;">' +
+            '<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">' +
+            '<div style="width:48px;height:48px;border-radius:50%;background:' + roleColor + ';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;color:#fff;flex-shrink:0;">' + _esc(p.initials) + '</div>' +
+            '<div style="flex:1;min-width:0;">' +
+            '<h4 style="font-size:0.92rem;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _esc(p.name) + '</h4>' +
+            '<p style="font-size:0.78rem;color:var(--text-secondary);">' + _esc(p.title) + '</p>' +
+            '</div></div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+            '<span style="font-size:0.72rem;color:' + roleColor + ';font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">' + _esc(p.role) + '</span>' +
+            statusBadge +
+            '</div>' +
+            '<p style="font-size:0.74rem;color:var(--accent-primary);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><i class="fas fa-envelope" style="margin-right:5px;font-size:0.68rem;"></i>' + _esc(p.email) + '</p>' +
+            '</div>';
+    });
+
+    grid.innerHTML = html;
+
+    // Re-init hover effects on new cards
+    initCardHoverEffects();
+}
+
+function _getRoleColor(role) {
+    var colors = {
+        'Admin': '#f59e0b',
+        'Faculty': '#00d4ff',
+        'Resident': '#7c3aed',
+        'Medical Student': '#10b981',
+        'APP': '#ec4899',
+        'NP': '#ec4899',
+        'RN': '#f97316',
+        'PA': '#ec4899',
+        'IRB': '#f59e0b',
+        'Research Fellow': '#6366f1',
+        'CRC': '#14b8a6',
+        'Statistician': '#8b5cf6'
+    };
+    return colors[role] || '#64748b';
+}
+
+/* --- People Directory sub-tab click wiring --- */
+function _initPeopleSubTabs() {
+    var peopleSection = document.getElementById('tab-people');
+    if (!peopleSection) return;
+
+    peopleSection.querySelectorAll('.sub-tab').forEach(function(st) {
+        st.addEventListener('click', function() {
+            // Remove active from all, add to clicked
+            peopleSection.querySelectorAll('.sub-tab').forEach(function(s) { s.classList.remove('active'); });
+            st.classList.add('active');
+            // Re-render with new filter
+            renderPeopleDirectory();
+        });
+    });
+}
+
+// Wire up on DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    _initPeopleSubTabs();
+});
+
+/* ================================================
+   SEND EMAIL TAB: Restricted to Dr. Hayner & Ahmad
+   ================================================ */
+function _toggleSendEmailTab(show) {
+    var tab = document.getElementById('sendEmailNavItem');
+    if (tab) tab.style.display = show ? '' : 'none';
+    var tabContent = document.getElementById('tab-sendemail');
+    if (tabContent && !show) tabContent.classList.remove('active');
+}
+
+function renderSendEmailTab() {
+    var container = document.getElementById('sendEmailUserList');
+    if (!container) return;
+
+    // Gather all non-admin users
+    var allUsers = [];
+    USER_ACCOUNTS.forEach(function(u) {
+        allUsers.push({
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            credential: u.credential || '',
+            password: u.password,
+            needsProfileSetup: u.needsProfileSetup,
+            sent: u._emailSent || false
+        });
+    });
+    IRB_ACCOUNTS.forEach(function(u) {
+        allUsers.push({
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            credential: '',
+            password: u.password,
+            needsProfileSetup: true,
+            sent: u._emailSent || false
+        });
+    });
+
+    // Sort by role then name
+    allUsers.sort(function(a, b) {
+        if (a.role !== b.role) return a.role.localeCompare(b.role);
+        return a.name.localeCompare(b.name);
+    });
+
+    var totalPending = allUsers.filter(function(u) { return !u.sent; }).length;
+    var totalSent = allUsers.filter(function(u) { return u.sent; }).length;
+
+    var html = '<div style="display:flex;gap:12px;margin-bottom:20px;">' +
+        '<div class="stat-card" style="flex:1;padding:16px;"><div class="stat-info"><span class="stat-number" style="color:#00d4ff;">' + allUsers.length + '</span><span class="stat-label">Total Users</span></div></div>' +
+        '<div class="stat-card" style="flex:1;padding:16px;"><div class="stat-info"><span class="stat-number" style="color:#f59e0b;">' + totalPending + '</span><span class="stat-label">Not Yet Invited</span></div></div>' +
+        '<div class="stat-card" style="flex:1;padding:16px;"><div class="stat-info"><span class="stat-number" style="color:#10b981;">' + totalSent + '</span><span class="stat-label">Emails Sent</span></div></div>' +
+        '</div>';
+
+    html += '<div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">' +
+        '<button class="btn btn-primary" onclick="sendAllInviteEmails()"><i class="fas fa-paper-plane"></i> Send All Invitations</button>' +
+        '<button class="btn btn-outline" onclick="previewInviteEmail()"><i class="fas fa-eye"></i> Preview Email Template</button>' +
+        '</div>';
+
+    // Build table of users
+    html += '<div class="table-container"><table class="data-table"><thead><tr>' +
+        '<th><input type="checkbox" id="selectAllUsers" onchange="toggleAllEmailCheckboxes(this)"></th>' +
+        '<th>Name</th><th>Email</th><th>Role</th><th>Temp Password</th><th>Status</th><th>Action</th></tr></thead><tbody>';
+
+    allUsers.forEach(function(u, idx) {
+        var statusHtml = u.sent ?
+            '<span style="font-size:0.75rem;background:rgba(16,185,129,0.15);color:#10b981;padding:3px 10px;border-radius:20px;"><i class="fas fa-check"></i> Sent</span>' :
+            '<span style="font-size:0.75rem;background:rgba(245,158,11,0.15);color:#f59e0b;padding:3px 10px;border-radius:20px;">Not Sent</span>';
+
+        html += '<tr>' +
+            '<td><input type="checkbox" class="email-user-cb" data-email="' + _esc(u.email) + '" ' + (u.sent ? 'disabled' : '') + '></td>' +
+            '<td style="font-size:0.82rem;font-weight:500;">' + _esc(u.name) + '</td>' +
+            '<td style="font-size:0.78rem;color:var(--accent-primary);">' + _esc(u.email) + '</td>' +
+            '<td><span style="font-size:0.72rem;background:' + _getRoleColor(u.role) + '22;color:' + _getRoleColor(u.role) + ';padding:2px 8px;border-radius:12px;">' + _esc(u.role) + '</span></td>' +
+            '<td style="font-size:0.78rem;font-family:monospace;color:#f59e0b;">' + _esc(u.password) + '</td>' +
+            '<td>' + statusHtml + '</td>' +
+            '<td>' + (!u.sent ? '<button class="btn btn-sm btn-outline" onclick="sendSingleInviteEmail(\'' + _esc(u.email) + '\')"><i class="fas fa-envelope"></i> Send</button>' : '<span style="color:var(--text-muted);font-size:0.75rem;">Done</span>') + '</td>' +
+            '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function toggleAllEmailCheckboxes(masterCb) {
+    document.querySelectorAll('.email-user-cb:not(:disabled)').forEach(function(cb) {
+        cb.checked = masterCb.checked;
+    });
+}
+
+function previewInviteEmail() {
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'Email Invitation Template Preview';
+
+    var loginUrl = window.location.href.split('?')[0];
+
+    var html = '<div style="background:#0f0f2e;border:1px solid var(--border-color);border-radius:12px;padding:24px;max-height:60vh;overflow-y:auto;">' +
+        '<div style="text-align:center;margin-bottom:20px;">' +
+        '<div style="width:60px;height:60px;background:linear-gradient(135deg,#00d4ff,#7c3aed);border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-brain" style="color:#fff;font-size:24px;"></i></div>' +
+        '<h3 style="color:#00d4ff;margin-bottom:4px;">Saint Luke\'s Neuroscience Research Department</h3>' +
+        '<p style="color:var(--text-muted);font-size:0.82rem;">Research Database Invitation</p></div>' +
+
+        '<div style="color:var(--text-primary);font-size:0.88rem;line-height:1.7;">' +
+        '<p>Dear <strong style="color:#00d4ff;">[User Name]</strong>,</p>' +
+        '<p>We are pleased to invite you to the <strong>Saint Luke\'s Neuroscience Research Database</strong> — a centralized hub for our Neurology & Neurosurgery research operations.</p>' +
+        '<p>This platform supports the full research lifecycle: project submissions, IRB tracking, data collection, publications, and team collaboration.</p>' +
+
+        '<div style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:10px;padding:16px;margin:16px 0;">' +
+        '<h4 style="color:#00d4ff;margin-bottom:10px;"><i class="fas fa-key" style="margin-right:6px;"></i> Your Login Credentials</h4>' +
+        '<p><strong>Login URL:</strong> <span style="color:#00d4ff;">' + loginUrl + '</span></p>' +
+        '<p><strong>Email:</strong> <span style="color:#f59e0b;">[user@email.com]</span></p>' +
+        '<p><strong>Temporary Password:</strong> <span style="font-family:monospace;color:#f59e0b;">[TempPassword]</span></p>' +
+        '</div>' +
+
+        '<div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:16px;margin:16px 0;">' +
+        '<h4 style="color:#f59e0b;margin-bottom:10px;"><i class="fas fa-list-ol" style="margin-right:6px;"></i> Getting Started</h4>' +
+        '<ol style="padding-left:20px;margin:0;">' +
+        '<li>Click the login URL above</li>' +
+        '<li>Enter your email and temporary password</li>' +
+        '<li>Your login request will be submitted for approval</li>' +
+        '<li>Once approved, you will be prompted to change your password</li>' +
+        '<li>Complete your profile information</li>' +
+        '<li>Upload your CITI training certificate (required for all personnel)</li>' +
+        '</ol></div>' +
+
+        '<p>If you have any questions, please contact:</p>' +
+        '<ul style="padding-left:20px;">' +
+        '<li><strong>Dr. Stephanie Kolakowsky-Hayner</strong> — skolakowsky@saint-lukes.org</li>' +
+        '<li><strong>Dr. Ahmad Kareem Almekkawi</strong> — aalmekkawi@saint-lukes.org</li>' +
+        '</ul>' +
+        '<p>Best regards,<br><strong>Neuroscience Research Department</strong><br>Saint Luke\'s Health System</p>' +
+        '</div></div>';
+
+    html += '<div class="modal-actions" style="margin-top:16px;">' +
+        '<button class="btn btn-outline" onclick="closeModal()">Close</button>' +
+        '</div>';
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function sendSingleInviteEmail(email) {
+    var user = _findAnyUserByEmail(email);
+    if (!user) { showToast('User not found.', 'error'); return; }
+
+    var loginUrl = window.location.href.split('?')[0];
+
+    var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database — Your Account is Ready');
+    var body = encodeURIComponent(
+        'Dear ' + user.name + ',\n\n' +
+        'We are pleased to invite you to the Saint Luke\'s Neuroscience Research Database — a centralized hub for our Neurology & Neurosurgery research operations.\n\n' +
+        'This platform supports the full research lifecycle: project submissions, IRB tracking, data collection, publications, and team collaboration.\n\n' +
+        '--- YOUR LOGIN CREDENTIALS ---\n' +
+        'Login URL: ' + loginUrl + '\n' +
+        'Email: ' + user.email + '\n' +
+        'Temporary Password: ' + user.password + '\n\n' +
+        '--- GETTING STARTED ---\n' +
+        '1. Click the login URL above\n' +
+        '2. Enter your email and temporary password\n' +
+        '3. Your login request will be submitted for approval\n' +
+        '4. Once approved by Dr. Hayner or Dr. Almekkawi, log in again\n' +
+        '5. You will be prompted to change your password and complete your profile\n' +
+        '6. Upload your CITI training certificate (required for all personnel)\n\n' +
+        'If you have any questions, please contact:\n' +
+        '- Dr. Stephanie Kolakowsky-Hayner — skolakowsky@saint-lukes.org\n' +
+        '- Dr. Ahmad Kareem Almekkawi — aalmekkawi@saint-lukes.org\n\n' +
+        'Best regards,\nNeuroscience Research Department\nSaint Luke\'s Health System'
+    );
+
+    // Determine sender email
+    var fromEmail = currentUserEmail;
+
+    // Open mailto link
+    window.open('mailto:' + user.email + '?subject=' + subject + '&body=' + body, '_blank');
+
+    // Mark as sent
+    user._emailSent = true;
+    showToast('Email invitation opened for ' + user.name + '. Send from your email client.', 'success');
+
+    // Re-render the list
+    setTimeout(renderSendEmailTab, 300);
+}
+
+function sendAllInviteEmails() {
+    // Get checked users or all unsent
+    var checkboxes = document.querySelectorAll('.email-user-cb:checked');
+    var emails = [];
+
+    if (checkboxes.length > 0) {
+        checkboxes.forEach(function(cb) { emails.push(cb.dataset.email); });
+    } else {
+        // Send to all unsent
+        USER_ACCOUNTS.concat(IRB_ACCOUNTS).forEach(function(u) {
+            if (!u._emailSent) emails.push(u.email);
+        });
+    }
+
+    if (emails.length === 0) {
+        showToast('No pending invitations to send.', 'info');
+        return;
+    }
+
+    // Since mailto has limits, open one batch email or iterate
+    if (emails.length <= 10) {
+        // Send as BCC batch
+        emails.forEach(function(email) {
+            var user = _findAnyUserByEmail(email);
+            if (user) user._emailSent = true;
+        });
+
+        var loginUrl = window.location.href.split('?')[0];
+        var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database — Your Account is Ready');
+        var body = encodeURIComponent(
+            'Dear Team Member,\n\n' +
+            'We are pleased to invite you to the Saint Luke\'s Neuroscience Research Database.\n\n' +
+            'Please log in at: ' + loginUrl + '\n\n' +
+            'Use your Saint Luke\'s email address and the temporary password that was provided to you separately.\n\n' +
+            'Getting Started:\n' +
+            '1. Enter your email and temporary password\n' +
+            '2. Your login request will be submitted for approval\n' +
+            '3. Once approved, you will be prompted to set a new password\n' +
+            '4. Upload your CITI training certificate\n\n' +
+            'Contact Dr. Kolakowsky-Hayner or Dr. Almekkawi with questions.\n\n' +
+            'Best regards,\nNeuroscience Research Department\nSaint Luke\'s Health System'
+        );
+
+        window.open('mailto:?bcc=' + emails.join(',') + '&subject=' + subject + '&body=' + body, '_blank');
+        showToast('Batch email opened for ' + emails.length + ' users. Send from your email client.', 'success');
+    } else {
+        // Mark them all as sent and open sequential batches
+        var batchSize = 10;
+        for (var b = 0; b < emails.length; b += batchSize) {
+            var batch = emails.slice(b, b + batchSize);
+            batch.forEach(function(email) {
+                var user = _findAnyUserByEmail(email);
+                if (user) user._emailSent = true;
+            });
+        }
+
+        // Open first batch
+        var firstBatch = emails.slice(0, batchSize);
+        var loginUrl2 = window.location.href.split('?')[0];
+        var subject2 = encodeURIComponent('Saint Luke\'s Neuroscience Research Database — Your Account is Ready');
+        var body2 = encodeURIComponent(
+            'Dear Team Member,\n\n' +
+            'You have been invited to the Saint Luke\'s Neuroscience Research Database.\n' +
+            'Login URL: ' + loginUrl2 + '\n\n' +
+            'Use your email and the temporary password sent to you.\n\n' +
+            'Best regards,\nNeuroscience Research Department'
+        );
+        window.open('mailto:?bcc=' + firstBatch.join(',') + '&subject=' + subject2 + '&body=' + body2, '_blank');
+        showToast('Invitations queued for ' + emails.length + ' users. Check your email client — multiple batches may open.', 'success');
+    }
+
+    setTimeout(renderSendEmailTab, 500);
+}
+
+/* ================================================
+   LOGIN APPROVAL WORKFLOW
+   ================================================ */
+function _sendLoginApprovalNotification(user) {
+    notificationStore.push({
+        id: Date.now(),
+        type: 'login_request',
+        message: user.name + ' (' + user.role + ') has requested login access. Please review and approve.',
+        from: user.name,
+        for: ['skolakowsky@saint-lukes.org', 'aalmekkawi@saint-lukes.org'],
+        date: new Date().toISOString(),
+        read: false,
+        data: { email: user.email }
+    });
+}
+
+function renderPendingLoginApprovals() {
+    var section = document.getElementById('loginApprovalsSection');
+    if (!section) return;
+
+    var pending = pendingLoginApprovals.filter(function(r) { return r.status === 'pending'; });
+
+    var countEl = document.getElementById('loginApprovalCount');
+    if (countEl) countEl.textContent = pending.length;
+
+    if (pending.length === 0) {
+        section.innerHTML = '<div class="empty-state" style="padding:30px;"><i class="fas fa-check-circle" style="color:#10b981;"></i><p>No pending login approvals</p><span>All login requests have been processed.</span></div>';
+        return;
+    }
+
+    var html = '<div class="table-container"><table class="data-table"><thead><tr>' +
+        '<th>Name</th><th>Email</th><th>Role</th><th>Requested</th><th>Action</th></tr></thead><tbody>';
+
+    pending.forEach(function(r) {
+        html += '<tr>' +
+            '<td style="font-weight:500;">' + _esc(r.name) + '</td>' +
+            '<td style="font-size:0.82rem;color:var(--accent-primary);">' + _esc(r.email) + '</td>' +
+            '<td><span style="font-size:0.72rem;background:' + _getRoleColor(r.role) + '22;color:' + _getRoleColor(r.role) + ';padding:2px 8px;border-radius:12px;">' + _esc(r.role) + '</span></td>' +
+            '<td style="font-size:0.78rem;color:var(--text-muted);">' + new Date(r.requestedAt).toLocaleString() + '</td>' +
+            '<td style="display:flex;gap:6px;">' +
+            '<button class="btn btn-sm btn-primary" onclick="approveLoginRequest(\'' + _esc(r.email) + '\')"><i class="fas fa-check"></i> Approve</button>' +
+            '<button class="btn btn-sm btn-outline" style="border-color:#ef4444;color:#ef4444;" onclick="denyLoginRequest(\'' + _esc(r.email) + '\')"><i class="fas fa-times"></i> Deny</button>' +
+            '</td></tr>';
+    });
+
+    html += '</tbody></table></div>';
+    section.innerHTML = html;
+}
+
+function approveLoginRequest(email) {
+    // Find and update the pending request
+    for (var i = 0; i < pendingLoginApprovals.length; i++) {
+        if (pendingLoginApprovals[i].email === email) {
+            pendingLoginApprovals[i].status = 'approved';
+            break;
+        }
+    }
+
+    // Add to approved list
+    if (approvedLogins.indexOf(email) === -1) {
+        approvedLogins.push(email);
+    }
+
+    var user = _findAnyUserByEmail(email);
+    var userName = user ? user.name : email;
+
+    // Send notification back to user (will show when they log in)
+    notificationStore.push({
+        id: Date.now(),
+        type: 'login_approved',
+        message: 'Your login access has been approved by ' + currentUserName + '. You can now log in to the research database.',
+        from: currentUserName,
+        for: [email],
+        date: new Date().toISOString(),
+        read: false
+    });
+
+    showToast('Login access approved for ' + userName + '. They can now log in.', 'success');
+    renderPendingLoginApprovals();
+    renderPeopleDirectory();
+    _updateNotificationBadge();
+}
+
+function denyLoginRequest(email) {
+    for (var i = 0; i < pendingLoginApprovals.length; i++) {
+        if (pendingLoginApprovals[i].email === email) {
+            pendingLoginApprovals[i].status = 'denied';
+            break;
+        }
+    }
+
+    var user = _findAnyUserByEmail(email);
+    var userName = user ? user.name : email;
+
+    showToast('Login request denied for ' + userName + '.', 'info');
+    renderPendingLoginApprovals();
+}
+
+/* ================================================
+   ADMIN: Generate Email Credentials List
+   ================================================ */
+function generateCredentialEmails() {
+    if (currentUserRole !== 'Admin') {
+        showToast('Admin access required.', 'error');
+        return;
+    }
+
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'User Credentials for Email Distribution';
+
+    var html = '<div style="max-height:65vh;overflow-y:auto;">' +
+        '<div class="alert-banner" style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
+        '<i class="fas fa-envelope" style="color:#00d4ff;"></i>' +
+        '<span style="font-size:0.82rem;color:var(--text-secondary);">Copy each user\'s credentials below and send individually from <strong>aalmekkawi@saint-lukes.org</strong>. Users must change their password on first login.</span></div>';
+
+    var allUsers = USER_ACCOUNTS.concat(IRB_ACCOUNTS);
+    var categories = { 'Faculty': [], 'Resident': [], 'APP': [], 'NP': [], 'RN': [], 'Medical Student': [], 'IRB': [], 'Other': [] };
+
+    allUsers.forEach(function(u) {
+        var cat = categories[u.role] ? u.role : 'Other';
+        categories[cat].push(u);
+    });
+
+    Object.keys(categories).forEach(function(cat) {
+        var users = categories[cat];
+        if (users.length === 0) return;
+        html += '<h4 class="form-section-title" style="margin-top:16px;"><i class="fas fa-users" style="margin-right:6px;"></i> ' + cat + ' (' + users.length + ')</h4>';
+        html += '<div class="table-container"><table class="data-table"><thead><tr><th>Name</th><th>Email</th><th>Temp Password</th></tr></thead><tbody>';
+        users.forEach(function(u) {
+            html += '<tr><td style="font-size:0.82rem;">' + _esc(u.name) + '</td>' +
+                '<td style="font-size:0.78rem;color:var(--accent-primary);">' + _esc(u.email) + '</td>' +
+                '<td style="font-size:0.78rem;font-family:monospace;color:#f59e0b;">' + _esc(u.password) + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+    });
+
+    html += '<div class="modal-actions" style="margin-top:16px;">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Close</button>' +
+        '<button type="button" class="btn btn-primary" onclick="exportCredentialsCSV()"><i class="fas fa-file-csv"></i> Export as CSV</button>' +
+        '</div></div>';
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function exportCredentialsCSV() {
+    var allUsers = USER_ACCOUNTS.concat(IRB_ACCOUNTS);
+    var csv = 'Name,Email,Role,Temporary Password\n';
+    allUsers.forEach(function(u) {
+        csv += '"' + u.name + '","' + u.email + '","' + u.role + '","' + u.password + '"\n';
+    });
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'user_credentials_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Credentials CSV exported!', 'success');
+}
+
+// Auto-refresh timestamps placeholder
+setInterval(function () { /* updateTimestamps */ }, 60000);

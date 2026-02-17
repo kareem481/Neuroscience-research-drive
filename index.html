@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saint Luke's Neuroscience Research Department</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <canvas id="neuralCanvas"></canvas>
+
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="brain-loader">
+                <svg viewBox="0 0 120 120" class="brain-svg">
+                    <ellipse cx="60" cy="52" rx="38" ry="36" fill="none" stroke="#00d4ff" stroke-width="1.8" class="brain-path"/>
+                    <path d="M60,16 C60,16 45,28 42,42 C39,56 42,65 42,72" fill="none" stroke="#7c3aed" stroke-width="1.2" class="brain-detail"/>
+                    <path d="M60,16 C60,16 75,28 78,42 C81,56 78,65 78,72" fill="none" stroke="#7c3aed" stroke-width="1.2" class="brain-detail"/>
+                    <path d="M30,40 C40,38 50,42 60,40 C70,38 80,42 90,40" fill="none" stroke="#10b981" stroke-width="1" class="brain-detail" style="animation-delay:.7s"/>
+                    <path d="M34,55 C44,52 54,58 60,55 C66,52 76,58 86,55" fill="none" stroke="#10b981" stroke-width="1" class="brain-detail" style="animation-delay:.9s"/>
+                    <path d="M42,72 Q51,80 60,88 Q69,80 78,72" fill="none" stroke="#00d4ff" stroke-width="1.5" class="brain-path" style="animation-delay:.5s"/>
+                    <circle cx="60" cy="42" r="2" fill="#00d4ff" class="brain-dot"/>
+                    <circle cx="45" cy="48" r="1.5" fill="#7c3aed" class="brain-dot" style="animation-delay:.3s"/>
+                    <circle cx="75" cy="48" r="1.5" fill="#7c3aed" class="brain-dot" style="animation-delay:.6s"/>
+                    <circle cx="52" cy="60" r="1.5" fill="#10b981" class="brain-dot" style="animation-delay:.4s"/>
+                    <circle cx="68" cy="60" r="1.5" fill="#10b981" class="brain-dot" style="animation-delay:.5s"/>
+                </svg>
+            </div>
+            <h2 class="loading-text">Saint Luke's Neuroscience</h2>
+            <p class="loading-subtext">Research Department</p>
+            <div class="loading-bar"><div class="loading-fill"></div></div>
+        </div>
+    </div>
+
+    <!-- Login Screen (shown before main app) -->
+    <div id="loginScreen" class="login-screen" style="display:none;">
+        <div class="login-card">
+            <div class="login-logo">
+                <svg viewBox="0 0 120 120" class="login-brain-svg">
+                    <ellipse cx="60" cy="52" rx="38" ry="36" fill="none" stroke="#00d4ff" stroke-width="2"/>
+                    <path d="M60,16 C60,16 45,28 42,42 C39,56 42,65 42,72" fill="none" stroke="#7c3aed" stroke-width="1.5"/>
+                    <path d="M60,16 C60,16 75,28 78,42 C81,56 78,65 78,72" fill="none" stroke="#7c3aed" stroke-width="1.5"/>
+                    <path d="M42,72 Q51,80 60,88 Q69,80 78,72" fill="none" stroke="#00d4ff" stroke-width="1.5"/>
+                </svg>
+                <h1>Saint Luke's</h1>
+                <p>Neuroscience Research Department</p>
+            </div>
+            <form id="loginForm" onsubmit="event.preventDefault(); handleLogin();">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" placeholder="you@saintlukes.org" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <div class="password-field">
+                        <input type="password" id="loginPassword" placeholder="Enter password" required>
+                        <button type="button" class="toggle-pw" onclick="togglePassword('loginPassword')"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Sign In</button>
+                <div class="login-links">
+                    <a href="#" onclick="showForgotPassword()">Forgot Password?</a>
+                    <a href="#" onclick="showRequestAccess()">Request Access</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Request Access Screen -->
+    <div id="requestAccessScreen" class="login-screen" style="display:none;">
+        <div class="login-card wide-card">
+            <div class="login-logo small-logo">
+                <h1>Request Access</h1>
+                <p>Saint Luke's Neuroscience Research Department</p>
+            </div>
+            <form id="requestForm" onsubmit="event.preventDefault(); submitAccessRequest();">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>First Name *</label>
+                        <input type="text" placeholder="First name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name *</label>
+                        <input type="text" placeholder="Last name" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Email Address *</label>
+                    <input type="email" placeholder="you@saintlukes.org" required>
+                </div>
+                <div class="form-group">
+                    <label>Position / Role *</label>
+                    <select required>
+                        <option value="">Select your role...</option>
+                        <option>Faculty - Neurology</option>
+                        <option>Faculty - Neurosurgery</option>
+                        <option>Clinical Research Coordinator (CRC)</option>
+                        <option>Clinical Research Nurse (RN)</option>
+                        <option>Advanced Practice Provider (APP)</option>
+                        <option>Nurse Practitioner (NP)</option>
+                        <option>Physician Assistant (PA)</option>
+                        <option>Resident</option>
+                        <option>Research Fellow</option>
+                        <option>Medical Student</option>
+                        <option>Budget & Contracts</option>
+                        <option>Administrative Staff</option>
+                        <option>Statistician / Biostatistician</option>
+                        <option>Data Analyst / Informaticist</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Department *</label>
+                    <select required>
+                        <option value="">Select department...</option>
+                        <option>Neurology</option>
+                        <option>Neurosurgery</option>
+                        <option>Both</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Reason for Access</label>
+                    <textarea placeholder="Briefly describe why you need access to the research database..." rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Supervising Faculty / PI</label>
+                    <select id="requestSupervisor">
+                        <option value="">Select supervising PI...</option>
+                        <!-- Faculty options populated dynamically as members are added -->
+                    </select>
+                    <input type="text" placeholder="Or type supervising PI name..." style="margin-top:8px;">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full"><i class="fas fa-paper-plane"></i> Submit Request</button>
+                <div class="login-links">
+                    <a href="#" onclick="showLogin()"><i class="fas fa-arrow-left"></i> Back to Login</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Screen -->
+    <div id="changePasswordScreen" class="login-screen" style="display:none;">
+        <div class="login-card">
+            <div class="login-logo small-logo">
+                <h1>Change Password</h1>
+                <p>Create a new secure password</p>
+            </div>
+            <form id="changePwForm" onsubmit="event.preventDefault(); handleChangePassword();">
+                <div class="form-group">
+                    <label>Temporary Password</label>
+                    <div class="password-field">
+                        <input type="password" id="tempPassword" placeholder="Enter temporary password" required>
+                        <button type="button" class="toggle-pw" onclick="togglePassword('tempPassword')"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <div class="password-field">
+                        <input type="password" id="newPassword" placeholder="Create new password" required oninput="checkPasswordStrength()">
+                        <button type="button" class="toggle-pw" onclick="togglePassword('newPassword')"><i class="fas fa-eye"></i></button>
+                    </div>
+                    <div class="password-rules" id="passwordRules">
+                        <div class="pw-rule" id="pwLen"><i class="fas fa-circle"></i> At least 12 characters</div>
+                        <div class="pw-rule" id="pwUpper"><i class="fas fa-circle"></i> One uppercase letter</div>
+                        <div class="pw-rule" id="pwLower"><i class="fas fa-circle"></i> One lowercase letter</div>
+                        <div class="pw-rule" id="pwNum"><i class="fas fa-circle"></i> One number</div>
+                        <div class="pw-rule" id="pwSpecial"><i class="fas fa-circle"></i> One special character (!@#$%^&*)</div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Re-enter New Password</label>
+                    <div class="password-field">
+                        <input type="password" id="confirmPassword" placeholder="Re-enter new password" required>
+                        <button type="button" class="toggle-pw" onclick="togglePassword('confirmPassword')"><i class="fas fa-eye"></i></button>
+                    </div>
+                    <div class="pw-match-msg" id="pwMatchMsg"></div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full"><i class="fas fa-lock"></i> Set New Password</button>
+                <div class="login-links">
+                    <a href="#" onclick="showLogin()"><i class="fas fa-arrow-left"></i> Back to Login</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== MAIN APP (hidden until login) ==================== -->
+    <div id="mainApp" style="display:none;">
+
+    <!-- Top Header Bar -->
+    <header class="top-header">
+        <div class="header-left">
+            <button class="header-btn nav-hamburger" title="Menu" onclick="toggleNavDrawer()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 120 120" class="logo-brain">
+                        <ellipse cx="60" cy="52" rx="30" ry="28" fill="none" stroke="currentColor" stroke-width="2"/>
+                        <path d="M60,24 C60,24 48,33 46,43 C44,53 46,58 46,63" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M60,24 C60,24 72,33 74,43 C76,53 74,58 74,63" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M46,63 Q53,69 60,75 Q67,69 74,63" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <h1>Saint Luke's</h1>
+                    <span>Neuroscience Research Department</span>
+                </div>
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="search-container">
+                <i class="fas fa-search"></i>
+                <input type="text" id="globalSearch" placeholder="Search projects, people, grants...">
+                <kbd>Ctrl+K</kbd>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="header-btn notification-btn" title="Notifications" onclick="toggleNotifications()">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notifBadge">0</span>
+            </button>
+            <div class="user-menu" id="userMenu">
+                <div class="user-avatar" title="User" onclick="toggleUserMenu()">
+                    <span id="userInitials">SL</span>
+                </div>
+                <div class="user-dropdown" id="userDropdown">
+                    <div class="user-dropdown-header">
+                        <strong id="userDropdownName">Admin User</strong>
+                        <span id="userDropdownRole">Research Director</span>
+                    </div>
+                    <a href="#" onclick="showProfile()"><i class="fas fa-user"></i> My Profile</a>
+                    <a href="#" onclick="showAccountSettings()"><i class="fas fa-cog"></i> Account Settings</a>
+                    <hr>
+                    <a href="#" onclick="handleLogout()"><i class="fas fa-sign-out-alt"></i> Sign Out</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Drawer (hamburger flyout) -->
+    <div class="nav-drawer-overlay" id="navDrawerOverlay" onclick="toggleNavDrawer()"></div>
+    <nav class="nav-drawer" id="navDrawer">
+        <div class="nav-drawer-header">
+            <h3>Navigation</h3>
+            <button class="modal-close" onclick="toggleNavDrawer()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="nav-drawer-body">
+            <!-- Main -->
+            <div class="nav-group">
+                <span class="nav-group-label">Main</span>
+                <button class="nav-drawer-item active" data-tab="dashboard" onclick="switchTab('dashboard'); toggleNavDrawer();">
+                    <i class="fas fa-th-large"></i><span>Dashboard</span>
+                </button>
+            </div>
+            <!-- Research -->
+            <div class="nav-group">
+                <span class="nav-group-label">Research</span>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="projects" onclick="navToggleExpand(this, 'projects')">
+                        <i class="fas fa-project-diagram"></i><span>Research Projects</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('projects'); activateSubTab('projects','Pipeline'); toggleNavDrawer();"><i class="fas fa-stream"></i> Pipeline</button>
+                        <button class="nav-sub-item" onclick="switchTab('projects'); activateSubTab('projects','Grid'); toggleNavDrawer();"><i class="fas fa-th"></i> Grid View</button>
+                        <button class="nav-sub-item" onclick="switchTab('projects'); activateSubTab('projects','List'); toggleNavDrawer();"><i class="fas fa-list"></i> List View</button>
+                    </div>
+                </div>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="publications" onclick="navToggleExpand(this, 'publications')">
+                        <i class="fas fa-book-open"></i><span>Publications</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('publications'); activateSubTab('publications','Publications'); toggleNavDrawer();"><i class="fas fa-file-alt"></i> Papers</button>
+                        <button class="nav-sub-item" onclick="switchTab('publications'); activateSubTab('publications','Presentations'); toggleNavDrawer();"><i class="fas fa-presentation"></i> Presentations</button>
+                        <button class="nav-sub-item" onclick="switchTab('publications'); activateSubTab('publications','Patents'); toggleNavDrawer();"><i class="fas fa-certificate"></i> Patents</button>
+                    </div>
+                </div>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="data" onclick="navToggleExpand(this, 'data')">
+                        <i class="fas fa-database"></i><span>Data & Resources</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('data'); activateSubTab('data','Datasets'); toggleNavDrawer();"><i class="fas fa-table"></i> Datasets</button>
+                        <button class="nav-sub-item" onclick="switchTab('data'); activateSubTab('data','Statistical Resources'); toggleNavDrawer();"><i class="fas fa-chart-bar"></i> Statistical Resources</button>
+                        <button class="nav-sub-item" onclick="switchTab('data'); activateSubTab('data','Code Review'); toggleNavDrawer();"><i class="fas fa-code"></i> Code Review</button>
+                    </div>
+                </div>
+            </div>
+            <!-- People & Team -->
+            <div class="nav-group">
+                <span class="nav-group-label">People & Team</span>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="people" onclick="navToggleExpand(this, 'people')">
+                        <i class="fas fa-users"></i><span>People Directory</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('people'); activateSubTab('people','Faculty'); toggleNavDrawer();"><i class="fas fa-user-md"></i> Faculty</button>
+                        <button class="nav-sub-item" onclick="switchTab('people'); activateSubTab('people','Research Staff'); toggleNavDrawer();"><i class="fas fa-user-tie"></i> Research Staff</button>
+                        <button class="nav-sub-item" onclick="switchTab('people'); activateSubTab('people','Trainees'); toggleNavDrawer();"><i class="fas fa-user-graduate"></i> Trainees</button>
+                        <button class="nav-sub-item" onclick="switchTab('people'); activateSubTab('people','Medical Students'); toggleNavDrawer();"><i class="fas fa-user"></i> Medical Students</button>
+                        <button class="nav-sub-item" onclick="switchTab('people'); activateSubTab('people','Collaborators'); toggleNavDrawer();"><i class="fas fa-handshake"></i> Collaborators</button>
+                    </div>
+                </div>
+                <button class="nav-drawer-item" data-tab="sendemail" id="sendEmailNavItem" style="display:none;" onclick="switchTab('sendemail'); toggleNavDrawer();">
+                    <i class="fas fa-paper-plane" style="color:#f59e0b;"></i><span>Send Email Invitations</span>
+                </button>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="meetings" onclick="navToggleExpand(this, 'meetings')">
+                        <i class="fas fa-comments"></i><span>Meetings</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('meetings'); activateSubTab('meetings','Upcoming'); toggleNavDrawer();"><i class="fas fa-calendar"></i> Upcoming</button>
+                        <button class="nav-sub-item" onclick="switchTab('meetings'); activateSubTab('meetings','Past'); toggleNavDrawer();"><i class="fas fa-history"></i> Past</button>
+                        <button class="nav-sub-item" onclick="switchTab('meetings'); activateSubTab('meetings','Seminars'); toggleNavDrawer();"><i class="fas fa-chalkboard-teacher"></i> Seminars</button>
+                        <button class="nav-sub-item" onclick="switchTab('meetings'); activateSubTab('meetings','Journal Club'); toggleNavDrawer();"><i class="fas fa-book-reader"></i> Journal Club</button>
+                    </div>
+                </div>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="forum" onclick="navToggleExpand(this, 'forum')">
+                        <i class="fas fa-headset"></i><span>Research Forum</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('forum'); activateSubTab('forum','All Requests'); toggleNavDrawer();"><i class="fas fa-inbox"></i> All Requests</button>
+                        <button class="nav-sub-item" onclick="switchTab('forum'); activateSubTab('forum','My Requests'); toggleNavDrawer();"><i class="fas fa-user"></i> My Requests</button>
+                        <button class="nav-sub-item" onclick="switchTab('forum'); activateSubTab('forum','Assigned to Me'); toggleNavDrawer();"><i class="fas fa-tasks"></i> Assigned to Me</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Compliance & Funding -->
+            <div class="nav-group">
+                <span class="nav-group-label">Compliance & Funding</span>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="grants" onclick="navToggleExpand(this, 'grants')">
+                        <i class="fas fa-hand-holding-usd"></i><span>Grants & Funding</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('grants'); activateSubTab('grants','Active Awards'); toggleNavDrawer();"><i class="fas fa-trophy"></i> Active Awards</button>
+                        <button class="nav-sub-item" onclick="switchTab('grants'); activateSubTab('grants','Pending'); toggleNavDrawer();"><i class="fas fa-hourglass-half"></i> Pending</button>
+                        <button class="nav-sub-item" onclick="switchTab('grants'); activateSubTab('grants','Opportunities'); toggleNavDrawer();"><i class="fas fa-star"></i> Opportunities</button>
+                    </div>
+                </div>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="deadlines" onclick="navToggleExpand(this, 'deadlines')">
+                        <i class="fas fa-calendar-check"></i><span>Deadlines</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('deadlines'); activateSubTab('deadlines','Upcoming'); toggleNavDrawer();"><i class="fas fa-clock"></i> Upcoming</button>
+                        <button class="nav-sub-item" onclick="switchTab('deadlines'); activateSubTab('deadlines','Passed'); toggleNavDrawer();"><i class="fas fa-flag-checkered"></i> Passed</button>
+                        <button class="nav-sub-item" onclick="switchTab('deadlines'); activateSubTab('deadlines','All'); toggleNavDrawer();"><i class="fas fa-list-alt"></i> All</button>
+                    </div>
+                </div>
+                <button class="nav-drawer-item" data-tab="irb" onclick="switchTab('irb'); toggleNavDrawer();">
+                    <i class="fas fa-shield-alt"></i><span>IRB & Compliance</span>
+                </button>
+            </div>
+            <!-- Resources -->
+            <div class="nav-group">
+                <span class="nav-group-label">Resources & Training</span>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="education" onclick="navToggleExpand(this, 'education')">
+                        <i class="fas fa-graduation-cap"></i><span>Education & Training</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('education'); activateSubTab('education','CITI Training Status'); toggleNavDrawer();"><i class="fas fa-certificate"></i> CITI Training</button>
+                        <button class="nav-sub-item" onclick="switchTab('education'); activateSubTab('education','CME Tracking'); toggleNavDrawer();"><i class="fas fa-award"></i> CME Tracking</button>
+                    </div>
+                </div>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="students" onclick="navToggleExpand(this, 'students')">
+                        <i class="fas fa-user-graduate"></i><span>Medical Students</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('students'); activateSubTab('students','All Students'); toggleNavDrawer();"><i class="fas fa-users"></i> All Students</button>
+                        <button class="nav-sub-item" onclick="switchTab('students'); activateSubTab('students','Onboarding'); toggleNavDrawer();"><i class="fas fa-clipboard-list"></i> Onboarding</button>
+                        <button class="nav-sub-item" onclick="switchTab('students'); activateSubTab('students','Monthly Assessment'); toggleNavDrawer();"><i class="fas fa-chart-line"></i> Monthly Assessment</button>
+                        <button class="nav-sub-item" onclick="switchTab('students'); activateSubTab('students','Project Requests'); toggleNavDrawer();"><i class="fas fa-hand-paper"></i> Project Requests</button>
+                        <button class="nav-sub-item" onclick="switchTab('students'); activateSubTab('students','Mentorship'); toggleNavDrawer();"><i class="fas fa-hands-helping"></i> Mentorship</button>
+                    </div>
+                </div>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item" data-tab="documents" onclick="navToggleExpand(this, 'documents')">
+                        <i class="fas fa-folder-open"></i><span>Documents & Policies</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('documents'); activateSubTab('documents','Policies'); toggleNavDrawer();"><i class="fas fa-gavel"></i> Policies</button>
+                        <button class="nav-sub-item" onclick="switchTab('documents'); activateSubTab('documents','Templates'); toggleNavDrawer();"><i class="fas fa-file-alt"></i> Templates</button>
+                        <button class="nav-sub-item" onclick="switchTab('documents'); activateSubTab('documents','Guidelines'); toggleNavDrawer();"><i class="fas fa-book"></i> Guidelines</button>
+                    </div>
+                </div>
+                <button class="nav-drawer-item" data-tab="requirements" onclick="switchTab('requirements'); toggleNavDrawer();">
+                    <i class="fas fa-tasks"></i><span>My Requirements</span>
+                </button>
+            </div>
+            <!-- Admin -->
+            <div class="nav-group admin-nav-group">
+                <span class="nav-group-label" style="color:#f59e0b;">Administration</span>
+                <div class="nav-expandable">
+                    <button class="nav-drawer-item admin-only-tab" data-tab="admin" onclick="navToggleExpand(this, 'admin')">
+                        <i class="fas fa-user-shield"></i><span>Admin Panel</span>
+                        <i class="fas fa-chevron-down nav-expand-icon"></i>
+                    </button>
+                    <div class="nav-sub-list">
+                        <button class="nav-sub-item" onclick="switchTab('admin'); activateSubTab('admin','Access Requests'); toggleNavDrawer();"><i class="fas fa-user-clock"></i> Access Requests</button>
+                        <button class="nav-sub-item" onclick="switchTab('admin'); activateSubTab('admin','All Users'); toggleNavDrawer();"><i class="fas fa-users-cog"></i> All Users</button>
+                        <button class="nav-sub-item" onclick="switchTab('admin'); activateSubTab('admin','Roles'); toggleNavDrawer();"><i class="fas fa-key"></i> Roles & Permissions</button>
+                        <button class="nav-sub-item" onclick="switchTab('admin'); activateSubTab('admin','Audit Log'); toggleNavDrawer();"><i class="fas fa-history"></i> Audit Log</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- ==================== DASHBOARD ==================== -->
+        <section class="tab-content active" id="tab-dashboard">
+            <div class="dashboard-hero">
+                <div class="hero-welcome">
+                    <h2 class="animate-in">Welcome to the Neuroscience Research Hub</h2>
+                    <p class="animate-in delay-1">Saint Luke's Neurology & Neurosurgery | Translational, Clinical & Computational Research</p>
+                </div>
+            </div>
+            <div class="stats-grid animate-in delay-2">
+                <div class="stat-card"><div class="stat-icon translational"><i class="fas fa-microscope"></i></div><div class="stat-info"><span class="stat-number" data-target="0">0</span><span class="stat-label">Active Projects</span></div><div class="stat-trend neutral"><i class="fas fa-minus"></i> --</div></div>
+                <div class="stat-card"><div class="stat-icon clinical"><i class="fas fa-user-md"></i></div><div class="stat-info"><span class="stat-number" data-target="0">0</span><span class="stat-label">Faculty Members</span></div><div class="stat-trend neutral"><i class="fas fa-minus"></i> --</div></div>
+                <div class="stat-card"><div class="stat-icon computational"><i class="fas fa-dollar-sign"></i></div><div class="stat-info"><span class="stat-number" data-target="0" data-prefix="$" data-format="currency">$0</span><span class="stat-label">Active Funding</span></div><div class="stat-trend neutral"><i class="fas fa-minus"></i> --</div></div>
+                <div class="stat-card"><div class="stat-icon publications"><i class="fas fa-file-alt"></i></div><div class="stat-info"><span class="stat-number" data-target="0">0</span><span class="stat-label">Publications (2026)</span></div><div class="stat-trend neutral"><i class="fas fa-minus"></i> --</div></div>
+                <div class="stat-card"><div class="stat-icon irb"><i class="fas fa-clipboard-check"></i></div><div class="stat-info"><span class="stat-number" data-target="0">0</span><span class="stat-label">Active IRB Protocols</span></div><div class="stat-trend neutral"><i class="fas fa-minus"></i> --</div></div>
+                <div class="stat-card"><div class="stat-icon pending"><i class="fas fa-clock"></i></div><div class="stat-info"><span class="stat-number" data-target="0">0</span><span class="stat-label">Pending Grants</span></div><div class="stat-trend neutral"><i class="fas fa-minus"></i> --</div></div>
+            </div>
+            <div class="dashboard-grid">
+                <div class="dashboard-card announcements-card animate-in delay-3">
+                    <div class="card-header"><h3><i class="fas fa-bullhorn"></i> Announcements</h3><button class="card-action-btn">View All</button></div>
+                    <div class="card-body"><div class="empty-state"><i class="fas fa-bullhorn"></i><p>No announcements yet</p><span>Announcements will appear here as they are posted.</span></div></div>
+                </div>
+                <div class="dashboard-card deadlines-card animate-in delay-4">
+                    <div class="card-header"><h3><i class="fas fa-calendar-alt"></i> Upcoming Deadlines</h3><button class="card-action-btn" onclick="switchTab('deadlines')">View All</button></div>
+                    <div class="card-body"><div class="empty-state"><i class="fas fa-calendar-alt"></i><p>No upcoming deadlines</p><span>Add deadlines in the Deadlines tab.</span></div></div>
+                </div>
+                <div class="dashboard-card pillars-card animate-in delay-3">
+                    <div class="card-header"><h3><i class="fas fa-chart-pie"></i> Research Pillars</h3></div>
+                    <div class="card-body">
+                        <div class="pillar-visual">
+                            <div class="pillar-ring">
+                                <svg viewBox="0 0 200 200" class="pillar-chart"><circle cx="100" cy="100" r="80" fill="none" stroke="#1a1a2e" stroke-width="24"/></svg>
+                                <div class="pillar-center-text"><span class="pillar-total">0</span><span>Projects</span></div>
+                            </div>
+                            <div class="pillar-legend">
+                                <div class="legend-item"><span class="legend-color translational"></span><span class="legend-label">Translational</span><span class="legend-count">0</span></div>
+                                <div class="legend-item"><span class="legend-color clinical"></span><span class="legend-label">Clinical</span><span class="legend-count">0</span></div>
+                                <div class="legend-item"><span class="legend-color computational"></span><span class="legend-label">Computational</span><span class="legend-count">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="dashboard-card activity-card animate-in delay-4">
+                    <div class="card-header"><h3><i class="fas fa-stream"></i> Recent Activity</h3><button class="card-action-btn">View All</button></div>
+                    <div class="card-body"><div class="empty-state"><i class="fas fa-stream"></i><p>No recent activity</p><span>Activity from team members will appear here.</span></div></div>
+                </div>
+            </div>
+            <!-- Active Projects Summary -->
+            <div class="dashboard-card animate-in delay-4" style="margin-top:20px;">
+                <div class="card-header"><h3><i class="fas fa-project-diagram"></i> Active Projects</h3><button class="card-action-btn" onclick="switchTab('projects')">View All</button></div>
+                <div class="card-body" id="dashboardProjects">
+                    <div class="empty-state"><i class="fas fa-project-diagram"></i><p>No active projects</p><span>Create a project to see it here.</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== RESEARCH PROJECTS ==================== -->
+        <section class="tab-content" id="tab-projects">
+            <div class="section-header">
+                <div class="section-title-group">
+                    <h2 class="section-title"><i class="fas fa-project-diagram"></i> Research Projects</h2>
+                    <p class="section-subtitle">Translational, Clinical & Computational Neuroscience</p>
+                </div>
+                <div class="section-actions">
+                    <button class="btn btn-primary" onclick="openModal('newProject')"><i class="fas fa-plus"></i> New Project</button>
+                    <button class="btn btn-outline"><i class="fas fa-file-export"></i> Export</button>
+                </div>
+            </div>
+            <div class="filter-bar">
+                <div class="filter-group"><label>Pillar</label><div class="filter-chips"><button class="chip active" data-filter="all">All</button><button class="chip translational" data-filter="translational">Translational</button><button class="chip clinical" data-filter="clinical">Clinical</button><button class="chip computational" data-filter="computational">Computational</button></div></div>
+                <div class="filter-group"><label>Status</label><div class="filter-chips"><button class="chip active" data-filter="all-status">All</button><button class="chip" data-filter="active">Active</button><button class="chip" data-filter="enrolling">Enrolling</button><button class="chip" data-filter="analysis">Analysis</button><button class="chip" data-filter="completed">Completed</button></div></div>
+                <div class="filter-group"><label>Department</label><div class="filter-chips"><button class="chip active" data-filter="all-dept">All</button><button class="chip" data-filter="neurology">Neurology</button><button class="chip" data-filter="neurosurgery">Neurosurgery</button></div></div>
+                <div class="view-toggle"><button class="view-btn active" data-view="grid"><i class="fas fa-th"></i></button><button class="view-btn" data-view="list"><i class="fas fa-list"></i></button><button class="view-btn" data-view="pipeline"><i class="fas fa-stream"></i></button></div>
+            </div>
+
+            <!-- Pipeline View (Point 12) -->
+            <div class="pipeline-view" id="pipelineView" style="display:none;">
+                <div class="pipeline-container">
+                    <div class="pipeline-stage" data-stage="protocol"><div class="pipeline-stage-header"><i class="fas fa-file-medical"></i><h4>Protocol Preparation</h4><span class="pipeline-count">0</span></div><div class="pipeline-cards"></div></div>
+                    <div class="pipeline-stage" data-stage="irb"><div class="pipeline-stage-header"><i class="fas fa-shield-alt"></i><h4>IRB Review</h4><span class="pipeline-count">0</span></div><div class="pipeline-cards"></div></div>
+                    <div class="pipeline-stage" data-stage="contracts"><div class="pipeline-stage-header"><i class="fas fa-file-contract"></i><h4>Contracts</h4><span class="pipeline-count">0</span></div><div class="pipeline-cards"></div></div>
+                    <div class="pipeline-stage" data-stage="funding"><div class="pipeline-stage-header"><i class="fas fa-dollar-sign"></i><h4>Funding</h4><span class="pipeline-count">0</span></div><div class="pipeline-cards"></div></div>
+                    <div class="pipeline-stage" data-stage="collection"><div class="pipeline-stage-header"><i class="fas fa-database"></i><h4>Data Collection</h4><span class="pipeline-count">0</span></div><div class="pipeline-cards"></div></div>
+                    <div class="pipeline-stage" data-stage="analysis"><div class="pipeline-stage-header"><i class="fas fa-chart-line"></i><h4>Analysis</h4><span class="pipeline-count">0</span></div><div class="pipeline-cards"></div></div>
+                    <div class="pipeline-stage" data-stage="writeup"><div class="pipeline-stage-header"><i class="fas fa-pen-fancy"></i><h4>Paper Write-Up</h4><span class="pipeline-count">0</span></div><div class="pipeline-cards"></div></div>
+                    <div class="pipeline-stage" data-stage="submitted"><div class="pipeline-stage-header"><i class="fas fa-paper-plane"></i><h4>Submitted</h4><span class="pipeline-count">0</span></div><div class="pipeline-cards"></div></div>
+                    <div class="pipeline-stage" data-stage="accepted"><div class="pipeline-stage-header"><i class="fas fa-check-double"></i><h4>Accepted</h4><span class="pipeline-count">0</span></div><div class="pipeline-cards"></div></div>
+                </div>
+            </div>
+
+            <div class="projects-grid" id="projectsGrid">
+                <div class="empty-state-large"><i class="fas fa-project-diagram"></i><h3>No Research Projects Yet</h3><p>Click "New Project" to add your first research project.</p><button class="btn btn-primary" onclick="openModal('newProject')"><i class="fas fa-plus"></i> Add First Project</button></div>
+            </div>
+        </section>
+
+        <!-- ==================== PEOPLE ==================== -->
+        <section class="tab-content" id="tab-people">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-users"></i> People Directory</h2><p class="section-subtitle">Faculty, Staff, Trainees, Medical Students & Collaborators</p></div>
+                <div class="section-actions"><button class="btn btn-primary" onclick="openModal('newPerson')"><i class="fas fa-user-plus"></i> Add Member</button></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active" data-subtab="faculty">Faculty <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab" data-subtab="staff">Research Staff <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab" data-subtab="trainees">Trainees <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab" data-subtab="medstudents">Medical Students <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab" data-subtab="collaborators">Collaborators <span class="sub-tab-count">0</span></button>
+            </div>
+            <div class="people-grid" id="peopleGrid">
+                <div class="empty-state-large"><i class="fas fa-users"></i><h3>No Team Members Yet</h3><p>Click "Add Member" to add faculty, staff, trainees, or collaborators.</p><button class="btn btn-primary" onclick="openModal('newPerson')"><i class="fas fa-user-plus"></i> Add First Member</button></div>
+            </div>
+        </section>
+
+        <!-- ==================== SEND EMAIL INVITATIONS (Admin: Dr. Hayner & Ahmad only) ==================== -->
+        <section class="tab-content" id="tab-sendemail">
+            <div class="section-header">
+                <div class="section-title-group">
+                    <h2 class="section-title"><i class="fas fa-paper-plane" style="color:#f59e0b;"></i> Send Email Invitations</h2>
+                    <p class="section-subtitle">Invite users to the research database. Only accessible to Dr. Hayner & Dr. Almekkawi.</p>
+                </div>
+            </div>
+            <div class="alert-banner" style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+                <i class="fas fa-info-circle" style="color:#f59e0b;"></i>
+                <span style="font-size:0.82rem;color:var(--text-secondary);">Clicking "Send" will open your default email client with a pre-filled invitation containing the user's credentials and login instructions. For full automated email sending, the site needs to be hosted with a backend server.</span>
+            </div>
+            <div id="sendEmailUserList">
+                <div class="empty-state-large"><i class="fas fa-paper-plane"></i><h3>Loading User List...</h3><p>Preparing email invitations for all registered users.</p></div>
+            </div>
+        </section>
+
+        <!-- ==================== GRANTS & FUNDING ==================== -->
+        <section class="tab-content" id="tab-grants">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-hand-holding-usd"></i> Grants & Funding</h2><p class="section-subtitle">Active Awards, Pending Submissions & Funding Opportunities</p></div>
+                <div class="section-actions"><button class="btn btn-primary" onclick="openModal('newGrant')"><i class="fas fa-plus"></i> Add Grant</button><button class="btn btn-outline" onclick="openModal('newOpportunity')"><i class="fas fa-star"></i> Add Opportunity</button></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">Active Awards <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">Pending <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">Opportunities <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">Internal Pilots <span class="sub-tab-count">0</span></button>
+            </div>
+            <div class="funding-summary">
+                <div class="funding-card"><div class="funding-icon"><i class="fas fa-check-circle"></i></div><div class="funding-amount">$0</div><div class="funding-label">Active Funding</div></div>
+                <div class="funding-card"><div class="funding-icon pending-icon"><i class="fas fa-hourglass-half"></i></div><div class="funding-amount">$0</div><div class="funding-label">Pending Review</div></div>
+                <div class="funding-card"><div class="funding-icon opportunity-icon"><i class="fas fa-star"></i></div><div class="funding-amount">0</div><div class="funding-label">Open Opportunities</div></div>
+            </div>
+            <div class="table-container">
+                <table class="data-table"><thead><tr><th>Grant Title</th><th>PI</th><th>Agency</th><th>Mechanism</th><th>Amount</th><th>Period</th><th>Status</th></tr></thead>
+                <tbody><tr><td colspan="7" class="table-empty"><div class="empty-state"><i class="fas fa-hand-holding-usd"></i><p>No grants added yet</p><span>Click "Add Grant" to track awards or "Add Opportunity" for funding opportunities.</span></div></td></tr></tbody></table>
+            </div>
+        </section>
+
+        <!-- ==================== DEADLINES (Point 9) ==================== -->
+        <section class="tab-content" id="tab-deadlines">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-calendar-check"></i> Deadlines & Submissions</h2><p class="section-subtitle">Track deadlines, submitted items, and their status</p></div>
+                <div class="section-actions"><button class="btn btn-primary" onclick="openModal('newDeadline')"><i class="fas fa-plus"></i> Add Deadline</button></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">Upcoming <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">Passed <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">All</button>
+            </div>
+            <div class="deadlines-list" id="deadlinesList">
+                <div class="empty-state-large"><i class="fas fa-calendar-check"></i><h3>No Deadlines Added Yet</h3><p>Add grant, conference, or IRB deadlines. Track submissions against each deadline. Deadlines turn green (open) to yellow (soon) to red (passed).</p><button class="btn btn-primary" onclick="openModal('newDeadline')"><i class="fas fa-plus"></i> Add First Deadline</button></div>
+            </div>
+        </section>
+
+        <!-- ==================== IRB (Simplified - Point 4) ==================== -->
+        <section class="tab-content" id="tab-irb">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-shield-alt"></i> IRB & Compliance</h2><p class="section-subtitle">Protocol Tracking & Status Management</p></div>
+                <div class="section-actions"><button class="btn btn-primary" onclick="openModal('newProtocol')"><i class="fas fa-plus"></i> New Protocol</button><button class="btn btn-outline"><i class="fas fa-external-link-alt"></i> IRB Portal</button></div>
+            </div>
+            <div class="table-container">
+                <table class="data-table"><thead><tr><th>Project</th><th>Protocol #</th><th>Process / Phase</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="irbTableBody"><tr><td colspan="5" class="table-empty"><div class="empty-state"><i class="fas fa-shield-alt"></i><p>No protocols tracked yet</p><span>Click "New Protocol" to begin tracking.</span></div></td></tr></tbody></table>
+            </div>
+        </section>
+
+        <!-- ==================== PUBLICATIONS (Point 5) ==================== -->
+        <section class="tab-content" id="tab-publications">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-book-open"></i> Publications & Output</h2><p class="section-subtitle">Upload PDFs for publications, presentations, and patents</p></div>
+                <div class="section-actions"><button class="btn btn-primary" onclick="openModal('newPublication')"><i class="fas fa-plus"></i> Add Publication</button></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">Publications <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">Presentations <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">Patents <span class="sub-tab-count">0</span></button>
+            </div>
+            <div class="pub-metrics">
+                <div class="metric-card"><span class="metric-value">0</span><span class="metric-label">Total Publications</span></div>
+                <div class="metric-card"><span class="metric-value">0</span><span class="metric-label">Presentations</span></div>
+                <div class="metric-card"><span class="metric-value">0</span><span class="metric-label">Patents</span></div>
+            </div>
+            <div class="publications-list" id="pubsList">
+                <div class="empty-state-large"><i class="fas fa-book-open"></i><h3>No Publications Yet</h3><p>Upload a PDF and enter the title to add a publication, presentation, or patent.</p><button class="btn btn-primary" onclick="openModal('newPublication')"><i class="fas fa-plus"></i> Add First Publication</button></div>
+            </div>
+        </section>
+
+        <!-- ==================== DATA & RESOURCES (Point 6) ==================== -->
+        <section class="tab-content" id="tab-data">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-database"></i> Data & Resources</h2><p class="section-subtitle">Datasets, Statistical Tools & Code Review</p></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">Datasets</button>
+                <button class="sub-tab">Statistical Resources</button>
+                <button class="sub-tab">Code Review</button>
+            </div>
+
+            <!-- Datasets Sub-section -->
+            <div class="data-subsection" id="dataSubDatasets">
+                <h3 class="subsection-title" style="margin-top:8px;"><i class="fas fa-table"></i> Research Databases</h3>
+                <p class="subsection-desc">SharePoint-linked research databases. Click to open in SharePoint.</p>
+                <div class="resources-grid">
+                    <div class="resource-card">
+                        <div class="resource-icon" style="background:rgba(0,212,255,0.1);color:#00d4ff;"><i class="fas fa-bone"></i></div>
+                        <h3>Spine Database</h3>
+                        <p>Comprehensive neurosurgical spine research database with patient outcomes and surgical data.</p>
+                        <button class="btn btn-primary btn-sm" onclick="openSharePointLink('spine')" id="spineLinkBtn"><i class="fas fa-external-link-alt"></i> Open in SharePoint</button>
+                        <span class="dataset-link-note" id="spineLinkNote" style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;display:block;">Link will be added soon.</span>
+                    </div>
+                    <div class="resource-card">
+                        <div class="resource-icon" style="background:rgba(124,58,237,0.1);color:#7c3aed;"><i class="fas fa-brain"></i></div>
+                        <h3>Tumor Database</h3>
+                        <p>Brain and spinal tumor registry with histology, treatment, and survival outcome data.</p>
+                        <button class="btn btn-primary btn-sm" onclick="openSharePointLink('tumor')" id="tumorLinkBtn"><i class="fas fa-external-link-alt"></i> Open in SharePoint</button>
+                        <span class="dataset-link-note" id="tumorLinkNote" style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;display:block;">Link will be added soon.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistical Resources Sub-section -->
+            <div class="data-subsection" id="dataSubStats" style="display:none;">
+                <p class="subsection-desc" style="margin-bottom:16px;">Statistical tools and consultation requests. All requests are routed to <strong>Dr. Kolakowsky-Hayner</strong>.</p>
+                <div class="resources-grid">
+                    <div class="resource-card"><div class="resource-icon"><i class="fas fa-chart-bar"></i></div><h3>Statistical Consultation</h3><p>Request biostatistical support for study design, power analysis, and data analysis plans.</p><button class="btn btn-outline btn-sm" onclick="openModal('resourceRequest', 'Statistical Consultation')"><i class="fas fa-paper-plane"></i> Request</button></div>
+                    <div class="resource-card">
+                        <div class="resource-icon" style="background:rgba(124,58,237,0.1);color:#7c3aed;"><i class="fas fa-calculator"></i></div>
+                        <h3>Sample Size Calculator</h3>
+                        <p>Power analysis for common study designs. Select your test type and parameters below.</p>
+                        <button class="btn btn-primary btn-sm" onclick="openModal('sampleSizeCalc')"><i class="fas fa-calculator"></i> Open Calculator</button>
+                    </div>
+                    <div class="resource-card"><div class="resource-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b;"><i class="fas fa-database"></i></div><h3>REDCap Form Builder</h3><p>Import a data dictionary (CSV) or define variables to auto-build your data collection forms.</p><button class="btn btn-outline btn-sm" onclick="openModal('redcapBuilder')"><i class="fas fa-magic"></i> Build Form</button><button class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="openModal('resourceRequest', 'REDCap Access')"><i class="fas fa-paper-plane"></i> Request Access</button></div>
+                </div>
+            </div>
+
+            <!-- Code Review Sub-section -->
+            <div class="data-subsection" id="dataSubCode" style="display:none;">
+                <p class="subsection-desc" style="margin-bottom:16px;">Upload analysis scripts and request peer review from other team members.</p>
+                <div class="resources-grid">
+                    <div class="resource-card"><div class="resource-icon" style="background:rgba(59,130,246,0.1);color:#3b82f6;"><i class="fas fa-code"></i></div><h3>Code Review</h3><p>Upload analysis scripts and code for peer review by other team members.</p><button class="btn btn-outline btn-sm" onclick="openModal('codeReview')"><i class="fas fa-upload"></i> Upload Code</button></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== RESEARCH FORUM (Point 6 - Communication) ==================== -->
+        <section class="tab-content" id="tab-forum">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-headset"></i> Research Forum</h2><p class="section-subtitle">Request support from CRC, Statistician, Informaticist, or Research Director</p></div>
+                <div class="section-actions"><button class="btn btn-primary" onclick="openModal('newRequest')"><i class="fas fa-plus"></i> New Request</button></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">All Requests <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">My Requests <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">Assigned to Me <span class="sub-tab-count">0</span></button>
+                <button class="sub-tab">Resolved <span class="sub-tab-count">0</span></button>
+            </div>
+            <div class="forum-list" id="forumList">
+                <div class="empty-state-large"><i class="fas fa-headset"></i><h3>No Requests Yet</h3><p>Submit a request for statistical consultation, data queries, regulatory questions, or resource needs. The appropriate team member will be notified.</p><button class="btn btn-primary" onclick="openModal('newRequest')"><i class="fas fa-plus"></i> Submit First Request</button></div>
+            </div>
+        </section>
+
+        <!-- ==================== MEETINGS (Point 7) ==================== -->
+        <section class="tab-content" id="tab-meetings">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-comments"></i> Meetings & Communication</h2><p class="section-subtitle">Schedule meetings, seminars, journal club & more</p></div>
+                <div class="section-actions"><button class="btn btn-primary" onclick="openModal('newMeeting')"><i class="fas fa-plus"></i> Schedule Meeting</button></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">Upcoming</button>
+                <button class="sub-tab">Past</button>
+                <button class="sub-tab">Seminars</button>
+                <button class="sub-tab">Journal Club</button>
+            </div>
+            <div class="calendar-grid">
+                <div class="calendar-day"><div class="day-header">Monday</div><div class="calendar-empty"><span>No events</span></div></div>
+                <div class="calendar-day"><div class="day-header">Tuesday</div><div class="calendar-empty"><span>No events</span></div></div>
+                <div class="calendar-day"><div class="day-header">Wednesday</div><div class="calendar-empty"><span>No events</span></div></div>
+                <div class="calendar-day"><div class="day-header">Thursday</div><div class="calendar-empty"><span>No events</span></div></div>
+                <div class="calendar-day"><div class="day-header">Friday</div><div class="calendar-empty"><span>No events</span></div></div>
+            </div>
+            <div class="meetings-list" id="meetingsList">
+                <div class="empty-state-large" style="margin-top:20px;"><i class="fas fa-calendar-plus"></i><h3>No Meetings Scheduled</h3><p>Click "Schedule Meeting" to set up your first meeting.</p></div>
+            </div>
+        </section>
+
+        <!-- ==================== EDUCATION & TRAINING (Restructured) ==================== -->
+        <section class="tab-content" id="tab-education">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-graduation-cap"></i> Education & Training</h2><p class="section-subtitle">CITI Training, CME Credits & Compliance Tracking</p></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">CITI Training Status</button>
+                <button class="sub-tab">CME Tracking</button>
+            </div>
+
+            <!-- CITI Training Status per Person -->
+            <div class="edu-subsection" id="eduSubCITI">
+                <p class="subsection-desc" style="margin-bottom:16px;">Each team member's CITI training status. Upload certificates to update. <strong>Dr. Kolakowsky-Hayner</strong> reviews and approves all submissions.</p>
+                <div class="table-container">
+                    <table class="data-table" id="citiTable">
+                        <thead><tr><th>Name</th><th>Role</th><th>CITI Human Subjects</th><th>HIPAA</th><th>GCP</th><th>Responsible Conduct</th><th>Actions</th></tr></thead>
+                        <tbody id="citiTableBody">
+                            <tr><td colspan="7" class="table-empty"><div class="empty-state"><i class="fas fa-certificate"></i><p>No team members yet</p><span>Add team members in the People Directory to track their training.</span></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn btn-primary" style="margin-top:16px;" onclick="openModal('uploadCITI')"><i class="fas fa-upload"></i> Submit CITI Certificate</button>
+            </div>
+
+            <!-- CME Tracking -->
+            <div class="edu-subsection" id="eduSubCME" style="display:none;">
+                <p class="subsection-desc" style="margin-bottom:16px;">CME credit tracking for faculty and staff. <strong>Dr. Kolakowsky-Hayner</strong> reviews and updates CME status.</p>
+                <div class="table-container">
+                    <table class="data-table" id="cmeTable">
+                        <thead><tr><th>Name</th><th>Role</th><th>Credits Earned (YTD)</th><th>Credits Required</th><th>Status</th><th>Last Updated</th><th>Actions</th></tr></thead>
+                        <tbody id="cmeTableBody">
+                            <tr><td colspan="7" class="table-empty"><div class="empty-state"><i class="fas fa-award"></i><p>No CME records yet</p><span>Submit CME credits using the form below.</span></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn btn-primary" style="margin-top:16px;" onclick="openModal('submitCME')"><i class="fas fa-plus"></i> Submit CME Credits</button>
+            </div>
+        </section>
+
+        <!-- ==================== MEDICAL STUDENTS (New Dedicated Tab) ==================== -->
+        <section class="tab-content" id="tab-students">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-user-graduate"></i> Medical Students</h2><p class="section-subtitle">Onboarding, Assessment, Project Requests & Mentorship</p></div>
+                <div class="section-actions"><button class="btn btn-primary" onclick="openModal('newPerson')"><i class="fas fa-user-plus"></i> Add Student</button></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">All Students</button>
+                <button class="sub-tab">Onboarding</button>
+                <button class="sub-tab">Monthly Assessment</button>
+                <button class="sub-tab">Project Requests</button>
+                <button class="sub-tab">Mentorship</button>
+            </div>
+
+            <!-- All Students Sub-section -->
+            <div class="student-subsection" id="studentSubAll">
+                <div class="students-grid" id="studentsGrid">
+                    <div class="empty-state-large"><i class="fas fa-user-graduate"></i><h3>No Medical Students Yet</h3><p>Add medical students to track their onboarding, assessments, and project assignments.</p><button class="btn btn-primary" onclick="openModal('newPerson')"><i class="fas fa-user-plus"></i> Add First Student</button></div>
+                </div>
+            </div>
+
+            <!-- Onboarding Sub-section -->
+            <div class="student-subsection" id="studentSubOnboarding" style="display:none;">
+                <p class="subsection-desc" style="margin-bottom:16px;">New student onboarding checklist. Each item must be completed before beginning research activities.</p>
+                <div class="checklist-grid">
+                    <div class="checklist-category"><h4><i class="fas fa-file-signature" style="margin-right:6px;color:var(--accent-primary);"></i> Administrative</h4>
+                        <div class="checklist-item"><i class="far fa-circle"></i> ID badge & building access</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> IT account setup (email, network)</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Research database account created</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> REDCap account provisioned</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> EPIC research access (if applicable)</div>
+                    </div>
+                    <div class="checklist-category"><h4><i class="fas fa-certificate" style="margin-right:6px;color:#f59e0b;"></i> Required Training</h4>
+                        <div class="checklist-item"><i class="far fa-circle"></i> CITI Human Subjects Training</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> HIPAA Training</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Good Clinical Practice (GCP)</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Responsible Conduct of Research</div>
+                    </div>
+                    <div class="checklist-category"><h4><i class="fas fa-handshake" style="margin-right:6px;color:#10b981;"></i> Orientation</h4>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Meet assigned PI / mentor</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Department orientation tour</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Data management & privacy review</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> IRB protocol overview</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Attend first team meeting</div>
+                    </div>
+                    <div class="checklist-category"><h4><i class="fas fa-project-diagram" style="margin-right:6px;color:#7c3aed;"></i> Project Readiness</h4>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Added to IRB protocol (if applicable)</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Reviewed study protocol</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> Trained on data collection procedures</div>
+                        <div class="checklist-item"><i class="far fa-circle"></i> First supervised data entry</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Assessment Sub-section -->
+            <div class="student-subsection" id="studentSubAssessment" style="display:none;">
+                <p class="subsection-desc" style="margin-bottom:16px;">Validated monthly performance assessment for medical students. Scored by supervising faculty on a 1-5 Likert scale.</p>
+                <div id="assessmentsList">
+                    <div class="empty-state-large"><i class="fas fa-clipboard-check"></i><h3>No Assessments Yet</h3><p>Monthly assessments will appear here as faculty complete them.</p><button class="btn btn-primary" onclick="openModal('studentAssessment')"><i class="fas fa-plus"></i> New Assessment</button></div>
+                </div>
+            </div>
+
+            <!-- Project Requests Sub-section -->
+            <div class="student-subsection" id="studentSubRequests" style="display:none;">
+                <p class="subsection-desc" style="margin-bottom:16px;">Students can request to join a project. The PI must approve before the student is added and begins IRB onboarding.</p>
+                <div id="studentProjectRequests">
+                    <div class="empty-state-large"><i class="fas fa-hand-paper"></i><h3>No Project Requests</h3><p>Students can submit a request to join a project of interest.</p><button class="btn btn-primary" onclick="openModal('studentProjectRequest')"><i class="fas fa-plus"></i> Request to Join Project</button></div>
+                </div>
+            </div>
+
+            <!-- Mentorship Sub-section (students only) -->
+            <div class="student-subsection" id="studentSubMentorship" style="display:none;">
+                <p class="subsection-desc" style="margin-bottom:16px;">Mentorship assignments for medical students. Each student is paired with a faculty mentor for guidance and evaluation.</p>
+                <div id="mentorshipList">
+                    <div class="empty-state-large"><i class="fas fa-hands-helping"></i><h3>No Mentorship Assignments</h3><p>Mentorship pairings will appear here when students are assigned to faculty mentors.</p></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== DOCUMENTS & TEMPLATES ==================== -->
+        <section class="tab-content" id="tab-documents">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-folder-open"></i> Documents & Templates</h2><p class="section-subtitle">Templates, policies, and document creation — everything built on-site</p></div>
+                <div class="section-actions"><button class="btn btn-primary" onclick="openModal('uploadDocument')"><i class="fas fa-upload"></i> Upload Document</button></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">Templates</button>
+                <button class="sub-tab">Policies</button>
+                <button class="sub-tab">Guidelines</button>
+                <button class="sub-tab">Uploaded Documents</button>
+            </div>
+
+            <!-- Templates Sub-section -->
+            <div class="doc-subsection" id="docSubTemplates">
+                <p class="subsection-desc" style="margin-bottom:16px;">Use these built-in templates to create documents directly on the site. Fill in the fields and export to Word.</p>
+                <div class="resources-grid">
+                    <div class="resource-card">
+                        <div class="resource-icon" style="background:rgba(0,212,255,0.1);color:#00d4ff;"><i class="fas fa-file-medical"></i></div>
+                        <h3>Research Protocol</h3>
+                        <p>Standard research protocol template with all required sections: background, aims, methods, statistical plan, timeline.</p>
+                        <button class="btn btn-primary btn-sm" onclick="openModal('templateProtocol')"><i class="fas fa-edit"></i> Create Protocol</button>
+                    </div>
+                    <div class="resource-card">
+                        <div class="resource-icon" style="background:rgba(124,58,237,0.1);color:#7c3aed;"><i class="fas fa-file-signature"></i></div>
+                        <h3>Informed Consent Form</h3>
+                        <p>IRB-compliant consent form template with required elements: purpose, procedures, risks, benefits, confidentiality.</p>
+                        <button class="btn btn-primary btn-sm" onclick="openModal('templateConsent')"><i class="fas fa-edit"></i> Create Consent Form</button>
+                    </div>
+                    <div class="resource-card">
+                        <div class="resource-icon" style="background:rgba(16,185,129,0.1);color:#10b981;"><i class="fas fa-shield-alt"></i></div>
+                        <h3>IRB Submission Cover Letter</h3>
+                        <p>Cover letter template for new IRB submissions, amendments, and continuing reviews.</p>
+                        <button class="btn btn-primary btn-sm" onclick="openModal('templateIRBLetter')"><i class="fas fa-edit"></i> Create Letter</button>
+                    </div>
+                    <div class="resource-card">
+                        <div class="resource-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b;"><i class="fas fa-file-alt"></i></div>
+                        <h3>Data Management Plan</h3>
+                        <p>Template for research data management including collection, storage, sharing, and archiving plans.</p>
+                        <button class="btn btn-primary btn-sm" onclick="openModal('templateDMP')"><i class="fas fa-edit"></i> Create DMP</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Policies Sub-section -->
+            <div class="doc-subsection" id="docSubPolicies" style="display:none;">
+                <div class="documents-grid" id="policiesList"><div class="empty-state-large"><i class="fas fa-gavel"></i><h3>No Policies Uploaded Yet</h3><p>Upload department policies and procedures.</p></div></div>
+            </div>
+
+            <!-- Guidelines Sub-section -->
+            <div class="doc-subsection" id="docSubGuidelines" style="display:none;">
+                <div class="documents-grid" id="guidelinesList"><div class="empty-state-large"><i class="fas fa-book"></i><h3>No Guidelines Yet</h3><p>Upload research guidelines and best practices.</p></div></div>
+            </div>
+
+            <!-- Uploaded Documents -->
+            <div class="doc-subsection" id="docSubUploaded" style="display:none;">
+                <div class="documents-grid" id="uploadedDocsList"><div class="empty-state-large"><i class="fas fa-folder-open"></i><h3>No Documents Uploaded Yet</h3><p>Upload documents using the button above.</p></div></div>
+            </div>
+        </section>
+
+        <!-- ==================== MY REQUIREMENTS ==================== -->
+        <section class="tab-content" id="tab-requirements">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-tasks"></i> My Requirements</h2><p class="section-subtitle">Complete required training and certifications to maintain access</p></div>
+            </div>
+
+            <!-- CITI Training Requirement -->
+            <div class="dashboard-card" style="margin-bottom:24px;">
+                <div class="card-header"><h3><i class="fas fa-certificate" style="color:#f59e0b;margin-right:8px;"></i>CITI Training Certificate</h3></div>
+                <div style="padding:20px;">
+                    <div class="alert-banner" style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+                        <i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i>
+                        <span style="font-size:0.82rem;color:var(--text-secondary);"><strong>Required:</strong> All personnel must have current CITI training certification before participating in research activities. Upload your certificate below.</span>
+                    </div>
+                    <div id="citiStatus" style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;margin-bottom:16px;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <i class="fas fa-times-circle" style="color:#ef4444;font-size:1.5rem;" id="citiStatusIcon"></i>
+                            <div>
+                                <strong id="citiStatusText" style="font-size:0.88rem;">Not Submitted</strong>
+                                <p id="citiStatusDetail" style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Upload your CITI training certificate to fulfill this requirement.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openModal('uploadCITI')"><i class="fas fa-upload"></i> Upload CITI Certificate</button>
+                </div>
+            </div>
+
+            <!-- Other Requirements -->
+            <div class="dashboard-card">
+                <div class="card-header"><h3><i class="fas fa-clipboard-check" style="color:#10b981;margin-right:8px;"></i>Additional Requirements</h3></div>
+                <div style="padding:20px;">
+                    <div class="checklist-item" style="padding:12px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,0.06);">
+                        <i class="far fa-circle" style="color:var(--text-muted);"></i>
+                        <div><strong style="font-size:0.85rem;">HIPAA Training</strong><p style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Complete annual HIPAA compliance training</p></div>
+                    </div>
+                    <div class="checklist-item" style="padding:12px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,0.06);">
+                        <i class="far fa-circle" style="color:var(--text-muted);"></i>
+                        <div><strong style="font-size:0.85rem;">Good Clinical Practice (GCP)</strong><p style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Complete GCP certification for clinical research involvement</p></div>
+                    </div>
+                    <div class="checklist-item" style="padding:12px;display:flex;align-items:center;gap:12px;">
+                        <i class="far fa-circle" style="color:var(--text-muted);"></i>
+                        <div><strong style="font-size:0.85rem;">Responsible Conduct of Research</strong><p style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Complete RCR training module</p></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== ADMIN PANEL (Point 10) ==================== -->
+        <section class="tab-content" id="tab-admin">
+            <div class="section-header">
+                <div class="section-title-group"><h2 class="section-title"><i class="fas fa-user-shield"></i> Administration</h2><p class="section-subtitle">User management, access requests, roles & audit log</p></div>
+            </div>
+            <div class="sub-tabs">
+                <button class="sub-tab active">Access Requests <span class="sub-tab-count" id="accessRequestCount">0</span></button>
+                <button class="sub-tab">All Users</button>
+                <button class="sub-tab">Roles & Permissions</button>
+                <button class="sub-tab">Audit Log</button>
+            </div>
+
+            <!-- Admin Accounts Info -->
+            <div class="admin-section" style="margin-bottom:24px;">
+                <h3 class="subsection-title"><i class="fas fa-user-shield"></i> Database Administrators</h3>
+                <p class="subsection-desc">Access requests are sent to all 3 admins. Only 1 approval is needed to grant access.</p>
+                <div class="roles-grid" style="grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));">
+                    <div class="role-card admin-role">
+                        <div class="role-header"><i class="fas fa-crown" style="color:#f59e0b;"></i><h4>Stephanie Kolakowsky-Hayner, PhD</h4></div>
+                        <p style="color:var(--accent-primary);font-weight:600;margin-bottom:4px;">Neuroscience Research Director</p>
+                        <p><i class="fas fa-envelope" style="margin-right:6px;color:var(--text-muted);"></i>skolakowsky@saint-lukes.org</p>
+                    </div>
+                    <div class="role-card admin-role">
+                        <div class="role-header"><i class="fas fa-crown" style="color:#f59e0b;"></i><h4>Carlos A. Bagley, MD</h4></div>
+                        <p style="color:var(--accent-primary);font-weight:600;margin-bottom:4px;">Neuroscience Director & Chair</p>
+                        <p><i class="fas fa-envelope" style="margin-right:6px;color:var(--text-muted);"></i>cabagley@saint-lukes.org</p>
+                    </div>
+                    <div class="role-card admin-role">
+                        <div class="role-header"><i class="fas fa-crown" style="color:#f59e0b;"></i><h4>Ahmad Kareem Almekkawi, MD</h4></div>
+                        <p style="color:var(--accent-primary);font-weight:600;margin-bottom:4px;">Neuroscience Research Fellow</p>
+                        <p><i class="fas fa-envelope" style="margin-right:6px;color:var(--text-muted);"></i>aalmekkawi@saint-lukes.org</p>
+                    </div>
+                    <div class="role-card" style="border-color:rgba(245,158,11,0.3);">
+                        <div class="role-header"><i class="fas fa-gavel" style="color:#f59e0b;"></i><h4>LaShanda Rose</h4></div>
+                        <p style="color:#f59e0b;font-weight:600;margin-bottom:4px;">IRB Reviewer</p>
+                        <p><i class="fas fa-envelope" style="margin-right:6px;color:var(--text-muted);"></i>ldrose@saint-lukes.org</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;">
+                <button class="btn btn-outline" onclick="generateCredentialEmails()"><i class="fas fa-envelope"></i> View User Credentials</button>
+                <button class="btn btn-outline" onclick="exportCredentialsCSV()"><i class="fas fa-file-csv"></i> Export Credentials CSV</button>
+            </div>
+
+            <!-- Login Approval Requests -->
+            <div class="admin-section" style="margin-bottom:24px;">
+                <h3 class="subsection-title"><i class="fas fa-user-check" style="color:#00d4ff;"></i> Pending Login Approvals <span id="loginApprovalCount" style="background:rgba(0,212,255,0.15);color:#00d4ff;padding:2px 10px;border-radius:20px;font-size:0.78rem;margin-left:8px;">0</span></h3>
+                <p class="subsection-desc">When users log in for the first time with their temporary credentials, their request appears here for approval.</p>
+                <div id="loginApprovalsSection">
+                    <div class="empty-state" style="padding:30px;"><i class="fas fa-check-circle" style="color:#10b981;"></i><p>No pending login approvals</p><span>All login requests have been processed.</span></div>
+                </div>
+            </div>
+
+            <!-- Access Requests Queue -->
+            <div class="admin-section" id="accessRequestsSection">
+                <h3 class="subsection-title"><i class="fas fa-user-clock"></i> Pending Access Requests</h3>
+                <p class="subsection-desc">Requests require approval from any 1 of the 3 administrators.</p>
+                <div id="accessRequestsList">
+                    <div class="empty-state-large"><i class="fas fa-user-clock"></i><h3>No Pending Access Requests</h3><p>When users request access, their requests will appear here for approval by any administrator.</p></div>
+                </div>
+            </div>
+
+            <!-- Roles Reference -->
+            <div class="admin-section" id="rolesSection" style="display:none;">
+                <h3 class="subsection-title"><i class="fas fa-key"></i> Role Definitions & Access Levels</h3>
+                <div class="roles-grid">
+                    <div class="role-card admin-role"><div class="role-header"><i class="fas fa-crown"></i><h4>Admin</h4></div><p>Neuroscience Director, Chair, Research Director</p><ul><li>Full database access</li><li>Approve/deny access requests</li><li>Manage all users & roles</li><li>View audit log</li><li>All project, grant, IRB data</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-user-md"></i><h4>Faculty</h4></div><p>Neurology & Neurosurgery Faculty</p><ul><li>Own projects & grants</li><li>View enrolled patients/subjects</li><li>Publications & presentations</li><li>Submit forum requests</li><li>Schedule meetings</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-clipboard-list"></i><h4>CRC</h4></div><p>Clinical Research Coordinator</p><ul><li>Patient enrollment data</li><li>Data collection tools</li><li>IRB regulatory documents</li><li>Schedule coordination</li><li>Visit tracking</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-heartbeat"></i><h4>Research Nurse</h4></div><p>Clinical Research Nurse</p><ul><li>Patient visit procedures</li><li>Adverse event reporting</li><li>Study protocol access</li><li>Enrollment updates</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-stethoscope"></i><h4>Resident</h4></div><p>Neurology/Neurosurgery Residents</p><ul><li>Assigned project access</li><li>Educational resources</li><li>Publication tracking</li><li>View-only for most data</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-user-graduate"></i><h4>Medical Student</h4></div><p>Rotating Medical Students</p><ul><li>Assigned project access only</li><li>Educational resources</li><li>Performance evaluations</li><li>Most restricted access</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-flask"></i><h4>Research Fellow</h4></div><p>Postdoctoral & Clinical Fellows</p><ul><li>Assigned projects & grants</li><li>Publications access</li><li>Data & resources</li><li>Forum requests</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-file-invoice-dollar"></i><h4>Budget & Contracts</h4></div><p>Financial & Contract Staff</p><ul><li>Budget tracking per project</li><li>Contract management</li><li>Grant financial data</li><li>No clinical data access</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-chart-bar"></i><h4>Statistician</h4></div><p>Biostatistician / Data Analyst</p><ul><li>Forum consultation requests</li><li>Dataset access</li><li>Analysis tools & resources</li><li>Statistical consultation</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-user-nurse"></i><h4>APP / NP / PA</h4></div><p>Advanced Practice Providers</p><ul><li>View assigned projects</li><li>Data collection access</li><li>Educational resources</li><li>CME tracking</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-heartbeat"></i><h4>RN</h4></div><p>Research / Clinical Nurses</p><ul><li>Patient visit procedures</li><li>Adverse event reporting</li><li>Study protocol access</li><li>CITI training required</li></ul></div>
+                    <div class="role-card"><div class="role-header"><i class="fas fa-gavel"></i><h4>IRB Reviewer</h4></div><p>IRB Review & Compliance</p><ul><li>Review project submissions</li><li>Approve/deny IRB protocols</li><li>Upload approval documents</li><li>Assign protocol numbers</li></ul></div>
+                </div>
+            </div>
+
+            <!-- Audit Log -->
+            <div class="admin-section" id="auditSection" style="display:none;">
+                <h3 class="subsection-title"><i class="fas fa-history"></i> Audit Log</h3>
+                <div class="table-container"><table class="data-table"><thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Details</th></tr></thead><tbody><tr><td colspan="4" class="table-empty"><div class="empty-state"><i class="fas fa-history"></i><p>No activity logged yet</p></div></td></tr></tbody></table></div>
+            </div>
+        </section>
+
+    </main>
+
+    </div><!-- end #mainApp -->
+
+    <!-- ==================== MODAL OVERLAY ==================== -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header"><h3 id="modalTitle">Modal</h3><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Notification Panel -->
+    <div class="notification-panel" id="notificationPanel">
+        <div class="notif-header"><h3>Notifications</h3><button class="btn btn-sm">Mark All Read</button></div>
+        <div class="notif-list"><div class="empty-state" style="padding:40px 20px;"><i class="fas fa-bell"></i><p>No notifications</p><span>You're all caught up!</span></div></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
