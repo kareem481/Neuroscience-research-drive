@@ -105,6 +105,13 @@ async function _restoreSession() {
         setTimeout(function() { renderPeopleDirectory(); }, 200);
         if (profile.role === 'Admin') setTimeout(function() { renderPendingLoginApprovals(); }, 300);
 
+        // Load dashboard data
+        setTimeout(function() {
+            renderDashboardStats();
+            renderAnnouncements();
+            renderDashboardProjects();
+        }, 200);
+
         setTimeout(function () {
             initAnimations();
             initCardHoverEffects();
