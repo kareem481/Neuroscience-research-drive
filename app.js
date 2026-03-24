@@ -8,7 +8,22 @@
    ================================================ */
 console.log('%c Saint Luke\'s Neuroscience Research Database ', 'font-size:18px;font-weight:bold;color:#00d4ff;background:#0a0a1a;padding:8px 16px;border-radius:8px;border:1px solid #00d4ff;');
 console.log('%c Translational | Clinical | Computational ', 'font-size:12px;color:#7c3aed;background:#0f0f2e;padding:4px 16px;border-radius:4px;');
-console.log('%c Research Hub v2.0 ', 'font-size:10px;color:#10b981;');
+console.log('%c Research Hub v2.0 — Supabase Edition ', 'font-size:10px;color:#10b981;');
+
+/* ================================================
+   0b. SUPABASE CLIENT INITIALIZATION
+   ================================================ */
+var SUPABASE_URL = 'https://noxyrovuuprygxuyhgik.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5veHlyb3Z1dXByeWd4dXloZ2lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTUyMTgsImV4cCI6MjA4OTg5MTIxOH0.F3n5nOdpuz-1fENtAScf4Ina_v51Yz3htQGnbZhEPf4';
+var _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+var currentUserId = null;       // Supabase auth user UUID
+var currentUserProfile = null;  // Full profile row from profiles table
+
+/* --- Loading state helper --- */
+function _showLoading(el) {
+    if (el) el.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem;color:#00d4ff;"></i><p style="margin-top:10px;color:var(--text-muted);">Loading...</p></div>';
+}
 
 /* ================================================
    1. LOADING SCREEN - Auto-hide after 2s
@@ -28,246 +43,93 @@ window.addEventListener('load', function () {
 });
 
 /* ================================================
+   1b. SESSION RESTORATION via onAuthStateChange
+   ================================================ */
+_sb.auth.onAuthStateChange(async function (event, session) {
+    if (event === 'SIGNED_IN' && session && session.user && !currentUserId) {
+        // Restore session on page reload
+        var user = session.user;
+        var { data: profile } = await _sb.from('profiles').select('*').eq('id', user.id).single();
+        if (profile && profile.login_approved) {
+            currentUserId = user.id;
+            currentUserProfile = profile;
+            currentUserEmail = profile.email;
+            currentUserRole = profile.role;
+            currentUserName = profile.name;
+
+            var initials = document.getElementById('userInitials');
+            if (initials) initials.textContent = profile.initials;
+            var nameEl = document.getElementById('userDropdownName');
+            if (nameEl) nameEl.textContent = profile.name;
+            var roleEl = document.getElementById('userDropdownRole');
+            if (roleEl) roleEl.textContent = profile.title;
+
+            _toggleAdminTab(profile.role === 'Admin');
+            _toggleIRBAccess(profile.role === 'IRB' || profile.role === 'Admin');
+            _toggleSendEmailTab(profile.email === 'skolakowsky@saint-lukes.org' || profile.email === 'aalmekkawi@saint-lukes.org');
+
+            _hideAllAuthScreens();
+            var mainApp = document.getElementById('mainApp');
+            if (mainApp) mainApp.style.display = '';
+
+            setTimeout(function() { renderPeopleDirectory(); }, 200);
+            if (profile.role === 'Admin') setTimeout(function() { renderPendingLoginApprovals(); }, 300);
+
+            setTimeout(function () {
+                initAnimations();
+                initCardHoverEffects();
+                initChecklistItems();
+                initRippleEffect();
+            }, 100);
+        }
+    }
+    if (event === 'SIGNED_OUT') {
+        currentUserId = null;
+        currentUserProfile = null;
+    }
+});
+
+/* ================================================
    2. LOGIN SYSTEM (Point 10)
    ================================================ */
 var currentUserRole = 'Admin';
 var currentUserName = '';
 var currentUserEmail = '';
 
-/* --- Admin Account Registry ---
-   These 3 accounts are the founding admins.
-   Any access request notifies ALL three; only 1 approval needed. */
-var ADMIN_ACCOUNTS = [
-    {
-        email: 'skolakowsky@saint-lukes.org',
-        name: 'Stephanie Kolakowsky-Hayner, PhD',
-        initials: 'SK',
-        role: 'Admin',
-        title: 'Neuroscience Research Director',
-        password: null
-    },
-    {
-        email: 'cabagley@saint-lukes.org',
-        name: 'Carlos A. Bagley, MD',
-        initials: 'CB',
-        role: 'Admin',
-        title: 'Neuroscience Director & Chair',
-        password: null
-    },
-    {
-        email: 'aalmekkawi@saint-lukes.org',
-        name: 'Ahmad Kareem Almekkawi, MD',
-        initials: 'AA',
-        role: 'Admin',
-        title: 'Neuroscience Research Fellow',
-        password: 'Marwa_11061997@!'
-    }
-];
-
-/* --- IRB Reviewer Account (sole access) --- */
-var IRB_ACCOUNTS = [
-    { email: 'ldrose@saint-lukes.org', name: 'LaShanda Rose', initials: 'LR', role: 'IRB', title: 'IRB Reviewer', password: 'SLNeuro_IRB2026!' }
-];
-
-/* --- All Department Users (imported from Excel files) ---
-   Faculty (MD/DO), Residents, Medical Students (UMKC AANS), APP/NP/RN/PA/APRN, Research Staff
-   Each user has: email, name, initials, role, title, credential, password, needsProfileSetup */
-var USER_ACCOUNTS = [
-    // ===== FACULTY (MD/DO) =====
-    { email: 'aabumoussa@saint-lukes.org', name: 'Andrew Abumoussa, MD', initials: 'AA', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Abumoussa1!', needsProfileSetup: true },
-    { email: 'nakhtar@saint-lukes.org', name: 'Naveed Akhtar, MD', initials: 'NA', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Akhtar1!', needsProfileSetup: true },
-    { email: 'harshad@saint-lukes.org', name: 'Hashaam Arshad, MD', initials: 'HA', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Arshad1!', needsProfileSetup: true },
-    { email: 'jahf5@umkc.edu', name: 'Joseph Ayoub, MD', initials: 'JA', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Ayoub1!', needsProfileSetup: true },
-    { email: 'mbaumgardner@saint-lukes.org', name: 'Megan Baumgardner, MD', initials: 'MB', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Baumgardner1!', needsProfileSetup: true },
-    { email: 'mbilezikjian@saintlukeskc.org', name: 'Mark Bilezikjian, MD', initials: 'MB', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Bilezikjian1!', needsProfileSetup: true },
-    { email: 'jdbreshears@saintlukes.org', name: 'Jonathan Breshears, MD', initials: 'JB', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Breshears1!', needsProfileSetup: true },
-    { email: 'tconcannon@saint-lukes.org', name: 'Tyler Concannon, MD', initials: 'TC', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Concannon1!', needsProfileSetup: true },
-    { email: 'jcroom@saint-lukes.org', name: 'John Croom, MD', initials: 'JC', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Croom1!', needsProfileSetup: true },
-    { email: 'robert.cullen@gmail.com', name: 'Robert Cullen, MD', initials: 'RC', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Cullen1!', needsProfileSetup: true },
-    { email: 'yduan@saint-lukes.org', name: 'Yifei Duan, MD', initials: 'YD', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Duan1!', needsProfileSetup: true },
-    { email: 'telahmadieh@saint-lukes.org', name: 'Tarek El Ahmadieh, MD', initials: 'TE', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_ElAhmadieh1!', needsProfileSetup: true },
-    { email: 'jelliott@saint-lukes.org', name: 'Jennifer Elliott, MD', initials: 'JE', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Elliott1!', needsProfileSetup: true },
-    { email: 'rkfields@saint-lukes.org', name: 'Ronald Fields, MD', initials: 'RF', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Fields1!', needsProfileSetup: true },
-    { email: 'gsgandhoke@saint-lukes.org', name: 'Gurpreet Gandhoke, MD', initials: 'GG', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Gandhoke1!', needsProfileSetup: true },
-    { email: 'btgrobelny@saint-lukes.org', name: 'Bartosz Grobelny, MD', initials: 'BG', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Grobelny1!', needsProfileSetup: true },
-    { email: 'jhalpin@saint-lukes.org', name: 'Jared Halpin, MD', initials: 'JH', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Halpin1!', needsProfileSetup: true },
-    { email: 'mhaines@saint-lukes.org', name: 'Michelle Haines, MD', initials: 'MH', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Haines1!', needsProfileSetup: true },
-    { email: 'lhermes@saint-lukes.org', name: 'Lisa Hermes, MD', initials: 'LH', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Hermes1!', needsProfileSetup: true },
-    { email: 'whollo01@gmail.com', name: 'William Holloway, MD', initials: 'WH', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Holloway1!', needsProfileSetup: true },
-    { email: 'sjallu@saint-lukes.org', name: 'Shais Jallu, MD', initials: 'SJ', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Jallu1!', needsProfileSetup: true },
-    { email: 'kknights@saint-lukes.org', name: 'Karl Knights, MD', initials: 'KK', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Knights1!', needsProfileSetup: true },
-    { email: 'tkulik@saint-lukes.org', name: 'Tobias Kulik, MD', initials: 'TK', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Kulik1!', needsProfileSetup: true },
-    { email: 'g.lobban@umkc.edu', name: 'Geoffrey Baillie Lobban, MD', initials: 'GL', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Lobban1!', needsProfileSetup: true },
-    { email: 'smahmood@umkc.edu', name: 'Salman Mahmood, MD', initials: 'SM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Mahmood1!', needsProfileSetup: true },
-    { email: 'mmakos@saint-lukes.org', name: 'Mignon Makos-Heme, MD', initials: 'MM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Makos1!', needsProfileSetup: true },
-    { email: 'amr7b@mail.umkc.edu', name: 'Afeerah Malik, MD', initials: 'AM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Malik1!', needsProfileSetup: true },
-    { email: 'colemanomartin@gmail.com', name: 'Coleman Martin, MD', initials: 'CM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Martin1!', needsProfileSetup: true },
-    { email: 'nmcgraw@saint-lukes.org', name: 'Nathan McGraw, MD', initials: 'NM', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_McGraw1!', needsProfileSetup: true },
-    { email: 'kolds@saint-lukes.org', name: 'Karin Olds, MD', initials: 'KO', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Olds1!', needsProfileSetup: true },
-    { email: 'soliphant@saint-lukes.org', name: 'Seth Oliphant, MD', initials: 'SO', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Oliphant1!', needsProfileSetup: true },
-    { email: 'mschwartzman@saint-lukes.org', name: 'Michael Schwartzman, DO', initials: 'MS', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'DO', password: 'SLNeuro_Schwartzman1!', needsProfileSetup: true },
-    { email: 'jshay@saint-lukes.org', name: 'James Shay, MD', initials: 'JS', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Shay1!', needsProfileSetup: true },
-    { email: 'krisouthard1@saint-lukes.org', name: 'Kristopher Southard, MD', initials: 'KS', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Southard1!', needsProfileSetup: true },
-    { email: 'bsteinle@saint-lukes.org', name: 'Brad Steinle, MD', initials: 'BS', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Steinle1!', needsProfileSetup: true },
-    { email: 'mtabbosha@saint-lukes.org', name: 'Monir Tabbosha, MD', initials: 'MT', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Tabbosha1!', needsProfileSetup: true },
-    { email: 'ntamer1@cmh.edu', name: 'Nicole Tamer, MD', initials: 'NT', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Tamer1!', needsProfileSetup: true },
-    { email: 'bthedinger@juno.com', name: 'Brad Thedinger, MD', initials: 'BT', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Thedinger1!', needsProfileSetup: true },
-    { email: 'sgturner@saint-lukes.org', name: 'Scott Turner, MD', initials: 'ST', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Turner1!', needsProfileSetup: true },
-    { email: 'robert.ungerer@umkc.edu', name: 'Robert Ungerer, MD', initials: 'RU', role: 'Faculty', title: 'Faculty - Neuroscience', credential: 'MD', password: 'SLNeuro_Ungerer1!', needsProfileSetup: true },
-
-    // ===== RESIDENTS =====
-    { email: 'jloeb@saint-lukes.org', name: 'Joseph Loeb', initials: 'JL', role: 'Resident', title: 'Resident - Neuroscience', credential: 'Resident', password: 'SLNeuro_Loeb1!', needsProfileSetup: true },
-    { email: 'aluke@umkc.edu', name: 'Alex Luke', initials: 'AL', role: 'Resident', title: 'Resident - Neuroscience', credential: 'Resident', password: 'SLNeuro_Luke1!', needsProfileSetup: true },
-    { email: 'lpdwh@umsystem.edu', name: 'Luke Pearson', initials: 'LP', role: 'Resident', title: 'Resident - Neuroscience', credential: 'Resident', password: 'SLNeuro_Pearson1!', needsProfileSetup: true },
-    { email: 'ssdwr@umsystem.edu', name: 'Shahab Sattari', initials: 'SS', role: 'Resident', title: 'Resident - Neuroscience', credential: 'Resident', password: 'SLNeuro_Sattari1!', needsProfileSetup: true },
-
-    // ===== APP / NP / RN / PA / APRN / Research Staff =====
-    { email: 'tarends@saint-lukes.org', name: 'Taylor Arends, APP', initials: 'TA', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Arends1!', needsProfileSetup: true },
-    { email: 'rarrow@saint-lukes.org', name: 'Rachel Arrow, APP', initials: 'RA', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Arrow1!', needsProfileSetup: true },
-    { email: 'ahawkins@saint-lukes.org', name: 'Angela Barber, MSN RN CCRN', initials: 'AB', role: 'RN', title: 'Research Nurse', credential: 'MSN RN CCRN', password: 'SLNeuro_Barber1!', needsProfileSetup: true },
-    { email: 'sabrown@saint-lukes.org', name: 'Sarah Brown, APP', initials: 'SB', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Brown1!', needsProfileSetup: true },
-    { email: 'kkbush@saint-lukes.org', name: 'Kelly Bush, APRN', initials: 'KB', role: 'NP', title: 'Advanced Practice RN', credential: 'APRN', password: 'SLNeuro_Bush1!', needsProfileSetup: true },
-    { email: 'dwilson@saint-lukes.org', name: 'Debbie Consiglio, RN', initials: 'DC', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Consiglio1!', needsProfileSetup: true },
-    { email: 'hdale@saint-lukes.org', name: 'Heidi Dale, RN', initials: 'HD', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Dale1!', needsProfileSetup: true },
-    { email: 'kdemuth@saintlukes.org', name: 'Kaitlyn Demuth, APP', initials: 'KD', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Demuth1!', needsProfileSetup: true },
-    { email: 'dferguson@saintlukes.org', name: 'Dawn Ferguson, APP', initials: 'DF', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Ferguson1!', needsProfileSetup: true },
-    { email: 'sfike@saint-lukes.org', name: 'Sophia Fike, RN', initials: 'SF', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Fike1!', needsProfileSetup: true },
-    { email: 'mfugate@saint-lukes.org', name: 'Madison Fugate, APP', initials: 'MF', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Fugate1!', needsProfileSetup: true },
-    { email: 'lgensch@saint-lukes.org', name: 'Lauren Gensch, APP', initials: 'LG', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Gensch1!', needsProfileSetup: true },
-    { email: 'rachel.irwin@va.gov', name: 'Rachel Irvin', initials: 'RI', role: 'APP', title: 'Clinical Staff', credential: '', password: 'SLNeuro_Irvin1!', needsProfileSetup: true },
-    { email: 'ckennish@saint-lukes.org', name: 'Christine Kennish, RN', initials: 'CK', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Kennish1!', needsProfileSetup: true },
-    { email: 'malking@saint-lukes.org', name: 'Mallory King, NP', initials: 'MK', role: 'NP', title: 'Nurse Practitioner', credential: 'NP', password: 'SLNeuro_King1!', needsProfileSetup: true },
-    { email: 'krgilmore@saint-lukes.org', name: 'Kayla Kjelshus, APP', initials: 'KK', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Kjelshus1!', needsProfileSetup: true },
-    { email: 'samnolker@saint-lukes.org', name: 'Samantha Kostelac, APP', initials: 'SK', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Kostelac1!', needsProfileSetup: true },
-    { email: 'mlammers@saintlukeskc.org', name: 'Matt Lammers, RN', initials: 'ML', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Lammers1!', needsProfileSetup: true },
-    { email: 'blee@saint-lukes.org', name: 'Beth Lee, RN', initials: 'BL', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Lee1!', needsProfileSetup: true },
-    { email: 'eparrishlittlejohn@saint-lukes.org', name: 'Edwina Littlejohn, PA-C', initials: 'EL', role: 'APP', title: 'Physician Assistant', credential: 'PA-C', password: 'SLNeuro_Littlejohn1!', needsProfileSetup: true },
-    { email: 'mloree@saint-lukes.org', name: 'Michael Loree, PA', initials: 'ML', role: 'APP', title: 'Physician Assistant', credential: 'PA', password: 'SLNeuro_Loree1!', needsProfileSetup: true },
-    { email: 'mmaloney@saint-lukes.org', name: 'Megan Maloney, APP Fellow', initials: 'MM', role: 'APP', title: 'APP Fellow', credential: 'APP Fellow', password: 'SLNeuro_Maloney1!', needsProfileSetup: true },
-    { email: 'jmergen@saint-lukes.org', name: 'Joanne Manning-Mergen, RN', initials: 'JM', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Manning1!', needsProfileSetup: true },
-    { email: 'mmartin1@saintlukes.org', name: 'Michelle Martin, APP', initials: 'MM', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_MMartin1!', needsProfileSetup: true },
-    { email: 'tmodin@saint-lukes.org', name: 'Tom Modin, RN', initials: 'TM', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Modin1!', needsProfileSetup: true },
-    { email: 'lpotter@saint-lukes.org', name: 'Lindsey Nichtals, APP', initials: 'LN', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Nichtals1!', needsProfileSetup: true },
-    { email: 'aoshea@saint-lukes.org', name: 'Arlene O\'Shea, APRN', initials: 'AO', role: 'NP', title: 'Advanced Practice RN', credential: 'APRN', password: 'SLNeuro_OShea1!', needsProfileSetup: true },
-    { email: 'calpage1@saint-lukes.org', name: 'Cali Page, APP', initials: 'CP', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Page1!', needsProfileSetup: true },
-    { email: 'apoindexter@saint-lukes.org', name: 'Amy Poindexter, NP', initials: 'AP', role: 'NP', title: 'Nurse Practitioner', credential: 'NP', password: 'SLNeuro_Poindexter1!', needsProfileSetup: true },
-    { email: 'jlawo@saint-lukes.org', name: 'Jessica Ritz, APP', initials: 'JR', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Ritz1!', needsProfileSetup: true },
-    { email: 'bschwan@saint-lukes.org', name: 'Bernadette Schwan, APP', initials: 'BS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Schwan1!', needsProfileSetup: true },
-    { email: 'ksemmes@saint-lukes.org', name: 'Kari Semmes, APP', initials: 'KS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Semmes1!', needsProfileSetup: true },
-    { email: 'jshewmaker@saint-lukes.org', name: 'Justin Shewmaker, PhD', initials: 'JS', role: 'Faculty', title: 'Research Faculty', credential: 'PhD', password: 'SLNeuro_Shewmaker1!', needsProfileSetup: true },
-    { email: 'jamsloan1@saint-lukes.org', name: 'Jamie Sloan, APP', initials: 'JS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Sloan1!', needsProfileSetup: true },
-    { email: 'sspangler@saint-lukes.org', name: 'Sam Spangler, APP', initials: 'SS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Spangler1!', needsProfileSetup: true },
-    { email: 'sstroud@saint-lukes.org', name: 'Shalan Stroud, NP-C', initials: 'SS', role: 'NP', title: 'Nurse Practitioner', credential: 'NP-C', password: 'SLNeuro_Stroud1!', needsProfileSetup: true },
-    { email: 'cstrubel1@saintlukes.org', name: 'Courtney Strubel, APP', initials: 'CS', role: 'APP', title: 'Advanced Practice Provider', credential: 'APP', password: 'SLNeuro_Strubel1!', needsProfileSetup: true },
-    { email: 'dsummers@saint-lukes.org', name: 'Debbie Summers, RN', initials: 'DS', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Summers1!', needsProfileSetup: true },
-    { email: 'kbtaylor@saint-lukes.org', name: 'Kathryn Taylor, APRN', initials: 'KT', role: 'NP', title: 'Advanced Practice RN', credential: 'APRN', password: 'SLNeuro_Taylor1!', needsProfileSetup: true },
-    { email: 'etompkins@saint-lukes.org', name: 'Erin Tompkins, RN', initials: 'ET', role: 'RN', title: 'Research Nurse', credential: 'RN', password: 'SLNeuro_Tompkins1!', needsProfileSetup: true },
-    { email: 'kturner3@saintlukeskc.org', name: 'Kevin Turner, Nurse Mgr', initials: 'KT', role: 'RN', title: 'Nurse Manager', credential: 'Nurse Mgr', password: 'SLNeuro_KTurner1!', needsProfileSetup: true },
-
-    // ===== MEDICAL STUDENTS (UMKC AANS Chapter) =====
-    { email: 'asbg2r@umsystem.edu', name: 'Ashlesha Bhojane', initials: 'AB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Bhojane1!', needsProfileSetup: true },
-    { email: 'dsg8hy@umsystem.edu', name: 'Dylan Glaser', initials: 'DG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Glaser1!', needsProfileSetup: true },
-    { email: 'mka9ct@umkc.edu', name: 'Mayar Al-Shaikhli', initials: 'MA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_AlShaikhli1!', needsProfileSetup: true },
-    { email: 'as5hq@umsystem.edu', name: 'Adnan Shaikh', initials: 'AS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Shaikh1!', needsProfileSetup: true },
-    { email: 'vanibhupat@gmail.com', name: 'Vani Patel', initials: 'VP', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Patel1!', needsProfileSetup: true },
-    { email: 'akishusharma@gmail.com', name: 'Ananya Sharma', initials: 'AS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Sharma1!', needsProfileSetup: true },
-    { email: 'imbckt@umsystem.edu', name: 'Isabella Boedefeld', initials: 'IB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Boedefeld1!', needsProfileSetup: true },
-    { email: 'nshdc@umsystem.edu', name: 'Nikitha Sheth', initials: 'NS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Sheth1!', needsProfileSetup: true },
-    { email: 'rps9m7@umkc.edu', name: 'Rekha Swamy', initials: 'RS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Swamy1!', needsProfileSetup: true },
-    { email: 'agngc@mail.umkc.edu', name: 'Adeesya Gausper', initials: 'AG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Gausper1!', needsProfileSetup: true },
-    { email: 'crhck@umsystem.edu', name: 'Clarice Rodriguez', initials: 'CR', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Rodriguez1!', needsProfileSetup: true },
-    { email: 'amffk@umsystem.edu', name: 'Amulya Manchikanti', initials: 'AM', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Manchikanti1!', needsProfileSetup: true },
-    { email: 'cabnv3@umsystem.edu', name: 'Cooper Bassham', initials: 'CB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Bassham1!', needsProfileSetup: true },
-    { email: 'rrhyq@umkc.edu', name: 'Rohit Rajput', initials: 'RR', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Rajput1!', needsProfileSetup: true },
-    { email: 'acb5p@umkc.edu', name: 'Ashna Chali', initials: 'AC', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Chali1!', needsProfileSetup: true },
-    { email: 'rskzbh@umsystem.edu', name: 'Ruthvick Kasireddy', initials: 'RK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Kasireddy1!', needsProfileSetup: true },
-    { email: 'rrgh7@umkc.edu', name: 'Rayaan Rauf', initials: 'RR', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Rauf1!', needsProfileSetup: true },
-    { email: 'emm4x@umsystem.edu', name: 'Eshanika Manchanda', initials: 'EM', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Manchanda1!', needsProfileSetup: true },
-    { email: 'ezkg6k@umsystem.edu', name: 'Eshal Khan', initials: 'EK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Khan1!', needsProfileSetup: true },
-    { email: 'sjkh69@umsystem.edu', name: 'Samuel Kim', initials: 'SK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Kim1!', needsProfileSetup: true },
-    { email: 'ccynb@umsystem.edu', name: 'Christina Cacoulidis', initials: 'CC', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Cacoulidis1!', needsProfileSetup: true },
-    { email: 'ksmhbk@umkc.edu', name: 'Kushi Madduru', initials: 'KM', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Madduru1!', needsProfileSetup: true },
-    { email: 'kmbnv7@umsystem.edu', name: 'Karen Bidura', initials: 'KB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Bidura1!', needsProfileSetup: true },
-    { email: 'nlk6mf@umsystem.edu', name: 'Nivitha Kandula', initials: 'NK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Kandula1!', needsProfileSetup: true },
-    { email: 'sted6d@umkc.edu', name: 'Sarah Ebenezer', initials: 'SE', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_SEbenezer1!', needsProfileSetup: true },
-    { email: 'jtedy5@umsystem.edu', name: 'Joel Ebenezer', initials: 'JE', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_JEbenezer1!', needsProfileSetup: true },
-    { email: 'jvbvb@umsystem.edu', name: 'Janani Venkat Ramanan', initials: 'JV', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Venkat1!', needsProfileSetup: true },
-    { email: 'assd3f@umsystem.edu', name: 'Akhila Swarna', initials: 'AS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Swarna1!', needsProfileSetup: true },
-    { email: 'jrsnm7@umkc.edu', name: 'Joshna Susai', initials: 'JS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Susai1!', needsProfileSetup: true },
-    { email: 'ec8nd@umsystem.edu', name: 'Elena Chen', initials: 'EC', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Chen1!', needsProfileSetup: true },
-    { email: 'abync@umsystem.edu', name: 'Amulya Babburi', initials: 'AB', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Babburi1!', needsProfileSetup: true },
-    { email: 'eak2r@umsystem.edu', name: 'Emaan Arshad', initials: 'EA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_EArshad1!', needsProfileSetup: true },
-    { email: 'aky5w@umsystem.edu', name: 'Aveney Kandiah', initials: 'AK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Kandiah1!', needsProfileSetup: true },
-    { email: 'lmrcrd@umsystem.edu', name: 'Lydia Popesku', initials: 'LP', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Popesku1!', needsProfileSetup: true },
-    { email: 'gtdpx2@umsystem.edu', name: 'Grace Dang', initials: 'GD', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Dang1!', needsProfileSetup: true },
-    { email: 'jgpvb@umsystem.edu', name: 'Jeffthan Glaster', initials: 'JG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Glaster1!', needsProfileSetup: true },
-    { email: 'sappz@umsystem.edu', name: 'Shalya Anand', initials: 'SA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Anand1!', needsProfileSetup: true },
-    { email: 'ruju.talati@umkc.edu', name: 'Ruju Talati', initials: 'RT', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Talati1!', needsProfileSetup: true },
-    { email: 'svqh9@umkc.edu', name: 'Sanchi Vishwakarma', initials: 'SV', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Vishwakarma1!', needsProfileSetup: true },
-    { email: 'slhqb@umsystem.edu', name: 'Sam Lu', initials: 'SL', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Lu1!', needsProfileSetup: true },
-    { email: 'sggdz@umsystem.edu', name: 'Saivi Gadi', initials: 'SG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Gadi1!', needsProfileSetup: true },
-    { email: 'sskbkf@umsystem.edu', name: 'Samanyu Koduri', initials: 'SK', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Koduri1!', needsProfileSetup: true },
-    { email: 'amav55@umsystem.edu', name: 'Abanoub Attallah', initials: 'AA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Attallah1!', needsProfileSetup: true },
-    { email: 'jkj97c@umsystem.edu', name: 'Johanna Jeyaraj', initials: 'JJ', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Jeyaraj1!', needsProfileSetup: true },
-    { email: 'saftv@umsystem.edu', name: 'Sakina Akbar', initials: 'SA', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Akbar1!', needsProfileSetup: true },
-    { email: 'tgmft@umkc.edu', name: 'Tanvi Genti', initials: 'TG', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Genti1!', needsProfileSetup: true },
-    { email: 'kafhmp@umkc.edu', name: 'Kymora Freeman', initials: 'KF', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Freeman1!', needsProfileSetup: true },
-    { email: 'fahadjamal567@gmail.com', name: 'Fahad Jamal', initials: 'FJ', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Jamal1!', needsProfileSetup: true },
-    { email: 'kirsolomon11@gmail.com', name: 'Kir Solomon', initials: 'KS', role: 'Medical Student', title: 'UMKC Medical Student', credential: 'MS', password: 'SLNeuro_Solomon1!', needsProfileSetup: true }
-];
-
-/* --- Lookup helper for all account types --- */
-function _findAnyUserByEmail(email) {
+/* --- Async lookup helper: find user profile by email from Supabase --- */
+async function _findAnyUserByEmail(email) {
     if (!email) return null;
     var lower = email.toLowerCase().trim();
-    // Check admins first
-    for (var i = 0; i < ADMIN_ACCOUNTS.length; i++) {
-        if (ADMIN_ACCOUNTS[i].email === lower) return ADMIN_ACCOUNTS[i];
-    }
-    // Check IRB accounts
-    for (var j = 0; j < IRB_ACCOUNTS.length; j++) {
-        if (IRB_ACCOUNTS[j].email === lower) return IRB_ACCOUNTS[j];
-    }
-    // Check all users
-    for (var k = 0; k < USER_ACCOUNTS.length; k++) {
-        if (USER_ACCOUNTS[k].email === lower) return USER_ACCOUNTS[k];
-    }
-    return null;
+    var { data, error } = await _sb.from('profiles').select('*').eq('email', lower).single();
+    if (error || !data) return null;
+    return data;
 }
 
-/* --- Get all faculty users for PI dropdown --- */
-function _getFacultyList() {
+/* --- Async: Get all faculty users for PI dropdown --- */
+async function _getFacultyList() {
+    var { data, error } = await _sb.from('profiles').select('name').eq('role', 'Faculty');
     var faculty = [];
-    // Add admin faculty (Bagley is MD)
-    ADMIN_ACCOUNTS.forEach(function(a) {
-        if (a.name.indexOf('MD') !== -1 || a.name.indexOf('PhD') !== -1 || a.name.indexOf('DO') !== -1) {
-            faculty.push(a.name);
-        }
-    });
-    // Add all faculty from USER_ACCOUNTS
-    USER_ACCOUNTS.forEach(function(u) {
-        if (u.role === 'Faculty') {
-            faculty.push(u.name);
-        }
-    });
+    if (data) {
+        data.forEach(function(p) { faculty.push(p.name); });
+    }
+    // Also add Admin profiles that have MD/PhD/DO in their name
+    var { data: admins } = await _sb.from('profiles').select('name').eq('role', 'Admin');
+    if (admins) {
+        admins.forEach(function(a) {
+            if (a.name.indexOf('MD') !== -1 || a.name.indexOf('PhD') !== -1 || a.name.indexOf('DO') !== -1) {
+                faculty.push(a.name);
+            }
+        });
+    }
     return faculty.sort();
 }
 
-/* --- Notification store --- */
-var notificationStore = [];
-
-/* --- Pending Login Approvals Store --- */
-var pendingLoginApprovals = [];
-var approvedLogins = []; // emails that have been approved
-
-// Quick lookup helper
-function _findAdminByEmail(email) {
+/* --- Quick admin lookup helper --- */
+async function _findAdminByEmail(email) {
     if (!email) return null;
     var lower = email.toLowerCase().trim();
-    for (var i = 0; i < ADMIN_ACCOUNTS.length; i++) {
-        if (ADMIN_ACCOUNTS[i].email === lower) return ADMIN_ACCOUNTS[i];
-    }
-    return null;
+    var { data } = await _sb.from('profiles').select('*').eq('email', lower).eq('role', 'Admin').single();
+    return data || null;
 }
 
 function showLogin() {
@@ -282,12 +144,19 @@ function showRequestAccess() {
     if (el) el.style.display = 'flex';
 }
 
-function showForgotPassword() {
-    // Create a simple forgot-password inline experience
-    _hideAllAuthScreens();
-    var el = document.getElementById('loginScreen');
-    if (el) el.style.display = 'flex';
-    showToast('Password reset instructions have been sent to your email.', 'info');
+async function showForgotPassword() {
+    var emailInput = document.getElementById('loginEmail');
+    var emailVal = emailInput ? emailInput.value.trim() : '';
+    if (!emailVal) {
+        showToast('Please enter your email address first, then click Forgot Password.', 'info');
+        return;
+    }
+    var { error } = await _sb.auth.resetPasswordForEmail(emailVal, { redirectTo: window.location.href.split('?')[0] });
+    if (error) {
+        showToast('Error sending reset email: ' + error.message, 'error');
+    } else {
+        showToast('Password reset instructions have been sent to your email.', 'info');
+    }
 }
 
 function showChangePassword() {
@@ -317,7 +186,7 @@ function togglePassword(fieldId) {
     }
 }
 
-function handleLogin() {
+async function handleLogin() {
     var emailInput = document.getElementById('loginEmail');
     var passwordInput = document.getElementById('loginPassword');
     var emailVal = emailInput ? emailInput.value.toLowerCase().trim() : '';
@@ -332,71 +201,69 @@ function handleLogin() {
         return;
     }
 
-    // Look up the user across ALL account types
-    var user = _findAnyUserByEmail(emailVal);
+    // Sign in via Supabase Auth
+    var { data: authData, error: authError } = await _sb.auth.signInWithPassword({ email: emailVal, password: passwordVal });
 
-    if (!user) {
-        showToast('Account not found. Please request access first.', 'error');
-        return;
-    }
-
-    // Validate password
-    if (user.password && user.password !== passwordVal) {
-        showToast('Incorrect password. Please try again.', 'error');
+    if (authError) {
+        showToast('Login failed: ' + authError.message, 'error');
         if (passwordInput) { passwordInput.value = ''; passwordInput.focus(); }
         return;
     }
 
-    // If no password set yet (first login for admins), accept and save
-    if (!user.password) {
-        user.password = passwordVal;
+    var authUser = authData.user;
+    currentUserId = authUser.id;
+
+    // Fetch the user's profile
+    var { data: profile, error: profileError } = await _sb.from('profiles').select('*').eq('id', authUser.id).single();
+
+    if (profileError || !profile) {
+        showToast('Profile not found. Please contact an administrator.', 'error');
+        return;
     }
 
-    // For non-admin / non-IRB users: check if login approval is needed
-    var isAdmin = (user.role === 'Admin');
-    var isIRB = (user.role === 'IRB');
-    var needsApproval = user.needsProfileSetup && !isAdmin && !isIRB;
+    currentUserProfile = profile;
 
-    // Check if already approved
-    if (needsApproval && approvedLogins.indexOf(emailVal) === -1) {
+    // For non-admin / non-IRB users: check if login approval is needed
+    var isAdmin = (profile.role === 'Admin');
+    var isIRB = (profile.role === 'IRB');
+
+    if (!isAdmin && !isIRB && !profile.login_approved) {
         // Check if already pending
-        var alreadyPending = false;
-        for (var p = 0; p < pendingLoginApprovals.length; p++) {
-            if (pendingLoginApprovals[p].email === emailVal) { alreadyPending = true; break; }
-        }
-        if (!alreadyPending) {
-            pendingLoginApprovals.push({
-                id: Date.now(),
+        var { data: existing } = await _sb.from('pending_login_approvals').select('id').eq('email', emailVal).eq('status', 'pending');
+        if (!existing || existing.length === 0) {
+            await _sb.from('pending_login_approvals').insert({
                 email: emailVal,
-                name: user.name,
-                role: user.role,
-                title: user.title || '',
-                requestedAt: new Date().toISOString(),
+                name: profile.name,
+                role: profile.role,
+                title: profile.title || '',
                 status: 'pending'
             });
             // Notify admins
-            _sendLoginApprovalNotification(user);
+            await _sendLoginApprovalNotification(profile);
         }
+        await _sb.auth.signOut();
+        currentUserId = null;
+        currentUserProfile = null;
         showToast('Your login request has been submitted. You will receive access once Dr. Hayner or Dr. Almekkawi approves your account.', 'info');
         return;
     }
 
-    currentUserEmail = emailVal;
-    currentUserRole = user.role;
-    currentUserName = user.name;
+    currentUserEmail = profile.email;
+    currentUserRole = profile.role;
+    currentUserName = profile.name;
 
     var initials = document.getElementById('userInitials');
-    if (initials) initials.textContent = user.initials;
+    if (initials) initials.textContent = profile.initials;
     var nameEl = document.getElementById('userDropdownName');
-    if (nameEl) nameEl.textContent = user.name;
+    if (nameEl) nameEl.textContent = profile.name;
     var roleEl = document.getElementById('userDropdownRole');
-    if (roleEl) roleEl.textContent = user.title;
+    if (roleEl) roleEl.textContent = profile.title;
 
     // Show admin tab only for admins
-    _toggleAdminTab(user.role === 'Admin');
+    _toggleAdminTab(profile.role === 'Admin');
 
     // Show/hide IRB review button based on role
-    _toggleIRBAccess(user.role === 'IRB' || user.role === 'Admin');
+    _toggleIRBAccess(profile.role === 'IRB' || profile.role === 'Admin');
 
     // Show/hide Send Email tab (only Dr. Hayner and Ahmad)
     _toggleSendEmailTab(emailVal === 'skolakowsky@saint-lukes.org' || emailVal === 'aalmekkawi@saint-lukes.org');
@@ -415,8 +282,8 @@ function handleLogin() {
     }
 
     // Check if user needs first-login profile setup (after approval)
-    if (user.needsProfileSetup) {
-        setTimeout(function() { showProfileSetupModal(user); }, 500);
+    if (profile.needs_profile_setup) {
+        setTimeout(function() { showProfileSetupModal(profile); }, 500);
     }
 
     // Initialize app features
@@ -477,7 +344,7 @@ function showProfileSetupModal(user) {
     document.body.style.overflow = 'hidden';
 }
 
-function completeProfileSetup(formEl) {
+async function completeProfileSetup(formEl) {
     var newPW = document.getElementById('setupNewPW');
     var confirmPW = document.getElementById('setupConfirmPW');
 
@@ -490,18 +357,30 @@ function completeProfileSetup(formEl) {
         return;
     }
 
-    // Update user password
-    var user = _findAnyUserByEmail(currentUserEmail);
-    if (user) {
-        user.password = newPW.value;
-        user.needsProfileSetup = false;
-        var nameEl = document.getElementById('setupName');
-        if (nameEl && nameEl.value.trim()) {
-            user.name = nameEl.value.trim();
-            currentUserName = user.name;
-            var uiName = document.getElementById('userDropdownName');
-            if (uiName) uiName.textContent = user.name;
-        }
+    // Update password via Supabase Auth
+    var { error: pwError } = await _sb.auth.updateUser({ password: newPW.value });
+    if (pwError) {
+        showToast('Error updating password: ' + pwError.message, 'error');
+        return;
+    }
+
+    // Update profile in Supabase
+    var updates = { needs_profile_setup: false };
+    var nameEl = document.getElementById('setupName');
+    if (nameEl && nameEl.value.trim()) {
+        updates.name = nameEl.value.trim();
+        currentUserName = updates.name;
+        var uiName = document.getElementById('userDropdownName');
+        if (uiName) uiName.textContent = updates.name;
+    }
+    var deptEl = document.getElementById('setupDept');
+    if (deptEl && deptEl.value) updates.department = deptEl.value;
+    var phoneEl = document.getElementById('setupPhone');
+    if (phoneEl && phoneEl.value) updates.phone = phoneEl.value;
+
+    await _sb.from('profiles').update(updates).eq('id', currentUserId);
+    if (currentUserProfile) {
+        Object.assign(currentUserProfile, updates);
     }
 
     closeModal();
@@ -527,10 +406,28 @@ function _toggleAdminTab(show) {
     });
 }
 
-function submitAccessRequest() {
-    // In production, this would email all 3 admins
-    var adminNames = ADMIN_ACCOUNTS.map(function (a) { return a.name.split(',')[0]; }).join(', ');
-    showToast('Access request sent to ' + adminNames + '. Only 1 approval needed!', 'success');
+async function submitAccessRequest() {
+    var nameInput = document.getElementById('requestName');
+    var emailInput = document.getElementById('requestEmail');
+    var roleInput = document.getElementById('requestRole');
+    var reqName = nameInput ? nameInput.value.trim() : '';
+    var reqEmail = emailInput ? emailInput.value.trim().toLowerCase() : '';
+    var reqRole = roleInput ? roleInput.value : 'Medical Student';
+
+    if (!reqName || !reqEmail) {
+        showToast('Please fill in all fields.', 'error');
+        return;
+    }
+
+    await _sb.from('pending_login_approvals').insert({
+        email: reqEmail,
+        name: reqName,
+        role: reqRole,
+        title: '',
+        status: 'pending'
+    });
+
+    showToast('Access request submitted! You will be notified once approved.', 'success');
     setTimeout(function () {
         showLogin();
     }, 2000);
@@ -569,7 +466,7 @@ function checkPasswordStrength() {
     return rules.pwLen && rules.pwUpper && rules.pwLower && rules.pwNum && rules.pwSpecial;
 }
 
-function handleChangePassword() {
+async function handleChangePassword() {
     var newPw = document.getElementById('newPassword');
     var confirmPw = document.getElementById('confirmPassword');
     var matchMsg = document.getElementById('pwMatchMsg');
@@ -586,12 +483,21 @@ function handleChangePassword() {
         return;
     }
 
+    var { error } = await _sb.auth.updateUser({ password: newPw.value });
+    if (error) {
+        showToast('Error changing password: ' + error.message, 'error');
+        return;
+    }
+
     if (matchMsg) { matchMsg.textContent = 'Passwords match!'; matchMsg.style.color = '#10b981'; }
     showToast('Password changed successfully!', 'success');
     setTimeout(function () { showLogin(); }, 1000);
 }
 
-function handleLogout() {
+async function handleLogout() {
+    await _sb.auth.signOut();
+    currentUserId = null;
+    currentUserProfile = null;
     var mainApp = document.getElementById('mainApp');
     if (mainApp) mainApp.style.display = 'none';
     closeUserDropdown();
@@ -939,10 +845,6 @@ function switchTab(tabName) {
     // Update dashboard projects when switching to dashboard
     if (tabName === 'dashboard') {
         renderDashboardProjects();
-    }
-
-    // Animate stat counters on dashboard
-    if (tabName === 'dashboard') {
         animateCounters();
     }
 
@@ -1158,7 +1060,7 @@ function openModal(type, extraData) {
         /* ---------- NEW GRANT (Point 3) ---------- */
         case 'newGrant':
             title.textContent = 'Add Grant';
-            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Grant added successfully!\');">' +
+            html = '<form onsubmit="event.preventDefault(); saveGrant(this);">' +
                 '<div class="form-group"><label>Grant Title *</label>' +
                 '<input type="text" placeholder="Enter grant title..." required></div>' +
 
@@ -1271,7 +1173,7 @@ function openModal(type, extraData) {
         /* ---------- NEW DEADLINE (Point 9) ---------- */
         case 'newDeadline':
             title.textContent = 'Add Deadline';
-            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Deadline added successfully!\');">' +
+            html = '<form onsubmit="event.preventDefault(); saveDeadline(this);">' +
                 '<div class="form-group"><label>Deadline Title *</label>' +
                 '<input type="text" placeholder="Enter deadline title..." required></div>' +
 
@@ -1338,7 +1240,7 @@ function openModal(type, extraData) {
         /* ---------- NEW PUBLICATION (Point 5) ---------- */
         case 'newPublication':
             title.textContent = 'Add Publication / Output';
-            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Publication added successfully!\');">' +
+            html = '<form onsubmit="event.preventDefault(); savePublication(this);">' +
                 '<div class="form-group"><label>Type *</label>' +
                 '<select id="pubType" onchange="togglePubFields()" required>' +
                 '<option value="">Select type...</option>' +
@@ -1412,7 +1314,7 @@ function openModal(type, extraData) {
         /* ---------- NEW MEETING (Point 7) ---------- */
         case 'newMeeting':
             title.textContent = 'Schedule Meeting';
-            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Meeting scheduled successfully!\');">' +
+            html = '<form onsubmit="event.preventDefault(); saveMeeting(this);">' +
                 '<div class="form-group"><label>Meeting Title *</label>' +
                 '<input type="text" placeholder="Enter meeting title..." required></div>' +
 
@@ -1598,111 +1500,15 @@ function openModal(type, extraData) {
         /* ---------- PROJECT DETAIL VIEW ---------- */
         case 'projectDetail':
             var projId = parseInt(extraData);
-            var proj = _findProject(projId);
-            if (!proj) { html = '<p>Project not found.</p>'; break; }
-            title.textContent = proj.title || 'Project Details';
-
-            // Build file uploads section
-            var filesHtml = '<div class="form-section-title"><i class="fas fa-file-upload" style="margin-right:6px;"></i> Project Documents</div>';
-            var fileTypes = [
-                { key: 'protocol', label: 'Protocol', icon: 'fa-file-medical', irbOnly: false },
-                { key: 'consent', label: 'Consent Form', icon: 'fa-file-signature', irbOnly: true },
-                { key: 'irbLetter', label: 'IRB Approval Letter', icon: 'fa-shield-alt', irbOnly: true }
-            ];
-            if (!proj.files) proj.files = {};
-            var isIRBUser = (currentUserRole === 'IRB' || currentUserEmail === 'ldrose@saint-lukes.org');
-            fileTypes.forEach(function (ft) {
-                var hasFile = proj.files[ft.key];
-                var canUpload = ft.irbOnly ? (isIRBUser || currentUserRole === 'Admin') : _canEditProject(proj);
-                filesHtml += '<div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;margin-bottom:8px;">' +
-                    '<i class="fas ' + ft.icon + '" style="color:' + (hasFile ? '#10b981' : 'var(--text-muted)') + ';font-size:1.1rem;width:24px;text-align:center;"></i>' +
-                    '<div style="flex:1;"><strong style="font-size:0.85rem;">' + ft.label + '</strong>' +
-                    (hasFile ? '<span style="display:block;font-size:0.72rem;color:#10b981;margin-top:2px;">\u2713 ' + _esc(hasFile) + '</span>' : '<span style="display:block;font-size:0.72rem;color:var(--text-muted);margin-top:2px;">' + (ft.irbOnly ? 'Uploaded by IRB only' : 'Not uploaded') + '</span>') + '</div>' +
-                    (canUpload ? '<label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;"><i class="fas fa-upload"></i> Upload<input type="file" style="display:none;" onchange="uploadProjectFile(' + projId + ',\'' + ft.key + '\',this)"></label>' : (ft.irbOnly ? '<span style="font-size:0.7rem;color:var(--text-muted);"><i class="fas fa-lock"></i> IRB Only</span>' : '')) +
-                    '</div>';
+            // _findProject is now async; handle it after the switch
+            body.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem;color:#00d4ff;"></i></div>';
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            _findProject(projId).then(function(proj) {
+                if (!proj) { body.innerHTML = '<p>Project not found.</p>'; return; }
+                _renderProjectDetailModal(proj, projId, title, body);
             });
-
-            // Data collection monitoring
-            var dataCollHtml = '<div class="form-section-title"><i class="fas fa-chart-line" style="margin-right:6px;"></i> Data Collection Monitoring</div>';
-            if (proj.redcapLinked) {
-                var enrolled = proj.enrolledCount || 0;
-                var target = proj.targetEnrollment || 0;
-                var pct = target > 0 ? Math.round((enrolled / target) * 100) : 0;
-                dataCollHtml += '<div style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;">' +
-                    '<div style="display:flex;justify-content:space-between;margin-bottom:10px;">' +
-                    '<span style="font-size:0.85rem;font-weight:600;">Enrollment Progress</span>' +
-                    '<span style="font-size:0.85rem;font-weight:700;color:var(--accent-primary);">' + enrolled + ' / ' + target + '</span></div>' +
-                    '<div class="progress-bar" style="height:8px;"><div class="progress-fill" style="width:' + pct + '%;"></div></div>' +
-                    '<p style="font-size:0.72rem;color:var(--text-muted);margin-top:8px;">' + pct + '% complete</p></div>';
-            } else {
-                dataCollHtml += '<div style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;text-align:center;">' +
-                    '<p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:10px;">No REDCap data collection linked to this project.</p>' +
-                    '<div class="form-row" style="max-width:400px;margin:0 auto;">' +
-                    '<div class="form-group"><label>Target Enrollment</label><input type="number" id="projTargetN" value="' + (proj.targetEnrollment || '') + '" placeholder="e.g., 100" min="0"></div>' +
-                    '<div class="form-group"><label>Enrolled So Far</label><input type="number" id="projEnrolledN" value="' + (proj.enrolledCount || '') + '" placeholder="e.g., 25" min="0"></div></div>' +
-                    '<button class="btn btn-outline btn-sm" onclick="linkProjectREDCap(' + projId + ')"><i class="fas fa-link"></i> Link REDCap & Save Enrollment</button></div>';
-            }
-
-            // Linked publications
-            var pubsHtml = '<div class="form-section-title"><i class="fas fa-book-open" style="margin-right:6px;"></i> Linked Publications & Abstracts</div>';
-            if (proj.publications && proj.publications.length > 0) {
-                proj.publications.forEach(function (pub, pi) {
-                    pubsHtml += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;margin-bottom:6px;">' +
-                        '<i class="fas fa-file-alt" style="color:var(--accent-primary);"></i>' +
-                        '<span style="flex:1;font-size:0.82rem;">' + _esc(pub) + '</span>' +
-                        '<button class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="removeProjectPub(' + projId + ',' + pi + ')"><i class="fas fa-times"></i></button></div>';
-                });
-            } else {
-                pubsHtml += '<p style="color:var(--text-muted);font-size:0.82rem;padding:8px 0;">No publications linked yet.</p>';
-            }
-            pubsHtml += '<div style="display:flex;gap:8px;margin-top:8px;">' +
-                '<input type="text" id="newProjPub" placeholder="Publication title or abstract..." style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-family:inherit;font-size:0.82rem;">' +
-                '<button class="btn btn-primary btn-sm" onclick="addProjectPub(' + projId + ')"><i class="fas fa-plus"></i> Link</button></div>';
-
-            // Manuscript section
-            var msHtml = '<div class="form-section-title"><i class="fas fa-pen-fancy" style="margin-right:6px;"></i> Manuscript Preparation</div>';
-            msHtml += '<div style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;margin-bottom:16px;">';
-            if (proj.manuscript && proj.manuscript.title) {
-                msHtml += '<p style="font-size:0.85rem;font-weight:600;margin-bottom:4px;">' + _esc(proj.manuscript.title) + '</p>';
-                msHtml += '<p style="font-size:0.72rem;color:var(--text-muted);">Last edited by ' + _esc(proj.manuscript.lastEditedBy || 'N/A') + '</p>';
-            } else {
-                msHtml += '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px;">No manuscript started yet.</p>';
-            }
-            msHtml += '<button class="btn btn-outline btn-sm" onclick="closeModal(); setTimeout(function(){openManuscript(' + projId + ')},200);"><i class="fas fa-pen-fancy"></i> Open Manuscript Editor</button></div>';
-
-            // Admin approval section (for new projects needing review)
-            var approvalHtml = '';
-            if (currentUserRole === 'Admin' && !proj.adminApproved && proj.status === 'Pre-submission') {
-                approvalHtml = '<div class="form-section-title"><i class="fas fa-clipboard-check" style="margin-right:6px;"></i> Admin Review</div>' +
-                    '<div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:16px;margin-bottom:16px;">' +
-                    '<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">This project is awaiting admin review. Approve to forward to departments.</p>' +
-                    '<div style="display:flex;gap:8px;">' +
-                    '<button class="btn btn-primary btn-sm" onclick="approveProject(' + projId + ')"><i class="fas fa-check"></i> Approve Project</button>' +
-                    '<button class="btn btn-outline btn-sm" onclick="sendProjectQuestion(' + projId + ')"><i class="fas fa-question-circle"></i> Send Question</button>' +
-                    '</div></div>';
-            }
-
-            html = '<div style="max-height:65vh;overflow-y:auto;">' +
-                '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">' +
-                '<span class="project-pillar ' + (proj.pillar || '').toLowerCase() + '">' + _esc(proj.pillar || 'Unassigned') + '</span>' +
-                '<span class="project-status ' + (proj.status || 'active').toLowerCase() + '">' + _esc(proj.status || 'Active') + '</span>' +
-                (proj.phase ? '<span class="tag"><i class="fas fa-stream" style="margin-right:4px;"></i>' + _esc(proj.phase) + '</span>' : '') +
-                (proj.adminApproved ? '<span class="tag" style="background:rgba(16,185,129,0.15);color:#10b981;"><i class="fas fa-check-circle" style="margin-right:4px;"></i>Approved</span>' : '') +
-                '</div>' +
-                (proj.pi ? '<p style="color:var(--accent-primary);font-size:0.88rem;margin-bottom:6px;"><i class="fas fa-user-md" style="margin-right:6px;"></i>' + _esc(proj.pi) + '</p>' : '') +
-                (proj.abstract ? '<p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">' + _esc(proj.abstract) + '</p>' : '') +
-                '<div class="project-progress" style="margin-bottom:20px;"><div class="progress-bar"><div class="progress-fill" style="width:' + (proj.progress || 0) + '%;"></div></div><span>' + (proj.progress || 0) + '%</span></div>' +
-                approvalHtml +
-                dataCollHtml +
-                filesHtml +
-                msHtml +
-                pubsHtml +
-                '<div class="modal-actions" style="flex-wrap:wrap;">' +
-                (_canEditProject(proj) ? '<button type="button" class="btn btn-outline" onclick="closeModal(); editProject(' + projId + ');"><i class="fas fa-edit"></i> Edit</button>' : '') +
-                (_canAccessProject(proj) && proj.irbApproved ? '<button type="button" class="btn btn-outline" style="border-color:#10b981;color:#10b981;" onclick="closeModal(); setTimeout(function(){openManuscript(' + projId + ')},200);"><i class="fas fa-pen-fancy"></i> Manuscript</button>' : '') +
-                '<button type="button" class="btn btn-primary" onclick="closeModal()"><i class="fas fa-check"></i> Done</button>' +
-                '</div></div>';
-            break;
+            return; // skip default rendering below - handled by _renderProjectDetailModal
 
         /* ---------- UPLOAD CITI CERTIFICATE ---------- */
         case 'uploadCITI':
@@ -1888,7 +1694,7 @@ function openModal(type, extraData) {
         /* ---------- UPLOAD DOCUMENT ---------- */
         case 'uploadDocument':
             title.textContent = 'Upload Document';
-            html = '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Document uploaded!\', \'success\');">' +
+            html = '<form onsubmit="event.preventDefault(); saveDocument(this);">' +
                 '<div class="form-group"><label>Document Title *</label><input type="text" placeholder="Document title..." required></div>' +
                 '<div class="form-group"><label>Category *</label><select required>' +
                 '<option value="">Select category...</option><option>Policy</option><option>Template</option>' +
@@ -1981,7 +1787,7 @@ function _buildRequestForm(prefilledCategory) {
         return prefilledCategory === val ? ' selected' : '';
     };
 
-    return '<form onsubmit="event.preventDefault(); closeModal(); showToast(\'Request submitted successfully!\');">' +
+    return '<form onsubmit="event.preventDefault(); saveForumRequest(this);">' +
         '<div class="form-group"><label>Request Title *</label>' +
         '<input type="text" placeholder="Brief title for your request..." required></div>' +
 
@@ -2082,8 +1888,6 @@ function togglePubFields() {
 /* ================================================
    6b. PROJECT WIZARD + MANAGEMENT
    ================================================ */
-var projectStore = [];
-var projectIdCounter = 0;
 var _wizStep = 1;
 var _wizTotalSteps = 5;
 
@@ -2258,75 +2062,80 @@ function addBudgetRow() {
 }
 
 /* --- Submit Project from Wizard --- */
-function wizardSubmit() {
-    var data = {
-        id: ++projectIdCounter,
-        title: _val('wz_title'),
-        studyType: _val('wz_studyType'),
-        pillar: _val('wz_pillar'),
+async function wizardSubmit() {
+    var titleVal = _val('wz_title');
+    if (!titleVal) { showToast('Project title is required.', 'error'); return; }
+
+    var protocolData = {
+        na: document.getElementById('wz_protocolNA') ? document.getElementById('wz_protocolNA').checked : false,
+        background: _val('wz_protBg'),
+        aims: _val('wz_protAims'),
+        methods: _val('wz_protMethods'),
+        outcomes: _val('wz_protOutcomes'),
+        statPlan: _val('wz_protStats'),
+        dataCollection: _val('wz_protData'),
+        timeline: _val('wz_protTimeline')
+    };
+
+    var irbConsentData = {
+        na: document.getElementById('wz_irbNA') ? document.getElementById('wz_irbNA').checked : false,
+        submissionType: _val('wz_irbType'),
+        consentPurpose: _val('wz_consentPurpose'),
+        consentProc: _val('wz_consentProc'),
+        consentRisks: _val('wz_consentRisks'),
+        consentBenefits: _val('wz_consentBenefits'),
+        consentConfid: _val('wz_consentConfid')
+    };
+
+    var budgetData = {
+        na: document.getElementById('wz_budgetNA') ? document.getElementById('wz_budgetNA').checked : false,
+        totalEstimate: document.getElementById('budgetGrandTotal') ? document.getElementById('budgetGrandTotal').textContent : '$0'
+    };
+
+    var filesData = {};
+    if (!protocolData.na && protocolData.background) {
+        filesData.protocol = 'Protocol (created in wizard)';
+    }
+
+    var row = {
+        title: titleVal,
+        study_type: _val('wz_studyType'),
+        pillar: _val('wz_pillar') || null,
         department: _val('wz_dept'),
         pi: _val('wz_pi'),
-        diseaseFocus: _val('wz_disease'),
-        coInvestigators: _val('wz_coI'),
+        disease_focus: _val('wz_disease'),
+        co_investigators: _val('wz_coI'),
         abstract: _val('wz_abstract'),
-        umbrellaIRB: _val('wz_umbrellaIRB') === 'yes' ? _val('wz_umbrellaNum') : '',
+        umbrella_irb: _val('wz_umbrellaIRB') === 'yes' ? _val('wz_umbrellaNum') : '',
         status: 'Pre-submission',
         phase: 'Protocol Preparation',
-        startDate: new Date().toISOString().split('T')[0],
         progress: 0,
-        members: [],
-        irbPersonnel: [],
-        irbApproved: false,
-        irbProtocolNumber: '',
-        createdBy: currentUserEmail,
-        createdAt: new Date().toISOString(),
-        files: {},
-        publications: [],
-        protocol: {
-            na: document.getElementById('wz_protocolNA') ? document.getElementById('wz_protocolNA').checked : false,
-            background: _val('wz_protBg'),
-            aims: _val('wz_protAims'),
-            methods: _val('wz_protMethods'),
-            outcomes: _val('wz_protOutcomes'),
-            statPlan: _val('wz_protStats'),
-            dataCollection: _val('wz_protData'),
-            timeline: _val('wz_protTimeline')
-        },
-        irb: {
-            na: document.getElementById('wz_irbNA') ? document.getElementById('wz_irbNA').checked : false,
-            submissionType: _val('wz_irbType'),
-            consentPurpose: _val('wz_consentPurpose'),
-            consentProc: _val('wz_consentProc'),
-            consentRisks: _val('wz_consentRisks'),
-            consentBenefits: _val('wz_consentBenefits'),
-            consentConfid: _val('wz_consentConfid')
-        },
-        budget: {
-            na: document.getElementById('wz_budgetNA') ? document.getElementById('wz_budgetNA').checked : false,
-            totalEstimate: document.getElementById('budgetGrandTotal') ? document.getElementById('budgetGrandTotal').textContent : '$0'
-        },
+        irb_approved: false,
+        irb_protocol_number: '',
+        irb_personnel: [],
+        created_by: currentUserId,
+        protocol: protocolData,
+        irb_consent: irbConsentData,
+        budget: budgetData,
+        files: filesData,
+        manuscript: { content: '', lastEditedBy: '', lastEditedAt: '' },
         notes: _val('wz_notes')
     };
 
-    if (!data.title) { showToast('Project title is required.', 'error'); return; }
-
-    // Mark protocol/IRB as created during wizard (documents from wizard)
-    if (!data.protocol.na && data.protocol.background) {
-        data.files.protocol = 'Protocol (created in wizard)';
+    var { data: inserted, error } = await _sb.from('projects').insert(row).select().single();
+    if (error) {
+        showToast('Error creating project: ' + error.message, 'error');
+        return;
     }
 
-    // Save manuscript draft storage
-    data.manuscript = { content: '', lastEditedBy: '', lastEditedAt: '' };
-
-    projectStore.push(data);
-    renderProjects();
+    await renderProjects();
     _populateProjectDropdowns();
     closeModal();
     _wizStep = 1;
-    showToast('Project "' + data.title + '" submitted as Pre-submission!', 'success');
+    showToast('Project "' + titleVal + '" submitted as Pre-submission!', 'success');
 
     // Send notification to Dr. Hayner and Ahmad for review
-    _sendProjectNotification(data, 'new');
+    await _sendProjectNotification(inserted, 'new');
 }
 
 function _val(id) {
@@ -2335,27 +2144,26 @@ function _val(id) {
 }
 
 /* --- Legacy createProject for backward compat --- */
-function createProject(formEl) {
+async function createProject(formEl) {
     if (!formEl) return;
     var inputs = formEl.querySelectorAll('input, select, textarea');
     var data = {};
-    var fieldMap = ['title', 'studyType', 'pillar', 'department', 'pi', 'coInvestigators', 'status', 'phase', 'startDate', 'endDate', 'diseaseFocus', 'fundingSource', 'irbNumber', 'abstract'];
+    var fieldMap = ['title', 'study_type', 'pillar', 'department', 'pi', 'co_investigators', 'status', 'phase'];
     inputs.forEach(function (el, i) { if (fieldMap[i]) data[fieldMap[i]] = el.value; });
-    data.id = ++projectIdCounter;
-    data.members = [];
     data.progress = 0;
-    data.createdBy = currentUserEmail;
-    data.createdAt = new Date().toISOString();
-    projectStore.push(data);
-    renderProjects();
+    data.created_by = currentUserId;
+    if (data.pillar && ['Translational','Clinical','Computational'].indexOf(data.pillar) === -1) data.pillar = null;
+    var { error } = await _sb.from('projects').insert(data);
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    await renderProjects();
     _populateProjectDropdowns();
     closeModal();
     showToast('Project created!', 'success');
 }
 
 /* --- IRB Approval Workflow --- */
-function openIRBReview(projId) {
-    var proj = _findProject(projId);
+async function openIRBReview(projId) {
+    var proj = await _findProject(projId);
     if (!proj) return;
     var overlay = document.getElementById('modalOverlay');
     var titleEl = document.getElementById('modalTitle');
@@ -2389,45 +2197,54 @@ function openIRBReview(projId) {
     document.body.style.overflow = 'hidden';
 }
 
-function submitIRBDecision(projId) {
-    var proj = _findProject(projId);
+async function submitIRBDecision(projId) {
+    var proj = await _findProject(projId);
     if (!proj) return;
     var decision = document.getElementById('irbDecision');
     var protNum = document.getElementById('irbProtNum');
     if (!decision || !decision.value) { showToast('Select a decision.', 'error'); return; }
     if (!protNum || !protNum.value.trim()) { showToast('Enter the IRB protocol number.', 'error'); return; }
 
-    proj.irbProtocolNumber = protNum.value.trim();
-    proj.irbDecision = decision.value;
+    var updates = {
+        irb_protocol_number: protNum.value.trim(),
+        irb_decision: decision.value
+    };
 
     // Parse personnel list
     var personnelEl = document.getElementById('irbPersonnelList');
     if (personnelEl) {
-        proj.irbPersonnel = personnelEl.value.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l; });
+        updates.irb_personnel = personnelEl.value.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l; });
     }
 
     var fileInput = document.getElementById('irbApprovalFile');
     if (fileInput && fileInput.files && fileInput.files[0]) {
-        proj.files.irbApproval = fileInput.files[0].name;
+        var currentFiles = proj.files || {};
+        currentFiles.irbApproval = fileInput.files[0].name;
+        updates.files = currentFiles;
     }
 
     if (decision.value === 'approved' || decision.value === 'conditional') {
-        proj.irbApproved = true;
-        proj.status = 'Active';
-        proj.phase = 'Data Collection';
-        showToast('IRB Approved! Project is now Active. Protocol #: ' + proj.irbProtocolNumber, 'success');
+        updates.irb_approved = true;
+        updates.status = 'Active';
+        updates.phase = 'Data Collection';
+        showToast('IRB Approved! Project is now Active. Protocol #: ' + updates.irb_protocol_number, 'success');
     } else if (decision.value === 'deferred') {
-        proj.status = 'Pre-submission';
-        proj.phase = 'IRB Review';
+        updates.status = 'Pre-submission';
+        updates.phase = 'IRB Review';
         showToast('IRB deferred. Revisions required.', 'info');
     } else {
         showToast('IRB decision recorded.', 'info');
     }
 
-    // Notify PI about IRB decision
-    _sendProjectNotification(proj, 'irb_decision');
+    await _sb.from('projects').update(updates).eq('id', projId);
 
-    renderProjects();
+    // Merge for notification
+    Object.assign(proj, updates);
+
+    // Notify PI about IRB decision
+    await _sendProjectNotification(proj, 'irb_decision');
+
+    await renderProjects();
     closeModal();
 }
 
@@ -2436,17 +2253,22 @@ function _canAccessProject(proj) {
     // Admins always have access
     if (currentUserRole === 'Admin') return true;
     // Creator always has access
-    if (proj.createdBy === currentUserEmail) return true;
+    var creatorId = proj.created_by || proj.createdBy;
+    if (creatorId === currentUserId) return true;
+    // Get irb consent data from either field name
+    var irbData = proj.irb_consent || proj.irb || {};
+    var irbApproved = proj.irb_approved || proj.irbApproved;
     // If project has no IRB or IRB not yet approved, creator and admins only
-    if (!proj.irbApproved && !proj.irb?.na) return proj.createdBy === currentUserEmail;
+    if (!irbApproved && !irbData.na) return creatorId === currentUserId;
     // If IRB is NA (not needed), anyone can access
-    if (proj.irb && proj.irb.na) return true;
+    if (irbData.na) return true;
     // If IRB approved, check if user is on the IRB personnel list
-    if (proj.irbPersonnel && proj.irbPersonnel.length > 0) {
+    var personnel = proj.irb_personnel || proj.irbPersonnel || [];
+    if (personnel.length > 0) {
         var userName = currentUserName.toLowerCase();
         var userEmail = currentUserEmail.toLowerCase();
-        for (var i = 0; i < proj.irbPersonnel.length; i++) {
-            var person = proj.irbPersonnel[i].toLowerCase();
+        for (var i = 0; i < personnel.length; i++) {
+            var person = personnel[i].toLowerCase();
             if (person.indexOf(userName) !== -1 || person.indexOf(userEmail) !== -1) return true;
         }
         return false;
@@ -2454,8 +2276,8 @@ function _canAccessProject(proj) {
     return true;
 }
 
-function editProject(id) {
-    var proj = _findProject(id);
+async function editProject(id) {
+    var proj = await _findProject(id);
     if (!proj) return;
 
     // Only PI or admins can edit
@@ -2471,10 +2293,10 @@ function editProject(id) {
 
     var memberListHtml = '';
     if (proj.members && proj.members.length > 0) {
-        proj.members.forEach(function (m, i) {
+        proj.members.forEach(function (m) {
             memberListHtml += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' +
                 '<span style="flex:1;font-size:0.82rem;">' + m.name + ' <span style="color:var(--text-muted);font-size:0.72rem;">(' + m.role + ')</span></span>' +
-                '<button type="button" class="btn btn-danger btn-sm" onclick="removeProjectMember(' + proj.id + ',' + i + ')"><i class="fas fa-times"></i></button></div>';
+                '<button type="button" class="btn btn-danger btn-sm" onclick="removeProjectMember(' + proj.id + ',' + m.id + ')"><i class="fas fa-times"></i></button></div>';
         });
     } else {
         memberListHtml = '<p style="color:var(--text-muted);font-size:0.82rem;padding:8px 0;">No team members added yet.</p>';
@@ -2551,34 +2373,36 @@ function editProject(id) {
     document.body.style.overflow = 'hidden';
 }
 
-function saveProjectEdits(id, formEl) {
-    var proj = _findProject(id);
+async function saveProjectEdits(id, formEl) {
+    var proj = await _findProject(id);
     if (!proj) return;
 
     var inputs = formEl.querySelectorAll('input, select, textarea');
     var oldStatus = proj.status;
-    proj.title = inputs[0].value;
-    proj.status = inputs[1].value;
-    proj.phase = inputs[2].value;
-    proj.progress = parseInt(inputs[3].value) || 0;
-    proj.coInvestigators = inputs[4].value;
-    proj.diseaseFocus = inputs[5].value;
-    proj.abstract = inputs[6].value;
+    var updates = {
+        title: inputs[0].value,
+        status: inputs[1].value,
+        phase: inputs[2].value,
+        progress: parseInt(inputs[3].value) || 0,
+        co_investigators: inputs[4].value,
+        disease_focus: inputs[5].value,
+        abstract: inputs[6].value
+    };
+
+    await _sb.from('projects').update(updates).eq('id', id);
+    Object.assign(proj, updates);
 
     // Notify PI if status changed
-    if (oldStatus !== proj.status) {
-        _sendProjectNotification(proj, 'status_change');
+    if (oldStatus !== updates.status) {
+        await _sendProjectNotification(proj, 'status_change');
     }
 
-    renderProjects();
+    await renderProjects();
     closeModal();
     showToast('Project updated!', 'success');
 }
 
-function addProjectMember(projectId) {
-    var proj = _findProject(projectId);
-    if (!proj) return;
-
+async function addProjectMember(projectId) {
     var nameEl = document.getElementById('newMemberName');
     var roleEl = document.getElementById('newMemberRole');
     if (!nameEl || !nameEl.value.trim()) {
@@ -2586,35 +2410,44 @@ function addProjectMember(projectId) {
         return;
     }
 
-    proj.members.push({
-        name: nameEl.value.trim(),
-        role: roleEl ? roleEl.value || 'Team Member' : 'Team Member'
+    var memberName = nameEl.value.trim();
+    var memberRole = roleEl ? roleEl.value || 'Team Member' : 'Team Member';
+
+    await _sb.from('project_members').insert({
+        project_id: projectId,
+        member_name: memberName,
+        member_role: memberRole
     });
 
     // Refresh the edit modal
-    editProject(projectId);
-    showToast(nameEl.value.trim() + ' added to the project.', 'success');
+    await editProject(projectId);
+    showToast(memberName + ' added to the project.', 'success');
 }
 
-function removeProjectMember(projectId, index) {
-    var proj = _findProject(projectId);
-    if (!proj) return;
-    var removed = proj.members.splice(index, 1);
-    editProject(projectId);
-    showToast((removed[0] ? removed[0].name : 'Member') + ' removed.', 'info');
+async function removeProjectMember(projectId, memberId) {
+    await _sb.from('project_members').delete().eq('id', memberId);
+    await editProject(projectId);
+    showToast('Member removed.', 'info');
 }
 
-function deleteProject(id) {
+async function deleteProject(id) {
     if (!confirm('Are you sure you want to delete this project?')) return;
-    projectStore = projectStore.filter(function (p) { return p.id !== id; });
-    renderProjects();
+    await _sb.from('project_members').delete().eq('project_id', id);
+    await _sb.from('project_publications').delete().eq('project_id', id);
+    await _sb.from('projects').delete().eq('id', id);
+    await renderProjects();
     _populateProjectDropdowns();
     showToast('Project deleted.', 'info');
 }
 
-function renderProjects() {
+async function renderProjects() {
     var grid = document.getElementById('projectsGrid');
     if (!grid) return;
+
+    _showLoading(grid);
+
+    var { data: projectStore, error } = await _sb.from('projects').select('*, project_members(*)').order('created_at', { ascending: false });
+    if (error || !projectStore) projectStore = [];
 
     if (projectStore.length === 0) {
         grid.innerHTML = '<div class="empty-state-large"><i class="fas fa-project-diagram"></i><h3>No Research Projects Yet</h3><p>Click "New Project" to add your first research project.</p><button class="btn btn-primary" onclick="openModal(\'newProject\')"><i class="fas fa-plus"></i> Add First Project</button></div>';
@@ -2627,13 +2460,15 @@ function renderProjects() {
         var status = (p.status || 'active').toLowerCase();
         var canEdit = _canEditProject(p);
         var canAccess = _canAccessProject(p);
+        var members = p.project_members || [];
 
         // IRB badge
         var irbBadge = '';
-        if (p.irb && p.irb.na) {
+        var irbConsent = p.irb_consent || {};
+        if (irbConsent.na) {
             irbBadge = '<span class="irb-badge na"><i class="fas fa-minus-circle"></i> No IRB</span>';
-        } else if (p.irbApproved) {
-            irbBadge = '<span class="irb-badge approved"><i class="fas fa-check-circle"></i> IRB ' + _esc(p.irbProtocolNumber || 'Approved') + '</span>';
+        } else if (p.irb_approved) {
+            irbBadge = '<span class="irb-badge approved"><i class="fas fa-check-circle"></i> IRB ' + _esc(p.irb_protocol_number || 'Approved') + '</span>';
         } else {
             irbBadge = '<span class="irb-badge pending"><i class="fas fa-clock"></i> IRB Pending</span>';
         }
@@ -2647,15 +2482,15 @@ function renderProjects() {
             '<p class="project-pi"><i class="fas fa-user-md"></i> ' + _esc(p.pi || 'No PI assigned') + '</p>' +
             irbBadge +
             (canAccess && p.abstract ? '<p class="project-desc">' + _esc(p.abstract) + '</p>' : '') +
-            (p.diseaseFocus ? '<div class="project-tags"><span class="tag">' + _esc(p.diseaseFocus) + '</span></div>' : '') +
+            (p.disease_focus ? '<div class="project-tags"><span class="tag">' + _esc(p.disease_focus) + '</span></div>' : '') +
             '<div class="project-meta">' +
             (p.phase ? '<span><i class="fas fa-stream"></i> ' + p.phase + '</span>' : '') +
-            (p.members && p.members.length > 0 ? '<span><i class="fas fa-users"></i> ' + p.members.length + ' members</span>' : '') +
+            (members.length > 0 ? '<span><i class="fas fa-users"></i> ' + members.length + ' members</span>' : '') +
             '</div>' +
             '<div class="project-progress"><div class="progress-bar"><div class="progress-fill" style="width:' + (p.progress || 0) + '%;"></div></div><span>' + (p.progress || 0) + '%</span></div>' +
             '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">' +
             (canEdit ? '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); editProject(' + p.id + ')"><i class="fas fa-edit"></i> Edit</button>' : '') +
-            ((currentUserRole === 'IRB' || currentUserEmail === 'ldrose@saint-lukes.org' || currentUserRole === 'Admin') && !p.irbApproved && !(p.irb && p.irb.na) ? '<button class="btn btn-outline btn-sm irb-review-btn" style="border-color:#f59e0b;color:#f59e0b;" onclick="event.stopPropagation(); openIRBReview(' + p.id + ')"><i class="fas fa-gavel"></i> IRB Review</button>' : '') +
+            ((currentUserRole === 'IRB' || currentUserEmail === 'ldrose@saint-lukes.org' || currentUserRole === 'Admin') && !p.irb_approved && !(irbConsent.na) ? '<button class="btn btn-outline btn-sm irb-review-btn" style="border-color:#f59e0b;color:#f59e0b;" onclick="event.stopPropagation(); openIRBReview(' + p.id + ')"><i class="fas fa-gavel"></i> IRB Review</button>' : '') +
             (canEdit ? '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProject(' + p.id + ')"><i class="fas fa-trash"></i></button>' : '') +
             '</div></div>';
     });
@@ -2663,12 +2498,15 @@ function renderProjects() {
     grid.innerHTML = html;
     initCardHoverEffects();
     animateProgressBars();
-    renderDashboardProjects();
+    await renderDashboardProjects();
 }
 
-function renderDashboardProjects() {
+async function renderDashboardProjects() {
     var container = document.getElementById('dashboardProjects');
     if (!container) return;
+
+    var { data: projectStore } = await _sb.from('projects').select('id, title, pi, phase, status, progress, pillar').order('created_at', { ascending: false });
+    if (!projectStore) projectStore = [];
 
     if (projectStore.length === 0) {
         container.innerHTML = '<div class="empty-state"><i class="fas fa-project-diagram"></i><p>No active projects</p><span>Create a project to see it here.</span></div>';
@@ -2703,18 +2541,31 @@ function renderDashboardProjects() {
     }
 }
 
-function _findProject(id) {
-    for (var i = 0; i < projectStore.length; i++) {
-        if (projectStore[i].id === id) return projectStore[i];
-    }
-    return null;
+async function _findProject(id) {
+    var { data, error } = await _sb.from('projects').select('*, project_members(*), project_publications(*)').eq('id', id).single();
+    if (error || !data) return null;
+    // Map DB fields to legacy field names for compatibility with UI code
+    data.irbApproved = data.irb_approved;
+    data.irbProtocolNumber = data.irb_protocol_number;
+    data.irbPersonnel = data.irb_personnel || [];
+    data.irbDecision = data.irb_decision;
+    data.diseaseFocus = data.disease_focus;
+    data.coInvestigators = data.co_investigators;
+    data.adminApproved = data.admin_approved;
+    data.createdBy = data.created_by;
+    data.members = (data.project_members || []).map(function(m) { return { id: m.id, name: m.member_name, role: m.member_role }; });
+    data.publications = (data.project_publications || []).map(function(pub) { return pub.title; });
+    data._pubRows = data.project_publications || [];
+    data.irb = data.irb_consent || {};
+    return data;
 }
 
 function _canEditProject(proj) {
     // Admins can always edit
     if (currentUserRole === 'Admin') return true;
     // PI can edit their own project
-    if (proj.createdBy && proj.createdBy === currentUserEmail) return true;
+    if (proj.created_by && proj.created_by === currentUserId) return true;
+    if (proj.createdBy && proj.createdBy === currentUserId) return true;
     return false;
 }
 
@@ -2730,13 +2581,15 @@ function _opt(value, selected) {
 // Populate project dropdowns in all modals that need them
 function _populateProjectDropdowns() {
     // Find all selects that have "Select project..." as first option
-    setTimeout(function () {
+    setTimeout(async function () {
+        var { data: projects } = await _sb.from('projects').select('id, title').order('title');
+        if (!projects) projects = [];
         document.querySelectorAll('select').forEach(function (sel) {
             var first = sel.querySelector('option');
             if (first && first.textContent.indexOf('Select project') !== -1) {
                 // Clear existing project options (keep the first placeholder)
                 while (sel.options.length > 1) sel.remove(1);
-                projectStore.forEach(function (p) {
+                projects.forEach(function (p) {
                     var opt = document.createElement('option');
                     opt.value = p.id;
                     opt.textContent = p.title || 'Untitled Project #' + p.id;
@@ -2749,10 +2602,10 @@ function _populateProjectDropdowns() {
 
 /* --- Populate PI dropdowns from faculty list --- */
 function _populatePIDropdowns() {
-    setTimeout(function() {
+    setTimeout(async function() {
+        var faculty = await _getFacultyList();
         var piSelect = document.getElementById('wz_pi');
         if (piSelect && piSelect.options.length <= 1) {
-            var faculty = _getFacultyList();
             faculty.forEach(function(name) {
                 var opt = document.createElement('option');
                 opt.value = name;
@@ -2764,7 +2617,6 @@ function _populatePIDropdowns() {
         document.querySelectorAll('select').forEach(function(sel) {
             var first = sel.querySelector('option');
             if (first && first.textContent.indexOf('Select PI') !== -1 && sel.options.length <= 1) {
-                var faculty = _getFacultyList();
                 faculty.forEach(function(name) {
                     var opt = document.createElement('option');
                     opt.value = name;
@@ -3208,12 +3060,132 @@ function _zScore(p) {
 /* ================================================
    6e. EDUCATION & TRAINING FUNCTIONS
    ================================================ */
-function submitCITICert(formEl) {
+async function submitCITICert(formEl) {
+    var inputs = formEl.querySelectorAll('input, select');
+    await _sb.from('citi_training').insert({
+        user_id: currentUserId,
+        human_subjects_status: 'submitted'
+    });
     showToast('Certificate submitted for review by Dr. Kolakowsky-Hayner.', 'success');
 }
 
-function submitCMECredits(formEl) {
+async function submitCMECredits(formEl) {
+    var inputs = formEl.querySelectorAll('input, select');
+    await _sb.from('cme_records').insert({
+        user_id: currentUserId,
+        credits_earned: 0,
+        credits_required: 25,
+        status: 'submitted'
+    });
     showToast('CME credits submitted for review by Dr. Kolakowsky-Hayner.', 'success');
+}
+
+/* --- Save functions for modal forms --- */
+async function saveGrant(formEl) {
+    var inputs = formEl.querySelectorAll('input, select, textarea');
+    var data = {
+        title: inputs[0] ? inputs[0].value : '',
+        pi: inputs[1] ? inputs[1].value : '',
+        agency: inputs[2] ? inputs[2].value : '',
+        mechanism: inputs[3] ? inputs[3].value : '',
+        amount: inputs[4] ? inputs[4].value : '',
+        period_start: inputs[5] ? inputs[5].value || null : null,
+        period_end: inputs[6] ? inputs[6].value || null : null,
+        status: inputs[7] ? inputs[7].value : 'Active',
+        grant_number: inputs[8] ? inputs[8].value : '',
+        created_by: currentUserId
+    };
+    var { error } = await _sb.from('grants').insert(data);
+    if (error) { showToast('Error saving grant: ' + error.message, 'error'); return; }
+    closeModal();
+    showToast('Grant added successfully!', 'success');
+}
+
+async function savePublication(formEl) {
+    var inputs = formEl.querySelectorAll('input, select, textarea');
+    var pubType = document.getElementById('pubType');
+    var data = {
+        pub_type: pubType ? pubType.value : '',
+        title: inputs[1] ? inputs[1].value : '',
+        created_by: currentUserId
+    };
+    // Collect extra fields based on type
+    if (pubType && pubType.value === 'publication') {
+        var journal = formEl.querySelector('#pubFields input[type="text"]');
+        if (journal) data.journal = journal.value;
+        var year = formEl.querySelector('#pubFields input[type="number"]');
+        if (year) data.year = parseInt(year.value) || null;
+    }
+    var { error } = await _sb.from('publications').insert(data);
+    if (error) { showToast('Error saving publication: ' + error.message, 'error'); return; }
+    closeModal();
+    showToast('Publication added successfully!', 'success');
+}
+
+async function saveMeeting(formEl) {
+    var inputs = formEl.querySelectorAll('input, select, textarea');
+    var data = {
+        title: inputs[0] ? inputs[0].value : '',
+        meeting_date: inputs[1] ? inputs[1].value || null : null,
+        meeting_time: inputs[2] ? inputs[2].value : '',
+        attendees: inputs[3] ? inputs[3].value : '',
+        agenda: inputs[4] ? inputs[4].value : '',
+        teams_link: inputs[5] ? inputs[5].value : '',
+        location: inputs[6] ? inputs[6].value : '',
+        recurring: document.getElementById('recurringMeeting') ? document.getElementById('recurringMeeting').checked : false,
+        created_by: currentUserId
+    };
+    var { error } = await _sb.from('meetings').insert(data);
+    if (error) { showToast('Error saving meeting: ' + error.message, 'error'); return; }
+    closeModal();
+    showToast('Meeting scheduled successfully!', 'success');
+}
+
+async function saveDeadline(formEl) {
+    var inputs = formEl.querySelectorAll('input, select, textarea');
+    var data = {
+        title: inputs[0] ? inputs[0].value : '',
+        deadline_type: inputs[1] ? inputs[1].value : '',
+        deadline_date: inputs[2] ? inputs[2].value || null : null,
+        description: inputs[3] ? inputs[3].value : '',
+        associated_item: inputs[4] ? inputs[4].value : '',
+        created_by: currentUserId
+    };
+    var { error } = await _sb.from('deadlines').insert(data);
+    if (error) { showToast('Error saving deadline: ' + error.message, 'error'); return; }
+    closeModal();
+    showToast('Deadline added successfully!', 'success');
+}
+
+async function saveForumRequest(formEl) {
+    var inputs = formEl.querySelectorAll('input, select, textarea');
+    var data = {
+        title: inputs[0] ? inputs[0].value : '',
+        category: inputs[1] ? inputs[1].value : '',
+        urgency: inputs[3] ? inputs[3].value : 'Medium',
+        project_id: inputs[4] ? (parseInt(inputs[4].value) || null) : null,
+        description: inputs[5] ? inputs[5].value : '',
+        status: 'open',
+        requested_by: currentUserId
+    };
+    var { error } = await _sb.from('forum_requests').insert(data);
+    if (error) { showToast('Error submitting request: ' + error.message, 'error'); return; }
+    closeModal();
+    showToast('Request submitted successfully!', 'success');
+}
+
+async function saveDocument(formEl) {
+    var inputs = formEl.querySelectorAll('input, select, textarea');
+    var data = {
+        name: inputs[0] ? inputs[0].value : '',
+        category: inputs[1] ? inputs[1].value : '',
+        content: inputs[3] ? inputs[3].value : '',
+        uploaded_by: currentUserId
+    };
+    var { error } = await _sb.from('documents').insert(data);
+    if (error) { showToast('Error uploading document: ' + error.message, 'error'); return; }
+    closeModal();
+    showToast('Document uploaded!', 'success');
 }
 
 // Likert scale row builder for student assessments
@@ -3232,11 +3204,25 @@ function _buildLikertRow(label) {
 /* ================================================
    6f. STUDENT MODULE FUNCTIONS
    ================================================ */
-function submitStudentAssessment(formEl) {
+async function submitStudentAssessment(formEl) {
+    var studentSel = document.getElementById('assessStudent');
+    var studentId = studentSel ? studentSel.value : null;
+    // Collect all responses
+    var responses = {};
+    formEl.querySelectorAll('input[type="radio"]:checked').forEach(function(r) { responses[r.name] = r.value; });
+    formEl.querySelectorAll('select').forEach(function(s) { if (s.value) responses[s.name || s.closest('.form-group')?.querySelector('label')?.textContent?.trim() || 'field'] = s.value; });
+    formEl.querySelectorAll('textarea').forEach(function(t) { if (t.value) responses[t.placeholder || 'notes'] = t.value; });
+
+    await _sb.from('student_assessments').insert({
+        student_id: studentId || null,
+        assessment_date: new Date().toISOString().split('T')[0],
+        responses: responses,
+        submitted_by: currentUserId
+    });
     showToast('Assessment submitted and saved!', 'success');
 }
 
-function submitStudentProjectRequest(formEl) {
+async function submitStudentProjectRequest(formEl) {
     showToast('Project request submitted! Awaiting PI approval.', 'success');
 }
 
@@ -3359,46 +3345,45 @@ function _showDocSubsection(name) {
 /* ================================================
    6i. PROJECT DETAIL FUNCTIONS
    ================================================ */
-function uploadProjectFile(projId, fileKey, inputEl) {
-    var proj = _findProject(projId);
+async function uploadProjectFile(projId, fileKey, inputEl) {
+    var proj = await _findProject(projId);
     if (!proj || !inputEl.files || !inputEl.files[0]) return;
-    if (!proj.files) proj.files = {};
-    proj.files[fileKey] = inputEl.files[0].name;
+    var currentFiles = proj.files || {};
+    currentFiles[fileKey] = inputEl.files[0].name;
+    await _sb.from('projects').update({ files: currentFiles }).eq('id', projId);
     showToast(inputEl.files[0].name + ' uploaded!', 'success');
-    // Refresh the detail modal
     closeModal();
     setTimeout(function () { openModal('projectDetail', projId); }, 200);
 }
 
-function linkProjectREDCap(projId) {
-    var proj = _findProject(projId);
-    if (!proj) return;
+async function linkProjectREDCap(projId) {
     var targetEl = document.getElementById('projTargetN');
     var enrolledEl = document.getElementById('projEnrolledN');
-    proj.targetEnrollment = targetEl ? parseInt(targetEl.value) || 0 : 0;
-    proj.enrolledCount = enrolledEl ? parseInt(enrolledEl.value) || 0 : 0;
-    proj.redcapLinked = true;
+    var targetN = targetEl ? parseInt(targetEl.value) || 0 : 0;
+    var enrolledN = enrolledEl ? parseInt(enrolledEl.value) || 0 : 0;
+    // Store in files JSONB for now
+    var proj = await _findProject(projId);
+    var currentFiles = proj ? (proj.files || {}) : {};
+    currentFiles.redcapLinked = true;
+    currentFiles.targetEnrollment = targetN;
+    currentFiles.enrolledCount = enrolledN;
+    await _sb.from('projects').update({ files: currentFiles }).eq('id', projId);
     showToast('Enrollment data saved!', 'success');
     closeModal();
     setTimeout(function () { openModal('projectDetail', projId); }, 200);
 }
 
-function addProjectPub(projId) {
-    var proj = _findProject(projId);
-    if (!proj) return;
+async function addProjectPub(projId) {
     var input = document.getElementById('newProjPub');
     if (!input || !input.value.trim()) { showToast('Enter a publication title.', 'error'); return; }
-    if (!proj.publications) proj.publications = [];
-    proj.publications.push(input.value.trim());
+    await _sb.from('project_publications').insert({ project_id: projId, title: input.value.trim() });
     showToast('Publication linked!', 'success');
     closeModal();
     setTimeout(function () { openModal('projectDetail', projId); }, 200);
 }
 
-function removeProjectPub(projId, index) {
-    var proj = _findProject(projId);
-    if (!proj || !proj.publications) return;
-    proj.publications.splice(index, 1);
+async function removeProjectPub(projId, pubId) {
+    await _sb.from('project_publications').delete().eq('id', pubId);
     closeModal();
     setTimeout(function () { openModal('projectDetail', projId); }, 200);
 }
@@ -3406,17 +3391,16 @@ function removeProjectPub(projId, index) {
 /* ================================================
    6j. NOTIFICATION SYSTEM
    ================================================ */
-function _sendProjectNotification(project, type) {
+async function _sendProjectNotification(project, type) {
     var notification = {
-        id: Date.now(),
-        projectId: project.id,
-        projectTitle: project.title,
-        type: type, // 'new', 'status_change', 'irb_decision', 'approval'
-        from: currentUserName,
-        fromEmail: currentUserEmail,
-        date: new Date().toISOString(),
+        project_id: project.id,
+        project_title: project.title,
+        type: type,
+        from_user: currentUserName,
+        from_email: currentUserEmail,
         read: false,
-        message: ''
+        message: '',
+        recipients: []
     };
 
     switch(type) {
@@ -3429,80 +3413,84 @@ function _sendProjectNotification(project, type) {
             notification.recipients = ['ldrose@saint-lukes.org'];
             break;
         case 'irb_decision':
-            notification.message = 'IRB decision for "' + project.title + '": ' + (project.irbDecision || 'pending');
-            notification.recipients = [project.createdBy];
-            // Also notify PI
-            var piUser = _findPIByName(project.pi);
+            notification.message = 'IRB decision for "' + project.title + '": ' + (project.irb_decision || project.irbDecision || 'pending');
+            notification.recipients = [];
+            // Notify creator
+            if (project.created_by) {
+                var { data: creator } = await _sb.from('profiles').select('email').eq('id', project.created_by).single();
+                if (creator) notification.recipients.push(creator.email);
+            }
+            var piUser = await _findPIByName(project.pi);
             if (piUser) notification.recipients.push(piUser.email);
             break;
         case 'status_change':
             notification.message = 'Project "' + project.title + '" status changed to ' + project.status;
-            notification.recipients = [project.createdBy];
-            var piU = _findPIByName(project.pi);
+            notification.recipients = [];
+            if (project.created_by) {
+                var { data: cr } = await _sb.from('profiles').select('email').eq('id', project.created_by).single();
+                if (cr) notification.recipients.push(cr.email);
+            }
+            var piU = await _findPIByName(project.pi);
             if (piU) notification.recipients.push(piU.email);
             break;
         case 'approved':
             notification.message = 'Project "' + project.title + '" has been approved and forwarded to required departments.';
-            notification.recipients = [project.createdBy];
-            var piA = _findPIByName(project.pi);
+            notification.recipients = [];
+            if (project.created_by) {
+                var { data: ca } = await _sb.from('profiles').select('email').eq('id', project.created_by).single();
+                if (ca) notification.recipients.push(ca.email);
+            }
+            var piA = await _findPIByName(project.pi);
             if (piA) notification.recipients.push(piA.email);
             break;
     }
 
-    notificationStore.push(notification);
-    _updateNotificationBadge();
-
-    // Show email simulation toast
-    if (notification.recipients) {
-        notification.recipients.forEach(function(email) {
-            if (email === currentUserEmail) return; // Don't notify yourself
-        });
-        showToast('Notification sent to reviewers.', 'info');
-    }
+    await _sb.from('notifications').insert(notification);
+    await _updateNotificationBadge();
+    showToast('Notification sent to reviewers.', 'info');
 }
 
-function _findPIByName(piName) {
+async function _findPIByName(piName) {
     if (!piName) return null;
-    var lower = piName.toLowerCase();
-    for (var i = 0; i < USER_ACCOUNTS.length; i++) {
-        if (USER_ACCOUNTS[i].name.toLowerCase() === lower) return USER_ACCOUNTS[i];
-    }
-    for (var j = 0; j < ADMIN_ACCOUNTS.length; j++) {
-        if (ADMIN_ACCOUNTS[j].name.toLowerCase() === lower) return ADMIN_ACCOUNTS[j];
-    }
+    var { data } = await _sb.from('profiles').select('email, name').ilike('name', piName);
+    if (data && data.length > 0) return data[0];
     return null;
 }
 
-function _updateNotificationBadge() {
-    var unread = notificationStore.filter(function(n) {
-        return !n.read && n.recipients && n.recipients.indexOf(currentUserEmail) !== -1;
-    }).length;
+async function _updateNotificationBadge() {
+    if (!currentUserEmail) return;
+    var { count, error } = await _sb.from('notifications').select('id', { count: 'exact', head: true }).eq('read', false).contains('recipients', [currentUserEmail]);
     var badge = document.querySelector('.notification-badge');
     if (badge) {
+        var unread = count || 0;
         badge.textContent = unread;
         badge.style.display = unread > 0 ? '' : 'none';
     }
 }
 
 /* --- Project Review/Approval by Admin --- */
-function approveProject(projId) {
-    var proj = _findProject(projId);
+async function approveProject(projId) {
+    var proj = await _findProject(projId);
     if (!proj) return;
     if (currentUserRole !== 'Admin') {
         showToast('Only admins can approve projects.', 'error');
         return;
     }
+    await _sb.from('projects').update({
+        admin_approved: true,
+        approved_by: currentUserName,
+        approved_at: new Date().toISOString()
+    }).eq('id', projId);
+    proj.admin_approved = true;
     proj.adminApproved = true;
-    proj.approvedBy = currentUserName;
-    proj.approvedAt = new Date().toISOString();
-    _sendProjectNotification(proj, 'approved');
+    await _sendProjectNotification(proj, 'approved');
     showToast('Project approved and forwarded to departments!', 'success');
     closeModal();
-    renderProjects();
+    await renderProjects();
 }
 
-function sendProjectQuestion(projId) {
-    var proj = _findProject(projId);
+async function sendProjectQuestion(projId) {
+    var proj = await _findProject(projId);
     if (!proj) return;
     var overlay = document.getElementById('modalOverlay');
     var titleEl = document.getElementById('modalTitle');
@@ -3531,8 +3519,8 @@ function submitProjectQuestion(projId, formEl) {
 /* ================================================
    6k. MANUSCRIPT PREPARATION
    ================================================ */
-function openManuscript(projId) {
-    var proj = _findProject(projId);
+async function openManuscript(projId) {
+    var proj = await _findProject(projId);
     if (!proj) return;
 
     // Check access
@@ -3593,11 +3581,8 @@ function openManuscript(projId) {
     document.body.style.overflow = 'hidden';
 }
 
-function saveManuscript(projId) {
-    var proj = _findProject(projId);
-    if (!proj) return;
-
-    proj.manuscript = {
+async function saveManuscript(projId) {
+    var manuscriptData = {
         title: _val('msTitle'),
         authors: _val('msAuthors'),
         abstract: _val('msAbstract'),
@@ -3611,11 +3596,12 @@ function saveManuscript(projId) {
         lastEditedAt: new Date().toISOString()
     };
 
+    await _sb.from('projects').update({ manuscript: manuscriptData }).eq('id', projId);
     showToast('Manuscript saved!', 'success');
 }
 
-function exportManuscript(projId) {
-    var proj = _findProject(projId);
+async function exportManuscript(projId) {
+    var proj = await _findProject(projId);
     if (!proj || !proj.manuscript) return;
     var ms = proj.manuscript;
 
@@ -3684,6 +3670,115 @@ function closeModal() {
     var overlay = document.getElementById('modalOverlay');
     if (overlay) overlay.classList.remove('active');
     document.body.style.overflow = '';
+}
+
+/* --- Render project detail modal (async helper) --- */
+function _renderProjectDetailModal(proj, projId, titleEl, bodyEl) {
+    titleEl.textContent = proj.title || 'Project Details';
+
+    // Build file uploads section
+    var filesHtml = '<div class="form-section-title"><i class="fas fa-file-upload" style="margin-right:6px;"></i> Project Documents</div>';
+    var fileTypes = [
+        { key: 'protocol', label: 'Protocol', icon: 'fa-file-medical', irbOnly: false },
+        { key: 'consent', label: 'Consent Form', icon: 'fa-file-signature', irbOnly: true },
+        { key: 'irbLetter', label: 'IRB Approval Letter', icon: 'fa-shield-alt', irbOnly: true }
+    ];
+    if (!proj.files) proj.files = {};
+    var isIRBUser = (currentUserRole === 'IRB' || currentUserEmail === 'ldrose@saint-lukes.org');
+    fileTypes.forEach(function (ft) {
+        var hasFile = proj.files[ft.key];
+        var canUpload = ft.irbOnly ? (isIRBUser || currentUserRole === 'Admin') : _canEditProject(proj);
+        filesHtml += '<div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;margin-bottom:8px;">' +
+            '<i class="fas ' + ft.icon + '" style="color:' + (hasFile ? '#10b981' : 'var(--text-muted)') + ';font-size:1.1rem;width:24px;text-align:center;"></i>' +
+            '<div style="flex:1;"><strong style="font-size:0.85rem;">' + ft.label + '</strong>' +
+            (hasFile ? '<span style="display:block;font-size:0.72rem;color:#10b981;margin-top:2px;">\u2713 ' + _esc(hasFile) + '</span>' : '<span style="display:block;font-size:0.72rem;color:var(--text-muted);margin-top:2px;">' + (ft.irbOnly ? 'Uploaded by IRB only' : 'Not uploaded') + '</span>') + '</div>' +
+            (canUpload ? '<label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;"><i class="fas fa-upload"></i> Upload<input type="file" style="display:none;" onchange="uploadProjectFile(' + projId + ',\'' + ft.key + '\',this)"></label>' : (ft.irbOnly ? '<span style="font-size:0.7rem;color:var(--text-muted);"><i class="fas fa-lock"></i> IRB Only</span>' : '')) +
+            '</div>';
+    });
+
+    // Data collection monitoring
+    var filesObj = proj.files || {};
+    var redcapLinked = filesObj.redcapLinked;
+    var dataCollHtml = '<div class="form-section-title"><i class="fas fa-chart-line" style="margin-right:6px;"></i> Data Collection Monitoring</div>';
+    if (redcapLinked) {
+        var enrolled = filesObj.enrolledCount || 0;
+        var target = filesObj.targetEnrollment || 0;
+        var pct = target > 0 ? Math.round((enrolled / target) * 100) : 0;
+        dataCollHtml += '<div style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;">' +
+            '<div style="display:flex;justify-content:space-between;margin-bottom:10px;">' +
+            '<span style="font-size:0.85rem;font-weight:600;">Enrollment Progress</span>' +
+            '<span style="font-size:0.85rem;font-weight:700;color:var(--accent-primary);">' + enrolled + ' / ' + target + '</span></div>' +
+            '<div class="progress-bar" style="height:8px;"><div class="progress-fill" style="width:' + pct + '%;"></div></div>' +
+            '<p style="font-size:0.72rem;color:var(--text-muted);margin-top:8px;">' + pct + '% complete</p></div>';
+    } else {
+        dataCollHtml += '<div style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;text-align:center;">' +
+            '<p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:10px;">No REDCap data collection linked to this project.</p>' +
+            '<div class="form-row" style="max-width:400px;margin:0 auto;">' +
+            '<div class="form-group"><label>Target Enrollment</label><input type="number" id="projTargetN" value="' + (filesObj.targetEnrollment || '') + '" placeholder="e.g., 100" min="0"></div>' +
+            '<div class="form-group"><label>Enrolled So Far</label><input type="number" id="projEnrolledN" value="' + (filesObj.enrolledCount || '') + '" placeholder="e.g., 25" min="0"></div></div>' +
+            '<button class="btn btn-outline btn-sm" onclick="linkProjectREDCap(' + projId + ')"><i class="fas fa-link"></i> Link REDCap & Save Enrollment</button></div>';
+    }
+
+    // Linked publications
+    var pubsHtml = '<div class="form-section-title"><i class="fas fa-book-open" style="margin-right:6px;"></i> Linked Publications & Abstracts</div>';
+    var pubRows = proj._pubRows || [];
+    if (pubRows.length > 0) {
+        pubRows.forEach(function (pub) {
+            pubsHtml += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;margin-bottom:6px;">' +
+                '<i class="fas fa-file-alt" style="color:var(--accent-primary);"></i>' +
+                '<span style="flex:1;font-size:0.82rem;">' + _esc(pub.title) + '</span>' +
+                '<button class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="removeProjectPub(' + projId + ',' + pub.id + ')"><i class="fas fa-times"></i></button></div>';
+        });
+    } else {
+        pubsHtml += '<p style="color:var(--text-muted);font-size:0.82rem;padding:8px 0;">No publications linked yet.</p>';
+    }
+    pubsHtml += '<div style="display:flex;gap:8px;margin-top:8px;">' +
+        '<input type="text" id="newProjPub" placeholder="Publication title or abstract..." style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-family:inherit;font-size:0.82rem;">' +
+        '<button class="btn btn-primary btn-sm" onclick="addProjectPub(' + projId + ')"><i class="fas fa-plus"></i> Link</button></div>';
+
+    // Manuscript section
+    var msHtml = '<div class="form-section-title"><i class="fas fa-pen-fancy" style="margin-right:6px;"></i> Manuscript Preparation</div>';
+    msHtml += '<div style="background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px;padding:16px;margin-bottom:16px;">';
+    if (proj.manuscript && proj.manuscript.title) {
+        msHtml += '<p style="font-size:0.85rem;font-weight:600;margin-bottom:4px;">' + _esc(proj.manuscript.title) + '</p>';
+        msHtml += '<p style="font-size:0.72rem;color:var(--text-muted);">Last edited by ' + _esc(proj.manuscript.lastEditedBy || 'N/A') + '</p>';
+    } else {
+        msHtml += '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px;">No manuscript started yet.</p>';
+    }
+    msHtml += '<button class="btn btn-outline btn-sm" onclick="closeModal(); setTimeout(function(){openManuscript(' + projId + ')},200);"><i class="fas fa-pen-fancy"></i> Open Manuscript Editor</button></div>';
+
+    // Admin approval section
+    var approvalHtml = '';
+    if (currentUserRole === 'Admin' && !proj.adminApproved && proj.status === 'Pre-submission') {
+        approvalHtml = '<div class="form-section-title"><i class="fas fa-clipboard-check" style="margin-right:6px;"></i> Admin Review</div>' +
+            '<div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:16px;margin-bottom:16px;">' +
+            '<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">This project is awaiting admin review. Approve to forward to departments.</p>' +
+            '<div style="display:flex;gap:8px;">' +
+            '<button class="btn btn-primary btn-sm" onclick="approveProject(' + projId + ')"><i class="fas fa-check"></i> Approve Project</button>' +
+            '<button class="btn btn-outline btn-sm" onclick="sendProjectQuestion(' + projId + ')"><i class="fas fa-question-circle"></i> Send Question</button>' +
+            '</div></div>';
+    }
+
+    bodyEl.innerHTML = '<div style="max-height:65vh;overflow-y:auto;">' +
+        '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">' +
+        '<span class="project-pillar ' + (proj.pillar || '').toLowerCase() + '">' + _esc(proj.pillar || 'Unassigned') + '</span>' +
+        '<span class="project-status ' + (proj.status || 'active').toLowerCase() + '">' + _esc(proj.status || 'Active') + '</span>' +
+        (proj.phase ? '<span class="tag"><i class="fas fa-stream" style="margin-right:4px;"></i>' + _esc(proj.phase) + '</span>' : '') +
+        (proj.adminApproved ? '<span class="tag" style="background:rgba(16,185,129,0.15);color:#10b981;"><i class="fas fa-check-circle" style="margin-right:4px;"></i>Approved</span>' : '') +
+        '</div>' +
+        (proj.pi ? '<p style="color:var(--accent-primary);font-size:0.88rem;margin-bottom:6px;"><i class="fas fa-user-md" style="margin-right:6px;"></i>' + _esc(proj.pi) + '</p>' : '') +
+        (proj.abstract ? '<p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">' + _esc(proj.abstract) + '</p>' : '') +
+        '<div class="project-progress" style="margin-bottom:20px;"><div class="progress-bar"><div class="progress-fill" style="width:' + (proj.progress || 0) + '%;"></div></div><span>' + (proj.progress || 0) + '%</span></div>' +
+        approvalHtml +
+        dataCollHtml +
+        filesHtml +
+        msHtml +
+        pubsHtml +
+        '<div class="modal-actions" style="flex-wrap:wrap;">' +
+        (_canEditProject(proj) ? '<button type="button" class="btn btn-outline" onclick="closeModal(); editProject(' + projId + ');"><i class="fas fa-edit"></i> Edit</button>' : '') +
+        (_canAccessProject(proj) && proj.irbApproved ? '<button type="button" class="btn btn-outline" style="border-color:#10b981;color:#10b981;" onclick="closeModal(); setTimeout(function(){openManuscript(' + projId + ')},200);"><i class="fas fa-pen-fancy"></i> Manuscript</button>' : '') +
+        '<button type="button" class="btn btn-primary" onclick="closeModal()"><i class="fas fa-check"></i> Done</button>' +
+        '</div></div>';
 }
 
 /* ================================================
@@ -3894,14 +3989,15 @@ function toggleNotifications() {
     }
 }
 
-function _renderNotifications() {
+async function _renderNotifications() {
     var list = document.querySelector('.notif-list');
     if (!list) return;
 
-    // Filter notifications for current user
-    var myNotifs = notificationStore.filter(function(n) {
-        return n.recipients && n.recipients.indexOf(currentUserEmail) !== -1;
-    }).reverse(); // newest first
+    _showLoading(list);
+
+    // Fetch notifications for current user
+    var { data: myNotifs } = await _sb.from('notifications').select('*').contains('recipients', [currentUserEmail]).order('created_at', { ascending: false }).limit(50);
+    if (!myNotifs) myNotifs = [];
 
     if (myNotifs.length === 0) {
         list.innerHTML = '<div class="empty-state" style="padding:40px 20px;"><i class="fas fa-bell"></i><p>No notifications</p><span>You\'re all caught up!</span></div>';
@@ -3912,11 +4008,12 @@ function _renderNotifications() {
     myNotifs.forEach(function(n) {
         var icon = n.type === 'new' ? 'fa-plus-circle' : n.type === 'irb_decision' ? 'fa-gavel' : n.type === 'approved' ? 'fa-check-circle' : 'fa-info-circle';
         var color = n.type === 'approved' ? '#10b981' : n.type === 'irb_decision' ? '#f59e0b' : '#00d4ff';
+        var dateStr = n.created_at ? new Date(n.created_at).toLocaleString() : '';
         html += '<div class="notif-item' + (n.read ? '' : ' unread') + '" onclick="markNotifRead(' + n.id + ')" style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;' + (!n.read ? 'background:rgba(0,212,255,0.04);' : '') + '">' +
             '<div style="display:flex;align-items:start;gap:10px;">' +
             '<i class="fas ' + icon + '" style="color:' + color + ';margin-top:2px;"></i>' +
             '<div style="flex:1;"><p style="font-size:0.82rem;color:var(--text-primary);margin-bottom:4px;">' + _esc(n.message) + '</p>' +
-            '<span style="font-size:0.7rem;color:var(--text-muted);">' + new Date(n.date).toLocaleString() + ' · from ' + _esc(n.from) + '</span></div>' +
+            '<span style="font-size:0.7rem;color:var(--text-muted);">' + dateStr + ' · from ' + _esc(n.from_user || '') + '</span></div>' +
             (!n.read ? '<span style="width:8px;height:8px;background:#00d4ff;border-radius:50;flex-shrink:0;margin-top:6px;"></span>' : '') +
             '</div></div>';
     });
@@ -3924,15 +4021,10 @@ function _renderNotifications() {
     list.innerHTML = html;
 }
 
-function markNotifRead(notifId) {
-    for (var i = 0; i < notificationStore.length; i++) {
-        if (notificationStore[i].id === notifId) {
-            notificationStore[i].read = true;
-            break;
-        }
-    }
-    _updateNotificationBadge();
-    _renderNotifications();
+async function markNotifRead(notifId) {
+    await _sb.from('notifications').update({ read: true }).eq('id', notifId);
+    await _updateNotificationBadge();
+    await _renderNotifications();
 }
 
 function closeNotifications() {
@@ -4218,25 +4310,19 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ================================================
    PEOPLE DIRECTORY: Render all users dynamically
    ================================================ */
-function renderPeopleDirectory(filterRole) {
+async function renderPeopleDirectory(filterRole) {
     var grid = document.getElementById('peopleGrid');
     if (!grid) return;
 
-    // Gather ALL users from all account arrays
-    var allPeople = [];
-    ADMIN_ACCOUNTS.forEach(function(a) {
-        allPeople.push({ name: a.name, email: a.email, role: a.role, title: a.title, initials: a.initials, credential: '', status: 'Active' });
-    });
-    IRB_ACCOUNTS.forEach(function(a) {
-        allPeople.push({ name: a.name, email: a.email, role: a.role, title: a.title, initials: a.initials, credential: '', status: 'Active' });
-    });
-    USER_ACCOUNTS.forEach(function(u) {
-        var status = u.needsProfileSetup ? 'Pending Setup' : 'Active';
-        // Check if approved but not yet set up
-        if (u.needsProfileSetup && approvedLogins.indexOf(u.email) !== -1) {
-            status = 'Approved - Awaiting Setup';
-        }
-        allPeople.push({ name: u.name, email: u.email, role: u.role, title: u.title, initials: u.initials, credential: u.credential || '', status: status });
+    _showLoading(grid);
+
+    // Fetch ALL profiles from Supabase
+    var { data: profiles } = await _sb.from('profiles').select('name, email, role, title, initials, credential, needs_profile_setup, login_approved');
+    if (!profiles) profiles = [];
+
+    var allPeople = profiles.map(function(u) {
+        var status = u.needs_profile_setup ? (u.login_approved ? 'Approved - Awaiting Setup' : 'Pending Setup') : 'Active';
+        return { name: u.name, email: u.email, role: u.role, title: u.title, initials: u.initials, credential: u.credential || '', status: status };
     });
 
     // Sort alphabetically
@@ -4404,33 +4490,26 @@ function _toggleSendEmailTab(show) {
     if (tabContent && !show) tabContent.classList.remove('active');
 }
 
-function renderSendEmailTab() {
+async function renderSendEmailTab() {
     var container = document.getElementById('sendEmailUserList');
     if (!container) return;
 
-    // Gather all non-admin users
-    var allUsers = [];
-    USER_ACCOUNTS.forEach(function(u) {
-        allUsers.push({
+    _showLoading(container);
+
+    // Fetch all non-admin profiles from Supabase
+    var { data: profiles } = await _sb.from('profiles').select('name, email, role, credential, needs_profile_setup').neq('role', 'Admin');
+    if (!profiles) profiles = [];
+
+    var allUsers = profiles.map(function(u) {
+        return {
             name: u.name,
             email: u.email,
             role: u.role,
             credential: u.credential || '',
-            password: u.password,
-            needsProfileSetup: u.needsProfileSetup,
-            sent: u._emailSent || false
-        });
-    });
-    IRB_ACCOUNTS.forEach(function(u) {
-        allUsers.push({
-            name: u.name,
-            email: u.email,
-            role: u.role,
-            credential: '',
-            password: u.password,
-            needsProfileSetup: true,
-            sent: u._emailSent || false
-        });
+            password: '(set in auth)',
+            needsProfileSetup: u.needs_profile_setup,
+            sent: false
+        };
     });
 
     // Sort by role then name
@@ -4538,8 +4617,8 @@ function previewInviteEmail() {
     document.body.style.overflow = 'hidden';
 }
 
-function sendSingleInviteEmail(email) {
-    var user = _findAnyUserByEmail(email);
+async function sendSingleInviteEmail(email) {
+    var user = await _findAnyUserByEmail(email);
     if (!user) { showToast('User not found.', 'error'); return; }
 
     var loginUrl = window.location.href.split('?')[0];
@@ -4552,7 +4631,7 @@ function sendSingleInviteEmail(email) {
         '--- YOUR LOGIN CREDENTIALS ---\n' +
         'Login URL: ' + loginUrl + '\n' +
         'Email: ' + user.email + '\n' +
-        'Temporary Password: ' + user.password + '\n\n' +
+        'Temporary Password: (provided separately)\n\n' +
         '--- GETTING STARTED ---\n' +
         '1. Click the login URL above\n' +
         '2. Enter your email and temporary password\n' +
@@ -4572,109 +4651,63 @@ function sendSingleInviteEmail(email) {
     // Open mailto link
     window.open('mailto:' + user.email + '?subject=' + subject + '&body=' + body, '_blank');
 
-    // Mark as sent
-    user._emailSent = true;
     showToast('Email invitation opened for ' + user.name + '. Send from your email client.', 'success');
-
-    // Re-render the list
-    setTimeout(renderSendEmailTab, 300);
 }
 
 function sendAllInviteEmails() {
-    // Get checked users or all unsent
+    // Get checked users
     var checkboxes = document.querySelectorAll('.email-user-cb:checked');
     var emails = [];
-
-    if (checkboxes.length > 0) {
-        checkboxes.forEach(function(cb) { emails.push(cb.dataset.email); });
-    } else {
-        // Send to all unsent
-        USER_ACCOUNTS.concat(IRB_ACCOUNTS).forEach(function(u) {
-            if (!u._emailSent) emails.push(u.email);
-        });
-    }
+    checkboxes.forEach(function(cb) { emails.push(cb.dataset.email); });
 
     if (emails.length === 0) {
-        showToast('No pending invitations to send.', 'info');
+        showToast('Please select users to send invitations to.', 'info');
         return;
     }
 
-    // Since mailto has limits, open one batch email or iterate
-    if (emails.length <= 10) {
-        // Send as BCC batch
-        emails.forEach(function(email) {
-            var user = _findAnyUserByEmail(email);
-            if (user) user._emailSent = true;
-        });
+    var loginUrl = window.location.href.split('?')[0];
+    var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database — Your Account is Ready');
+    var body = encodeURIComponent(
+        'Dear Team Member,\n\n' +
+        'We are pleased to invite you to the Saint Luke\'s Neuroscience Research Database.\n\n' +
+        'Please log in at: ' + loginUrl + '\n\n' +
+        'Use your Saint Luke\'s email address and the password that was provided to you.\n\n' +
+        'Getting Started:\n' +
+        '1. Enter your email and password\n' +
+        '2. Your login request will be submitted for approval\n' +
+        '3. Once approved, you will be prompted to set a new password\n' +
+        '4. Upload your CITI training certificate\n\n' +
+        'Contact Dr. Kolakowsky-Hayner or Dr. Almekkawi with questions.\n\n' +
+        'Best regards,\nNeuroscience Research Department\nSaint Luke\'s Health System'
+    );
 
-        var loginUrl = window.location.href.split('?')[0];
-        var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database — Your Account is Ready');
-        var body = encodeURIComponent(
-            'Dear Team Member,\n\n' +
-            'We are pleased to invite you to the Saint Luke\'s Neuroscience Research Database.\n\n' +
-            'Please log in at: ' + loginUrl + '\n\n' +
-            'Use your Saint Luke\'s email address and the temporary password that was provided to you separately.\n\n' +
-            'Getting Started:\n' +
-            '1. Enter your email and temporary password\n' +
-            '2. Your login request will be submitted for approval\n' +
-            '3. Once approved, you will be prompted to set a new password\n' +
-            '4. Upload your CITI training certificate\n\n' +
-            'Contact Dr. Kolakowsky-Hayner or Dr. Almekkawi with questions.\n\n' +
-            'Best regards,\nNeuroscience Research Department\nSaint Luke\'s Health System'
-        );
-
-        window.open('mailto:?bcc=' + emails.join(',') + '&subject=' + subject + '&body=' + body, '_blank');
-        showToast('Batch email opened for ' + emails.length + ' users. Send from your email client.', 'success');
-    } else {
-        // Mark them all as sent and open sequential batches
-        var batchSize = 10;
-        for (var b = 0; b < emails.length; b += batchSize) {
-            var batch = emails.slice(b, b + batchSize);
-            batch.forEach(function(email) {
-                var user = _findAnyUserByEmail(email);
-                if (user) user._emailSent = true;
-            });
-        }
-
-        // Open first batch
-        var firstBatch = emails.slice(0, batchSize);
-        var loginUrl2 = window.location.href.split('?')[0];
-        var subject2 = encodeURIComponent('Saint Luke\'s Neuroscience Research Database — Your Account is Ready');
-        var body2 = encodeURIComponent(
-            'Dear Team Member,\n\n' +
-            'You have been invited to the Saint Luke\'s Neuroscience Research Database.\n' +
-            'Login URL: ' + loginUrl2 + '\n\n' +
-            'Use your email and the temporary password sent to you.\n\n' +
-            'Best regards,\nNeuroscience Research Department'
-        );
-        window.open('mailto:?bcc=' + firstBatch.join(',') + '&subject=' + subject2 + '&body=' + body2, '_blank');
-        showToast('Invitations queued for ' + emails.length + ' users. Check your email client — multiple batches may open.', 'success');
-    }
-
-    setTimeout(renderSendEmailTab, 500);
+    // Open batch email (up to 10 at a time)
+    var batchSize = 10;
+    var firstBatch = emails.slice(0, batchSize);
+    window.open('mailto:?bcc=' + firstBatch.join(',') + '&subject=' + subject + '&body=' + body, '_blank');
+    showToast('Batch email opened for ' + Math.min(emails.length, batchSize) + ' users. Send from your email client.', 'success');
 }
 
 /* ================================================
    LOGIN APPROVAL WORKFLOW
    ================================================ */
-function _sendLoginApprovalNotification(user) {
-    notificationStore.push({
-        id: Date.now(),
+async function _sendLoginApprovalNotification(user) {
+    await _sb.from('notifications').insert({
         type: 'login_request',
         message: user.name + ' (' + user.role + ') has requested login access. Please review and approve.',
-        from: user.name,
-        for: ['skolakowsky@saint-lukes.org', 'aalmekkawi@saint-lukes.org'],
-        date: new Date().toISOString(),
-        read: false,
-        data: { email: user.email }
+        from_user: user.name,
+        from_email: user.email || '',
+        recipients: ['skolakowsky@saint-lukes.org', 'aalmekkawi@saint-lukes.org'],
+        read: false
     });
 }
 
-function renderPendingLoginApprovals() {
+async function renderPendingLoginApprovals() {
     var section = document.getElementById('loginApprovalsSection');
     if (!section) return;
 
-    var pending = pendingLoginApprovals.filter(function(r) { return r.status === 'pending'; });
+    var { data: pending } = await _sb.from('pending_login_approvals').select('*').eq('status', 'pending').order('requested_at', { ascending: false });
+    if (!pending) pending = [];
 
     var countEl = document.getElementById('loginApprovalCount');
     if (countEl) countEl.textContent = pending.length;
@@ -4692,7 +4725,7 @@ function renderPendingLoginApprovals() {
             '<td style="font-weight:500;">' + _esc(r.name) + '</td>' +
             '<td style="font-size:0.82rem;color:var(--accent-primary);">' + _esc(r.email) + '</td>' +
             '<td><span style="font-size:0.72rem;background:' + _getRoleColor(r.role) + '22;color:' + _getRoleColor(r.role) + ';padding:2px 8px;border-radius:12px;">' + _esc(r.role) + '</span></td>' +
-            '<td style="font-size:0.78rem;color:var(--text-muted);">' + new Date(r.requestedAt).toLocaleString() + '</td>' +
+            '<td style="font-size:0.78rem;color:var(--text-muted);">' + new Date(r.requested_at).toLocaleString() + '</td>' +
             '<td style="display:flex;gap:6px;">' +
             '<button class="btn btn-sm btn-primary" onclick="approveLoginRequest(\'' + _esc(r.email) + '\')"><i class="fas fa-check"></i> Approve</button>' +
             '<button class="btn btn-sm btn-outline" style="border-color:#ef4444;color:#ef4444;" onclick="denyLoginRequest(\'' + _esc(r.email) + '\')"><i class="fas fa-times"></i> Deny</button>' +
@@ -4703,59 +4736,42 @@ function renderPendingLoginApprovals() {
     section.innerHTML = html;
 }
 
-function approveLoginRequest(email) {
-    // Find and update the pending request
-    for (var i = 0; i < pendingLoginApprovals.length; i++) {
-        if (pendingLoginApprovals[i].email === email) {
-            pendingLoginApprovals[i].status = 'approved';
-            break;
-        }
-    }
+async function approveLoginRequest(email) {
+    // Update the pending request
+    await _sb.from('pending_login_approvals').update({
+        status: 'approved',
+        approved_by: currentUserName,
+        approved_at: new Date().toISOString()
+    }).eq('email', email).eq('status', 'pending');
 
-    // Add to approved list
-    if (approvedLogins.indexOf(email) === -1) {
-        approvedLogins.push(email);
-    }
+    // Update the user's profile to mark as approved
+    await _sb.from('profiles').update({ login_approved: true }).eq('email', email);
 
-    var user = _findAnyUserByEmail(email);
-    var userName = user ? user.name : email;
-
-    // Send notification back to user (will show when they log in)
-    notificationStore.push({
-        id: Date.now(),
+    // Send notification back to user
+    await _sb.from('notifications').insert({
         type: 'login_approved',
         message: 'Your login access has been approved by ' + currentUserName + '. You can now log in to the research database.',
-        from: currentUserName,
-        for: [email],
-        date: new Date().toISOString(),
+        from_user: currentUserName,
+        recipients: [email],
         read: false
     });
 
-    showToast('Login access approved for ' + userName + '. They can now log in.', 'success');
-    renderPendingLoginApprovals();
-    renderPeopleDirectory();
-    _updateNotificationBadge();
+    showToast('Login access approved for ' + email + '. They can now log in.', 'success');
+    await renderPendingLoginApprovals();
+    await renderPeopleDirectory();
+    await _updateNotificationBadge();
 }
 
-function denyLoginRequest(email) {
-    for (var i = 0; i < pendingLoginApprovals.length; i++) {
-        if (pendingLoginApprovals[i].email === email) {
-            pendingLoginApprovals[i].status = 'denied';
-            break;
-        }
-    }
-
-    var user = _findAnyUserByEmail(email);
-    var userName = user ? user.name : email;
-
-    showToast('Login request denied for ' + userName + '.', 'info');
-    renderPendingLoginApprovals();
+async function denyLoginRequest(email) {
+    await _sb.from('pending_login_approvals').update({ status: 'denied' }).eq('email', email).eq('status', 'pending');
+    showToast('Login request denied for ' + email + '.', 'info');
+    await renderPendingLoginApprovals();
 }
 
 /* ================================================
    ADMIN: Generate Email Credentials List
    ================================================ */
-function generateCredentialEmails() {
+async function generateCredentialEmails() {
     if (currentUserRole !== 'Admin') {
         showToast('Admin access required.', 'error');
         return;
@@ -4764,16 +4780,21 @@ function generateCredentialEmails() {
     var overlay = document.getElementById('modalOverlay');
     var titleEl = document.getElementById('modalTitle');
     var bodyEl = document.getElementById('modalBody');
-    titleEl.textContent = 'User Credentials for Email Distribution';
+    titleEl.textContent = 'User Directory for Email Distribution';
+
+    _showLoading(bodyEl);
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    var { data: allUsers } = await _sb.from('profiles').select('name, email, role').neq('role', 'Admin').order('role').order('name');
+    if (!allUsers) allUsers = [];
 
     var html = '<div style="max-height:65vh;overflow-y:auto;">' +
         '<div class="alert-banner" style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">' +
         '<i class="fas fa-envelope" style="color:#00d4ff;"></i>' +
-        '<span style="font-size:0.82rem;color:var(--text-secondary);">Copy each user\'s credentials below and send individually from <strong>aalmekkawi@saint-lukes.org</strong>. Users must change their password on first login.</span></div>';
+        '<span style="font-size:0.82rem;color:var(--text-secondary);">User directory from database. Passwords are managed via Supabase Auth.</span></div>';
 
-    var allUsers = USER_ACCOUNTS.concat(IRB_ACCOUNTS);
     var categories = { 'Faculty': [], 'Resident': [], 'APP': [], 'NP': [], 'RN': [], 'Medical Student': [], 'IRB': [], 'Other': [] };
-
     allUsers.forEach(function(u) {
         var cat = categories[u.role] ? u.role : 'Other';
         categories[cat].push(u);
@@ -4783,11 +4804,11 @@ function generateCredentialEmails() {
         var users = categories[cat];
         if (users.length === 0) return;
         html += '<h4 class="form-section-title" style="margin-top:16px;"><i class="fas fa-users" style="margin-right:6px;"></i> ' + cat + ' (' + users.length + ')</h4>';
-        html += '<div class="table-container"><table class="data-table"><thead><tr><th>Name</th><th>Email</th><th>Temp Password</th></tr></thead><tbody>';
+        html += '<div class="table-container"><table class="data-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead><tbody>';
         users.forEach(function(u) {
             html += '<tr><td style="font-size:0.82rem;">' + _esc(u.name) + '</td>' +
                 '<td style="font-size:0.78rem;color:var(--accent-primary);">' + _esc(u.email) + '</td>' +
-                '<td style="font-size:0.78rem;font-family:monospace;color:#f59e0b;">' + _esc(u.password) + '</td></tr>';
+                '<td style="font-size:0.78rem;">' + _esc(u.role) + '</td></tr>';
         });
         html += '</tbody></table></div>';
     });
@@ -4798,27 +4819,26 @@ function generateCredentialEmails() {
         '</div></div>';
 
     bodyEl.innerHTML = html;
-    overlay.classList.add('active');
-    document.body.style.overflow = 'hidden';
 }
 
-function exportCredentialsCSV() {
-    var allUsers = USER_ACCOUNTS.concat(IRB_ACCOUNTS);
-    var csv = 'Name,Email,Role,Temporary Password\n';
+async function exportCredentialsCSV() {
+    var { data: allUsers } = await _sb.from('profiles').select('name, email, role').neq('role', 'Admin').order('name');
+    if (!allUsers) allUsers = [];
+    var csv = 'Name,Email,Role\n';
     allUsers.forEach(function(u) {
-        csv += '"' + u.name + '","' + u.email + '","' + u.role + '","' + u.password + '"\n';
+        csv += '"' + u.name + '","' + u.email + '","' + u.role + '"\n';
     });
 
     var blob = new Blob([csv], { type: 'text/csv' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'user_credentials_' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.download = 'user_directory_' + new Date().toISOString().slice(0, 10) + '.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('Credentials CSV exported!', 'success');
+    showToast('Directory CSV exported!', 'success');
 }
 
 // Auto-refresh timestamps placeholder
