@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Functional Neurosurgery Registry - Saint Luke's Neuroscience</title>
+    <link rel="stylesheet" href="btr.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+    <style>
+        /* FNR-specific badge styles */
+        .engel-ia { background: #10b981; color: #fff; }
+        .engel-ib, .engel-ic, .engel-id { background: #6ee7b7; color: #064e3b; }
+        .engel-ii { background: #f59e0b; color: #fff; }
+        .engel-iii { background: #f97316; color: #fff; }
+        .engel-iv { background: #ef4444; color: #fff; }
+
+        .updrs-good { color: #10b981; font-weight: 700; }
+        .updrs-moderate { color: #f59e0b; font-weight: 700; }
+        .updrs-poor { color: #ef4444; font-weight: 700; }
+
+        .vas-0 { background: #10b981; color:#fff; }
+        .vas-low { background: #6ee7b7; color:#064e3b; }
+        .vas-mid { background: #f59e0b; color:#fff; }
+        .vas-high { background: #f97316; color:#fff; }
+        .vas-max { background: #ef4444; color:#fff; }
+
+        .device-active { background: #10b981; color: #fff; }
+        .device-low-battery { background: #f97316; color: #fff; }
+        .device-replaced { background: #3b82f6; color: #fff; }
+        .device-explanted { background: #ef4444; color: #fff; }
+
+        .cat-epilepsy { border-left: 3px solid #7c3aed; }
+        .cat-dbs { border-left: 3px solid #06b6d4; }
+        .cat-pain { border-left: 3px solid #f97316; }
+        .cat-spasticity { border-left: 3px solid #10b981; }
+
+        .cat-tab { padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; }
+        .cat-tab.epilepsy { background: rgba(124,58,237,0.15); color: #a78bfa; }
+        .cat-tab.epilepsy.active { background: #7c3aed; color: #fff; }
+        .cat-tab.dbs { background: rgba(6,182,212,0.15); color: #67e8f9; }
+        .cat-tab.dbs.active { background: #06b6d4; color: #fff; }
+        .cat-tab.pain { background: rgba(249,115,22,0.15); color: #fdba74; }
+        .cat-tab.pain.active { background: #f97316; color: #fff; }
+        .cat-tab.spasticity { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+        .cat-tab.spasticity.active { background: #10b981; color: #fff; }
+
+        .wizard-dynamic-section { display: none; }
+        .wizard-dynamic-section.active { display: block; }
+
+        .programming-timeline { display: flex; flex-direction: column; gap: 12px; }
+        .programming-entry { background: var(--glass-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; }
+        .programming-entry .prog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .programming-entry .prog-params { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+        .programming-entry .prog-param { font-size: 0.8rem; }
+        .programming-entry .prog-param .param-label { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; }
+        .programming-entry .prog-param .param-value { color: var(--text-primary); font-weight: 600; }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav id="btrSidebar" class="btr-sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-back" title="Back to Research Hub"><i class="fas fa-arrow-left"></i></a>
+            <div class="sidebar-brand">
+                <i class="fas fa-bolt"></i>
+                <span>FNR</span>
+            </div>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="#" class="sidebar-link active" data-page="fnr-dashboard" title="Dashboard"><i class="fas fa-chart-line"></i><span>Dashboard</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="fnr-epilepsy" title="Epilepsy"><i class="fas fa-wave-square"></i><span>Epilepsy</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="fnr-dbs" title="DBS"><i class="fas fa-microchip"></i><span>DBS</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="fnr-pain" title="Pain"><i class="fas fa-fire"></i><span>Pain</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="fnr-add" title="Add Patient"><i class="fas fa-user-plus"></i><span>Add Patient</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="fnr-detail" title="Patient Detail"><i class="fas fa-user"></i><span>Patient</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="fnr-query" title="Query Builder"><i class="fas fa-search"></i><span>Query</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="fnr-devices" title="Devices"><i class="fas fa-cog"></i><span>Devices</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="fnr-outcomes" title="Outcomes"><i class="fas fa-chart-bar"></i><span>Outcomes</span></a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main id="btrMain" class="btr-main">
+        <!-- Top Header -->
+        <header class="btr-header">
+            <div class="btr-header-left">
+                <button id="sidebarToggle" class="sidebar-toggle"><i class="fas fa-bars"></i></button>
+                <h1 id="btrPageTitle">Dashboard</h1>
+            </div>
+            <div class="btr-header-right">
+                <span id="btrUserName" class="header-user"></span>
+                <button class="btn btn-sm btn-outline" onclick="fnrLogout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <!-- ==================== PAGE: DASHBOARD ==================== -->
+        <section id="fnr-dashboard" class="btr-page active">
+            <div class="stat-cards" id="fnrDashStatCards"></div>
+            <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap" id="fnrCategoryTabs">
+                <button class="cat-tab epilepsy active" onclick="switchDashCategory('Epilepsy')"><i class="fas fa-wave-square"></i> Epilepsy</button>
+                <button class="cat-tab dbs" onclick="switchDashCategory('DBS')"><i class="fas fa-microchip"></i> DBS</button>
+                <button class="cat-tab pain" onclick="switchDashCategory('Pain')"><i class="fas fa-fire"></i> Pain</button>
+                <button class="cat-tab spasticity" onclick="switchDashCategory('Spasticity')"><i class="fas fa-walking"></i> Spasticity</button>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-pie"></i> Category Distribution</h3>
+                    <div id="fnrCategoryPie" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-trophy"></i> Engel Outcome Distribution</h3>
+                    <div id="fnrEngelPie" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> Seizure Freedom Rate</h3>
+                    <div id="fnrSeizureFreedom" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-line"></i> DBS Improvement</h3>
+                    <div id="fnrDBSImprovement" class="chart-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: EPILEPSY ==================== -->
+        <section id="fnr-epilepsy" class="btr-page">
+            <div class="stat-cards" id="epilepsyStatCards"></div>
+            <div class="chart-grid" style="margin-bottom:18px">
+                <div class="chart-card">
+                    <h3><i class="fas fa-trophy"></i> Engel Class Distribution</h3>
+                    <div id="epilepsyEngelChart" class="chart-container"></div>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="btr-table" id="epilepsyTable">
+                    <thead>
+                        <tr>
+                            <th>Study ID</th>
+                            <th>Age</th>
+                            <th>Sex</th>
+                            <th>Epilepsy Type</th>
+                            <th>Seizure Focus</th>
+                            <th>Surgery</th>
+                            <th>Engel Class</th>
+                            <th>Seizure Free</th>
+                        </tr>
+                    </thead>
+                    <tbody id="epilepsyTbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: DBS ==================== -->
+        <section id="fnr-dbs" class="btr-page">
+            <div class="stat-cards" id="dbsStatCards"></div>
+            <div class="chart-grid" style="margin-bottom:18px">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> UPDRS Improvement by Target</h3>
+                    <div id="dbsUPDRSChart" class="chart-container"></div>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="btr-table" id="dbsTable">
+                    <thead>
+                        <tr>
+                            <th>Study ID</th>
+                            <th>Age</th>
+                            <th>Sex</th>
+                            <th>DBS Indication</th>
+                            <th>Target</th>
+                            <th>Device</th>
+                            <th>UPDRS Pre</th>
+                            <th>UPDRS Post</th>
+                            <th>Improvement</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dbsTbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: PAIN ==================== -->
+        <section id="fnr-pain" class="btr-page">
+            <div class="stat-cards" id="painStatCards"></div>
+            <div class="chart-grid" style="margin-bottom:18px">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-line"></i> VAS Score Tracking</h3>
+                    <div id="painVASChart" class="chart-container"></div>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="btr-table" id="painTable">
+                    <thead>
+                        <tr>
+                            <th>Study ID</th>
+                            <th>Age</th>
+                            <th>Sex</th>
+                            <th>Pain Diagnosis</th>
+                            <th>Pain Location</th>
+                            <th>Procedure</th>
+                            <th>VAS Pre</th>
+                            <th>VAS Post</th>
+                            <th>Reduction</th>
+                        </tr>
+                    </thead>
+                    <tbody id="painTbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: ADD PATIENT ==================== -->
+        <section id="fnr-add" class="btr-page">
+            <div class="wizard-container glass-card">
+                <div class="wizard-steps">
+                    <div class="wizard-step active" data-step="1"><span class="step-num">1</span><span class="step-label">Category</span></div>
+                    <div class="wizard-step" data-step="2"><span class="step-num">2</span><span class="step-label">History</span></div>
+                    <div class="wizard-step" data-step="3"><span class="step-num">3</span><span class="step-label">Evaluation</span></div>
+                    <div class="wizard-step" data-step="4"><span class="step-num">4</span><span class="step-label">Surgery</span></div>
+                    <div class="wizard-step" data-step="5"><span class="step-num">5</span><span class="step-label">Device</span></div>
+                </div>
+
+                <!-- Step 1: Category + Demographics -->
+                <div class="wizard-panel active" data-step="1">
+                    <h3>Category &amp; Demographics</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Study ID</label>
+                            <div class="input-with-btn">
+                                <input type="text" id="fnrAddStudyId" placeholder="FNR-0001" required>
+                                <button class="btn btn-sm btn-outline" onclick="fnrAutoGenerateStudyId()"><i class="fas fa-magic"></i> Auto</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="fnrAddCategory" onchange="fnrCategoryChanged()">
+                                <option value="">Select Category</option>
+                                <option value="Epilepsy">Epilepsy</option>
+                                <option value="DBS">DBS</option>
+                                <option value="Pain">Pain</option>
+                                <option value="Spasticity">Spasticity</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Age at Surgery</label>
+                            <input type="number" id="fnrAddAge" placeholder="Age" min="0" max="120">
+                        </div>
+                        <div class="form-group">
+                            <label>Sex</label>
+                            <select id="fnrAddSex"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Race</label>
+                            <select id="fnrAddRace"><option value="">Select</option><option value="White">White</option><option value="Black">Black or African American</option><option value="Asian">Asian</option><option value="AIAN">American Indian/Alaska Native</option><option value="NHPI">Native Hawaiian/Pacific Islander</option><option value="Other">Other</option><option value="Unknown">Unknown</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ethnicity</label>
+                            <select id="fnrAddEthnicity"><option value="">Select</option><option value="Hispanic">Hispanic or Latino</option><option value="Non-Hispanic">Not Hispanic or Latino</option><option value="Unknown">Unknown</option></select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Referring Physician</label>
+                        <input type="text" id="fnrAddReferring" placeholder="Referring physician name">
+                    </div>
+                </div>
+
+                <!-- Step 2: Disease-Specific History -->
+                <div class="wizard-panel" data-step="2">
+                    <h3>Disease-Specific History</h3>
+
+                    <!-- Epilepsy History -->
+                    <div class="wizard-dynamic-section" id="fnrHistEpilepsy">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Epilepsy Type</label>
+                                <select id="fnrAddEpilepsyType"><option value="">Select</option><option value="Focal">Focal</option><option value="Generalized">Generalized</option><option value="Combined">Combined Focal & Generalized</option><option value="Unknown">Unknown</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Seizure Onset Age</label>
+                                <input type="number" id="fnrAddSeizureOnsetAge" placeholder="Age of onset" min="0" max="120">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Seizure Frequency (per month)</label>
+                                <input type="number" id="fnrAddSeizureFreq" placeholder="Avg monthly seizures" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Number of Failed AEDs</label>
+                                <input type="number" id="fnrAddFailedAEDs" placeholder="Count" min="0">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Seizure Semiology</label>
+                            <textarea id="fnrAddSemiology" rows="2" placeholder="Describe seizure semiology..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Etiology</label>
+                            <select id="fnrAddEtiology"><option value="">Select</option><option value="MTS">Mesial Temporal Sclerosis</option><option value="FCD">Focal Cortical Dysplasia</option><option value="Tumor-related">Tumor-related</option><option value="Vascular">Vascular</option><option value="Post-traumatic">Post-traumatic</option><option value="Post-infectious">Post-infectious</option><option value="Genetic">Genetic</option><option value="Unknown">Unknown/Cryptogenic</option></select>
+                        </div>
+                    </div>
+
+                    <!-- DBS History -->
+                    <div class="wizard-dynamic-section" id="fnrHistDBS">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>DBS Indication</label>
+                                <select id="fnrAddDBSIndication"><option value="">Select</option><option value="Parkinson's Disease">Parkinson's Disease</option><option value="Essential Tremor">Essential Tremor</option><option value="Dystonia">Dystonia</option><option value="OCD">OCD</option><option value="Epilepsy">Epilepsy (ANT-DBS)</option><option value="Tourette">Tourette Syndrome</option><option value="Other">Other</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Disease Duration (years)</label>
+                                <input type="number" id="fnrAddDiseaseDuration" placeholder="Years" min="0">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>UPDRS III Pre-op (off med)</label>
+                                <input type="number" id="fnrAddUPDRSPre" placeholder="0-132" min="0" max="132">
+                            </div>
+                            <div class="form-group">
+                                <label>Hoehn & Yahr Stage</label>
+                                <select id="fnrAddHY"><option value="">Select</option><option value="1">1</option><option value="1.5">1.5</option><option value="2">2</option><option value="2.5">2.5</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>L-Dopa Response (%)</label>
+                            <input type="number" id="fnrAddLDopaResponse" placeholder="% improvement" min="0" max="100">
+                        </div>
+                    </div>
+
+                    <!-- Pain History -->
+                    <div class="wizard-dynamic-section" id="fnrHistPain">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Pain Diagnosis</label>
+                                <select id="fnrAddPainDiagnosis"><option value="">Select</option><option value="Trigeminal Neuralgia">Trigeminal Neuralgia</option><option value="Failed Back Surgery Syndrome">Failed Back Surgery Syndrome</option><option value="CRPS">CRPS</option><option value="Neuropathic Pain">Neuropathic Pain</option><option value="Central Pain">Central Pain Syndrome</option><option value="Cancer Pain">Cancer Pain</option><option value="Other">Other</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Pain Duration (years)</label>
+                                <input type="number" id="fnrAddPainDuration" placeholder="Years" min="0">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Pain Location</label>
+                                <input type="text" id="fnrAddPainLocation" placeholder="e.g. Left V2/V3">
+                            </div>
+                            <div class="form-group">
+                                <label>VAS Pre-op (0-10)</label>
+                                <input type="number" id="fnrAddVASPre" placeholder="0-10" min="0" max="10">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Spasticity History -->
+                    <div class="wizard-dynamic-section" id="fnrHistSpasticity">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Spasticity Etiology</label>
+                                <select id="fnrAddSpasticityEtiology"><option value="">Select</option><option value="Cerebral Palsy">Cerebral Palsy</option><option value="Stroke">Stroke</option><option value="TBI">Traumatic Brain Injury</option><option value="Spinal Cord Injury">Spinal Cord Injury</option><option value="MS">Multiple Sclerosis</option><option value="Other">Other</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Ashworth Pre-op (0-4)</label>
+                                <input type="number" id="fnrAddAshworthPre" placeholder="0-4" min="0" max="4" step="0.5">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Distribution</label>
+                            <select id="fnrAddSpasticityDist"><option value="">Select</option><option value="Hemiplegic">Hemiplegic</option><option value="Diplegic">Diplegic</option><option value="Quadriplegic">Quadriplegic</option><option value="Focal">Focal</option></select>
+                        </div>
+                    </div>
+
+                    <!-- No category selected message -->
+                    <div class="wizard-dynamic-section active" id="fnrHistNone">
+                        <p style="color:var(--text-muted);text-align:center;padding:30px"><i class="fas fa-info-circle"></i> Select a category in Step 1 to see disease-specific fields.</p>
+                    </div>
+                </div>
+
+                <!-- Step 3: Pre-op Evaluation -->
+                <div class="wizard-panel" data-step="3">
+                    <h3>Pre-operative Evaluation</h3>
+
+                    <!-- Epilepsy Eval -->
+                    <div class="wizard-dynamic-section" id="fnrEvalEpilepsy">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Scalp EEG</label>
+                                <select id="fnrAddScalpEEG"><option value="">Select</option><option value="Localizing">Localizing</option><option value="Lateralizing">Lateralizing</option><option value="Non-localizing">Non-localizing</option><option value="Not done">Not Done</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>EEG Localization</label>
+                                <input type="text" id="fnrAddEEGLocalization" placeholder="e.g. Right temporal">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>MRI Findings</label>
+                                <select id="fnrAddMRIFindings"><option value="">Select</option><option value="MTS">MTS</option><option value="FCD">FCD</option><option value="Lesional">Other Lesional</option><option value="Non-lesional">Non-lesional</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>PET Findings</label>
+                                <select id="fnrAddPET"><option value="">Select</option><option value="Concordant">Concordant hypometabolism</option><option value="Discordant">Discordant</option><option value="Normal">Normal</option><option value="Not done">Not Done</option></select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Wada Test</label>
+                                <select id="fnrAddWada"><option value="">Select</option><option value="Left dominant">Left language dominant</option><option value="Right dominant">Right language dominant</option><option value="Bilateral">Bilateral</option><option value="Not done">Not Done</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Neuropsych</label>
+                                <select id="fnrAddNeuropsych"><option value="">Select</option><option value="Normal">Normal</option><option value="Impaired">Impaired</option><option value="Not done">Not Done</option></select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Intracranial Monitoring</label>
+                            <select id="fnrAddIntracranial"><option value="">Select</option><option value="sEEG">sEEG</option><option value="Subdural grids">Subdural Grids</option><option value="Depth electrodes">Depth Electrodes</option><option value="Not done">Not Done</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Seizure Onset Zone</label>
+                            <input type="text" id="fnrAddSOZ" placeholder="e.g. Right mesial temporal">
+                        </div>
+                    </div>
+
+                    <!-- DBS / Pain / Spasticity Eval -->
+                    <div class="wizard-dynamic-section" id="fnrEvalDBS">
+                        <div class="form-group">
+                            <label>Pre-op Neuropsych</label>
+                            <select id="fnrAddDBSNeuropsych"><option value="">Select</option><option value="Normal">Normal</option><option value="Mild impairment">Mild Cognitive Impairment</option><option value="Moderate impairment">Moderate Impairment</option><option value="Not done">Not Done</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Pre-op MRI</label>
+                            <select id="fnrAddDBSMRI"><option value="">Select</option><option value="Normal">Normal</option><option value="Atrophy">Atrophy</option><option value="Abnormal">Other Abnormality</option></select>
+                        </div>
+                    </div>
+
+                    <div class="wizard-dynamic-section" id="fnrEvalPain">
+                        <div class="form-group">
+                            <label>Pain Psychological Evaluation</label>
+                            <select id="fnrAddPainPsych"><option value="">Select</option><option value="Cleared">Cleared</option><option value="Concerns noted">Concerns Noted</option><option value="Not done">Not Done</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Prior Pain Interventions</label>
+                            <textarea id="fnrAddPriorInterventions" rows="2" placeholder="List prior treatments..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="wizard-dynamic-section" id="fnrEvalSpasticity">
+                        <div class="form-group">
+                            <label>Baclofen Trial Response</label>
+                            <select id="fnrAddBaclofenTrial"><option value="">Select</option><option value="Positive">Positive Response</option><option value="Partial">Partial Response</option><option value="Negative">Negative</option><option value="Not done">Not Done</option></select>
+                        </div>
+                    </div>
+
+                    <div class="wizard-dynamic-section active" id="fnrEvalNone">
+                        <p style="color:var(--text-muted);text-align:center;padding:30px"><i class="fas fa-info-circle"></i> Select a category in Step 1 to see evaluation fields.</p>
+                    </div>
+                </div>
+
+                <!-- Step 4: Surgery / Procedure Details -->
+                <div class="wizard-panel" data-step="4">
+                    <h3>Surgery / Procedure Details</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Surgery Date</label>
+                            <input type="date" id="fnrAddSurgDate">
+                        </div>
+                        <div class="form-group">
+                            <label>Surgeon</label>
+                            <input type="text" id="fnrAddSurgeon" placeholder="Surgeon name">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Procedure Type</label>
+                            <select id="fnrAddProcedure">
+                                <option value="">Select</option>
+                                <optgroup label="Epilepsy">
+                                    <option value="ATL">Anterior Temporal Lobectomy</option>
+                                    <option value="SAH">Selective Amygdalohippocampectomy</option>
+                                    <option value="Lesionectomy">Lesionectomy</option>
+                                    <option value="Hemispherectomy">Hemispherectomy</option>
+                                    <option value="Corpus Callosotomy">Corpus Callosotomy</option>
+                                    <option value="LITT">Laser Ablation (LITT)</option>
+                                    <option value="VNS Implant">VNS Implant</option>
+                                    <option value="RNS Implant">RNS Implant</option>
+                                </optgroup>
+                                <optgroup label="DBS">
+                                    <option value="DBS-STN">DBS - STN</option>
+                                    <option value="DBS-GPi">DBS - GPi</option>
+                                    <option value="DBS-VIM">DBS - VIM</option>
+                                    <option value="DBS-ANT">DBS - ANT</option>
+                                    <option value="DBS-Other">DBS - Other Target</option>
+                                </optgroup>
+                                <optgroup label="Pain">
+                                    <option value="SCS Implant">SCS Implant</option>
+                                    <option value="SCS Trial">SCS Trial</option>
+                                    <option value="DRG Stimulation">DRG Stimulation</option>
+                                    <option value="MVD">Microvascular Decompression</option>
+                                    <option value="Rhizotomy">Percutaneous Rhizotomy</option>
+                                    <option value="Gamma Knife TN">Gamma Knife (TN)</option>
+                                    <option value="Motor Cortex Stim">Motor Cortex Stimulation</option>
+                                    <option value="ITB Pump">Intrathecal Baclofen Pump</option>
+                                </optgroup>
+                                <optgroup label="Spasticity">
+                                    <option value="ITB Pump Implant">ITB Pump Implant</option>
+                                    <option value="SDR">Selective Dorsal Rhizotomy</option>
+                                    <option value="ITB Pump Revision">ITB Pump Revision</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Laterality</label>
+                            <select id="fnrAddLaterality"><option value="">Select</option><option value="Left">Left</option><option value="Right">Right</option><option value="Bilateral">Bilateral</option><option value="Midline">Midline</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Target / Site</label>
+                            <input type="text" id="fnrAddTarget" placeholder="e.g. STN bilateral, L mesial temporal">
+                        </div>
+                        <div class="form-group">
+                            <label>Approach</label>
+                            <input type="text" id="fnrAddApproach" placeholder="e.g. Frameless stereotactic">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Complications</label>
+                        <input type="text" id="fnrAddComplications" placeholder="e.g. None">
+                    </div>
+                    <div class="form-group">
+                        <label>Operative Notes</label>
+                        <textarea id="fnrAddOpNotes" rows="2" placeholder="Brief operative notes..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Step 5: Device Details -->
+                <div class="wizard-panel" data-step="5">
+                    <h3>Device Details (if applicable)</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Device Manufacturer</label>
+                            <select id="fnrAddDeviceMfg"><option value="">Select</option><option value="Medtronic">Medtronic</option><option value="Boston Scientific">Boston Scientific</option><option value="Abbott">Abbott (St. Jude)</option><option value="NeuroPace">NeuroPace</option><option value="LivaNova">LivaNova</option><option value="Nevro">Nevro</option><option value="Other">Other</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Device Model</label>
+                            <input type="text" id="fnrAddDeviceModel" placeholder="e.g. Percept PC">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Serial Number</label>
+                            <input type="text" id="fnrAddDeviceSerial" placeholder="Device serial #">
+                        </div>
+                        <div class="form-group">
+                            <label>Implant Date</label>
+                            <input type="date" id="fnrAddDeviceImplantDate">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Lead Model</label>
+                            <input type="text" id="fnrAddLeadModel" placeholder="e.g. 3389">
+                        </div>
+                        <div class="form-group">
+                            <label>IPG Location</label>
+                            <input type="text" id="fnrAddIPGLocation" placeholder="e.g. Left subclavicular">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Battery Status</label>
+                            <select id="fnrAddBatteryStatus"><option value="">Select</option><option value="Full">Full</option><option value="Adequate">Adequate</option><option value="Low">Low</option><option value="ERI">ERI</option><option value="Rechargeable">Rechargeable</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Device Status</label>
+                            <select id="fnrAddDeviceStatus"><option value="">Select</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Replaced">Replaced</option><option value="Explanted">Explanted</option></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wizard-footer">
+                    <button class="btn btn-outline" id="fnrWizPrev" onclick="fnrWizardPrev()" disabled><i class="fas fa-arrow-left"></i> Previous</button>
+                    <button class="btn btn-accent" id="fnrWizNext" onclick="fnrWizardNext()">Next <i class="fas fa-arrow-right"></i></button>
+                    <button class="btn btn-primary" id="fnrWizSubmit" onclick="fnrSubmitNewPatient()" style="display:none"><i class="fas fa-save"></i> Save Patient</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: PATIENT DETAIL ==================== -->
+        <section id="fnr-detail" class="btr-page">
+            <div id="fnrDetailContent">
+                <div class="detail-placeholder">
+                    <i class="fas fa-user-circle"></i>
+                    <p>Select a patient from a list or query to view details.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: QUERY BUILDER ==================== -->
+        <section id="fnr-query" class="btr-page">
+            <div class="query-layout">
+                <div class="filter-panel glass-card">
+                    <h3><i class="fas fa-filter"></i> Filters</h3>
+                    <div class="filter-group">
+                        <label>Category</label>
+                        <select id="fnrQCategory"><option value="">All</option><option value="Epilepsy">Epilepsy</option><option value="DBS">DBS</option><option value="Pain">Pain</option><option value="Spasticity">Spasticity</option><option value="Other">Other</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Age Range</label>
+                        <div class="range-row">
+                            <input type="number" id="fnrQAgeMin" placeholder="Min" min="0" max="120">
+                            <span>-</span>
+                            <input type="number" id="fnrQAgeMax" placeholder="Max" min="0" max="120">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>Sex</label>
+                        <select id="fnrQSex"><option value="">All</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Surgeon</label>
+                        <input type="text" id="fnrQSurgeon" placeholder="Surgeon name">
+                    </div>
+                    <div class="filter-group">
+                        <label>Engel Class</label>
+                        <select id="fnrQEngel"><option value="">All</option><option value="IA">IA - Seizure Free</option><option value="IB">IB</option><option value="IC">IC</option><option value="ID">ID</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Seizure Free</label>
+                        <select id="fnrQSeizureFree"><option value="">All</option><option value="true">Yes</option><option value="false">No</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>DBS Target</label>
+                        <select id="fnrQDBSTarget"><option value="">All</option><option value="STN">STN</option><option value="GPi">GPi</option><option value="VIM">VIM</option><option value="ANT">ANT</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Procedure</label>
+                        <input type="text" id="fnrQProcedure" placeholder="e.g. ATL, DBS-STN">
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-accent" onclick="fnrRunQuery()"><i class="fas fa-search"></i> Search</button>
+                        <button class="btn btn-outline" onclick="fnrClearQueryFilters()"><i class="fas fa-times"></i> Clear</button>
+                    </div>
+                </div>
+                <div class="query-results">
+                    <div class="query-results-header">
+                        <span id="fnrQueryCount">0 patients found</span>
+                        <button class="btn btn-sm btn-outline" onclick="fnrExportQueryCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="btr-table" id="fnrQueryTable">
+                            <thead>
+                                <tr>
+                                    <th data-sort="study_id">Study ID <i class="fas fa-sort"></i></th>
+                                    <th data-sort="age_at_surgery">Age <i class="fas fa-sort"></i></th>
+                                    <th data-sort="sex">Sex <i class="fas fa-sort"></i></th>
+                                    <th data-sort="category">Category <i class="fas fa-sort"></i></th>
+                                    <th data-sort="procedure_type">Procedure <i class="fas fa-sort"></i></th>
+                                    <th data-sort="surgeon">Surgeon <i class="fas fa-sort"></i></th>
+                                    <th data-sort="engel_class">Engel <i class="fas fa-sort"></i></th>
+                                    <th>Outcome</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fnrQueryTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: DEVICES ==================== -->
+        <section id="fnr-devices" class="btr-page">
+            <div class="page-toolbar">
+                <h2>Device Inventory &amp; Programming</h2>
+                <button class="btn btn-accent" onclick="fnrShowAddProgrammingModal()"><i class="fas fa-plus"></i> Add Programming Session</button>
+            </div>
+            <div class="stat-cards" id="fnrDeviceStatCards"></div>
+            <div class="chart-grid" style="margin-bottom:18px">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-pie"></i> Device Manufacturers</h3>
+                    <div id="fnrDeviceMfgPie" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-battery-half"></i> Battery Status</h3>
+                    <div id="fnrBatteryChart" class="chart-container"></div>
+                </div>
+            </div>
+            <h3 style="color:var(--text-secondary);margin-bottom:12px"><i class="fas fa-history"></i> Recent Programming Sessions</h3>
+            <div class="table-wrap">
+                <table class="btr-table" id="fnrProgrammingTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Patient</th>
+                            <th>Device Type</th>
+                            <th>Amplitude</th>
+                            <th>Pulse Width</th>
+                            <th>Frequency</th>
+                            <th>Contacts</th>
+                            <th>Impedance</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fnrProgrammingTbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: OUTCOMES ==================== -->
+        <section id="fnr-outcomes" class="btr-page">
+            <div class="stat-cards" id="fnrOutcomeStatCards"></div>
+            <div class="chart-grid">
+                <div class="chart-card chart-wide">
+                    <h3><i class="fas fa-trophy"></i> Engel Class Trends Over Time</h3>
+                    <div id="fnrEngelTrends" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> UPDRS Improvement Distribution</h3>
+                    <div id="fnrUPDRSDist" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-line"></i> VAS Score Reduction</h3>
+                    <div id="fnrVASReduction" class="chart-container"></div>
+                </div>
+                <div class="chart-card chart-wide">
+                    <h3><i class="fas fa-balance-scale"></i> Outcome Comparison by Category</h3>
+                    <div id="fnrOutcomeComparison" class="chart-container"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ==================== MODALS ==================== -->
+    <div id="btrModalOverlay" class="modal-overlay" onclick="closeFnrModal()">
+        <div class="modal-content glass-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="btrModalTitle">Modal</h3>
+                <button class="modal-close" onclick="closeFnrModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="btrModalBody" class="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="btrToastContainer"></div>
+
+    <script src="fnr.js"></script>
+</body>
+</html>
