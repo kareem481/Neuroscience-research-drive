@@ -45,42 +45,51 @@ window.addEventListener('load', function () {
 /* ================================================
    1b. SESSION RESTORATION via onAuthStateChange
    ================================================ */
+var _loginInProgress = false; // Flag to prevent race condition with onAuthStateChange
+
 _sb.auth.onAuthStateChange(async function (event, session) {
+    // Only handle session restoration on page reload, NOT during active login
+    if (_loginInProgress) return;
+
     if (event === 'SIGNED_IN' && session && session.user && !currentUserId) {
         // Restore session on page reload
-        var user = session.user;
-        var { data: profile } = await _sb.from('profiles').select('*').eq('id', user.id).single();
-        if (profile && profile.login_approved) {
-            currentUserId = user.id;
-            currentUserProfile = profile;
-            currentUserEmail = profile.email;
-            currentUserRole = profile.role;
-            currentUserName = profile.name;
+        try {
+            var user = session.user;
+            var { data: profile } = await _sb.from('profiles').select('*').eq('id', user.id).single();
+            if (profile && profile.login_approved) {
+                currentUserId = user.id;
+                currentUserProfile = profile;
+                currentUserEmail = profile.email;
+                currentUserRole = profile.role;
+                currentUserName = profile.name;
 
-            var initials = document.getElementById('userInitials');
-            if (initials) initials.textContent = profile.initials;
-            var nameEl = document.getElementById('userDropdownName');
-            if (nameEl) nameEl.textContent = profile.name;
-            var roleEl = document.getElementById('userDropdownRole');
-            if (roleEl) roleEl.textContent = profile.title;
+                var initials = document.getElementById('userInitials');
+                if (initials) initials.textContent = profile.initials;
+                var nameEl = document.getElementById('userDropdownName');
+                if (nameEl) nameEl.textContent = profile.name;
+                var roleEl = document.getElementById('userDropdownRole');
+                if (roleEl) roleEl.textContent = profile.title;
 
-            _toggleAdminTab(profile.role === 'Admin');
-            _toggleIRBAccess(profile.role === 'IRB' || profile.role === 'Admin');
-            _toggleSendEmailTab(profile.email === 'skolakowsky@saint-lukes.org' || profile.email === 'aalmekkawi@saint-lukes.org');
+                _toggleAdminTab(profile.role === 'Admin');
+                _toggleIRBAccess(profile.role === 'IRB' || profile.role === 'Admin');
+                _toggleSendEmailTab(profile.email === 'skolakowsky@saint-lukes.org' || profile.email === 'aalmekkawi@saint-lukes.org');
 
-            _hideAllAuthScreens();
-            var mainApp = document.getElementById('mainApp');
-            if (mainApp) mainApp.style.display = '';
+                _hideAllAuthScreens();
+                var mainApp = document.getElementById('mainApp');
+                if (mainApp) mainApp.style.display = '';
 
-            setTimeout(function() { renderPeopleDirectory(); }, 200);
-            if (profile.role === 'Admin') setTimeout(function() { renderPendingLoginApprovals(); }, 300);
+                setTimeout(function() { renderPeopleDirectory(); }, 200);
+                if (profile.role === 'Admin') setTimeout(function() { renderPendingLoginApprovals(); }, 300);
 
-            setTimeout(function () {
-                initAnimations();
-                initCardHoverEffects();
-                initChecklistItems();
-                initRippleEffect();
-            }, 100);
+                setTimeout(function () {
+                    initAnimations();
+                    initCardHoverEffects();
+                    initChecklistItems();
+                    initRippleEffect();
+                }, 100);
+            }
+        } catch (e) {
+            console.error('Session restore error:', e);
         }
     }
     if (event === 'SIGNED_OUT') {
@@ -203,11 +212,13 @@ async function handleLogin() {
     }
 
     showToast('Signing in...', 'info');
+    _loginInProgress = true;
 
     // Sign in via Supabase Auth
     var { data: authData, error: authError } = await _sb.auth.signInWithPassword({ email: emailVal, password: passwordVal });
 
     if (authError) {
+        _loginInProgress = false;
         showToast('Login failed: ' + authError.message, 'error');
         if (passwordInput) { passwordInput.value = ''; passwordInput.focus(); }
         return;
@@ -301,6 +312,8 @@ async function handleLogin() {
   } catch (err) {
     console.error('Login error:', err);
     showToast('Login error: ' + err.message, 'error');
+  } finally {
+    _loginInProgress = false;
   }
 }
 
