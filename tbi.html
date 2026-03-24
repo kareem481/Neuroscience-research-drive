@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trauma/TBI Registry - Saint Luke's Neuroscience</title>
+    <link rel="stylesheet" href="btr.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+    <style>
+        /* TBI-specific badge styles */
+        .gcs-severe { background: #ef4444; color: #fff; }
+        .gcs-moderate { background: #f97316; color: #fff; }
+        .gcs-mild { background: #10b981; color: #fff; }
+
+        .marshall-low { background: #10b981; color: #fff; }
+        .marshall-mid { background: #f97316; color: #fff; }
+        .marshall-high { background: #ef4444; color: #fff; }
+
+        .gos-1 { background: #111827; color: #fff; }
+        .gos-2 { background: #ef4444; color: #fff; }
+        .gos-3 { background: #f97316; color: #fff; }
+        .gos-4 { background: #eab308; color: #fff; }
+        .gos-5 { background: #10b981; color: #fff; }
+
+        .cat-tbi { background: #ef4444; color: #fff; }
+        .cat-sdh { background: #7c3aed; color: #fff; }
+        .cat-edh { background: #06b6d4; color: #fff; }
+        .cat-sah { background: #f97316; color: #fff; }
+        .cat-fracture { background: #6366f1; color: #fff; }
+        .cat-penetrating { background: #dc2626; color: #fff; }
+        .cat-polytrauma { background: #4b5563; color: #fff; }
+
+        .pupil-reactive { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #10b981; border: 2px solid #065f46; }
+        .pupil-fixed { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #ef4444; border: 2px solid #991b1b; }
+
+        .icp-normal { color: #10b981; font-weight: 700; }
+        .icp-warning { color: #eab308; font-weight: 700; }
+        .icp-critical { color: #ef4444; font-weight: 700; }
+
+        .mechanism-icon { margin-right: 6px; opacity: 0.8; }
+
+        .icp-chart-zone-green { fill: rgba(16, 185, 129, 0.08); }
+        .icp-chart-zone-yellow { fill: rgba(234, 179, 8, 0.08); }
+        .icp-chart-zone-red { fill: rgba(239, 68, 68, 0.08); }
+        .icp-threshold-line { stroke: #ef4444; stroke-width: 2; stroke-dasharray: 6 3; }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav id="btrSidebar" class="btr-sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-back" title="Back to Research Hub"><i class="fas fa-arrow-left"></i></a>
+            <div class="sidebar-brand">
+                <i class="fas fa-head-side-virus"></i>
+                <span>TBI</span>
+            </div>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="#" class="sidebar-link active" data-page="tbi-dashboard" title="Dashboard"><i class="fas fa-chart-line"></i><span>Dashboard</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="tbi-acute" title="Acute TBI"><i class="fas fa-bolt"></i><span>Acute TBI</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="tbi-subdural" title="Subdural"><i class="fas fa-brain"></i><span>Subdural</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="tbi-fracture" title="Skull Fracture"><i class="fas fa-bone"></i><span>Fracture</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="tbi-add" title="Add Patient"><i class="fas fa-user-plus"></i><span>Add Patient</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="tbi-detail" title="Patient Detail"><i class="fas fa-user"></i><span>Patient</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="tbi-query" title="Query Builder"><i class="fas fa-search"></i><span>Query</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="tbi-icp" title="ICP Monitor"><i class="fas fa-heartbeat"></i><span>ICP Monitor</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="tbi-outcomes" title="Outcomes"><i class="fas fa-trophy"></i><span>Outcomes</span></a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main id="btrMain" class="btr-main">
+        <!-- Top Header -->
+        <header class="btr-header">
+            <div class="btr-header-left">
+                <button id="sidebarToggle" class="sidebar-toggle"><i class="fas fa-bars"></i></button>
+                <h1 id="btrPageTitle">Dashboard</h1>
+            </div>
+            <div class="btr-header-right">
+                <span id="btrUserName" class="header-user"></span>
+                <button class="btn btn-sm btn-outline" onclick="tbiLogout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <!-- ==================== PAGE: DASHBOARD ==================== -->
+        <section id="tbi-dashboard" class="btr-page active">
+            <div class="stat-cards" id="tbiDashStatCards"></div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3><i class="fas fa-th-large"></i> Cases by Category</h3>
+                    <div id="tbiCategoryPie" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-pie"></i> Severity Distribution</h3>
+                    <div id="tbiSeverityPie" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> GCS Distribution</h3>
+                    <div id="tbiGCSHistogram" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-car-crash"></i> Mechanism of Injury</h3>
+                    <div id="tbiMechanismChart" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-trophy"></i> GOS Outcomes</h3>
+                    <div id="tbiGOSChart" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-skull-crossbones"></i> Mortality by Severity</h3>
+                    <div id="tbiMortalityChart" class="chart-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: ACUTE TBI ==================== -->
+        <section id="tbi-acute" class="btr-page">
+            <div class="stat-cards" id="acuteStatCards"></div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> GCS Distribution (Severe)</h3>
+                    <div id="acuteGCSChart" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-heartbeat"></i> ICP Management</h3>
+                    <div id="acuteICPMgmtChart" class="chart-container"></div>
+                </div>
+            </div>
+            <div class="table-wrap" style="margin-top: 20px;">
+                <table class="btr-table" id="acuteTable">
+                    <thead>
+                        <tr>
+                            <th>Study ID</th>
+                            <th>Age</th>
+                            <th>Mechanism</th>
+                            <th>GCS Field</th>
+                            <th>GCS ED</th>
+                            <th>Pupils</th>
+                            <th>Marshall</th>
+                            <th>Surgery</th>
+                            <th>GOS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="acuteTbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: SUBDURAL ==================== -->
+        <section id="tbi-subdural" class="btr-page">
+            <div class="stat-cards" id="sdhStatCards"></div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-pie"></i> SDH Type Distribution</h3>
+                    <div id="sdhTypePie" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> Surgical vs Conservative</h3>
+                    <div id="sdhSurgChart" class="chart-container"></div>
+                </div>
+            </div>
+            <div class="table-wrap" style="margin-top: 20px;">
+                <table class="btr-table" id="sdhTable">
+                    <thead>
+                        <tr>
+                            <th>Study ID</th>
+                            <th>Age</th>
+                            <th>SDH Type</th>
+                            <th>GCS ED</th>
+                            <th>Midline Shift</th>
+                            <th>Anticoagulation</th>
+                            <th>Surgery</th>
+                            <th>GOS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sdhTbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: SKULL FRACTURE ==================== -->
+        <section id="tbi-fracture" class="btr-page">
+            <div class="stat-cards" id="fractureStatCards"></div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-pie"></i> Fracture Type Distribution</h3>
+                    <div id="fractureTypePie" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> Surgical Intervention</h3>
+                    <div id="fractureSurgChart" class="chart-container"></div>
+                </div>
+            </div>
+            <div class="table-wrap" style="margin-top: 20px;">
+                <table class="btr-table" id="fractureTable">
+                    <thead>
+                        <tr>
+                            <th>Study ID</th>
+                            <th>Age</th>
+                            <th>Mechanism</th>
+                            <th>Fracture Type</th>
+                            <th>Location</th>
+                            <th>GCS ED</th>
+                            <th>Surgery</th>
+                            <th>GOS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fractureTbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: ADD PATIENT ==================== -->
+        <section id="tbi-add" class="btr-page">
+            <div class="wizard-container glass-card">
+                <div class="wizard-steps">
+                    <div class="wizard-step active" data-step="1"><span class="step-num">1</span><span class="step-label">Category & Demographics</span></div>
+                    <div class="wizard-step" data-step="2"><span class="step-num">2</span><span class="step-label">Field/ED Assessment</span></div>
+                    <div class="wizard-step" data-step="3"><span class="step-num">3</span><span class="step-label">CT Findings</span></div>
+                    <div class="wizard-step" data-step="4"><span class="step-num">4</span><span class="step-label">Surgery / ICP</span></div>
+                    <div class="wizard-step" data-step="5"><span class="step-num">5</span><span class="step-label">ICU & Outcomes</span></div>
+                </div>
+
+                <!-- Step 1: Category + Demographics + Mechanism -->
+                <div class="wizard-panel active" data-step="1">
+                    <h3>Category &amp; Demographics</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Study ID</label>
+                            <div class="input-with-btn">
+                                <input type="text" id="tbiAddStudyId" placeholder="TBI-0001" required>
+                                <button class="btn btn-sm btn-outline" onclick="tbiAutoGenerateStudyId()"><i class="fas fa-magic"></i> Auto</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="tbiAddCategory" onchange="tbiCategoryChanged()">
+                                <option value="">Select</option>
+                                <option value="TBI">TBI (General)</option>
+                                <option value="SDH">Subdural Hematoma</option>
+                                <option value="EDH">Epidural Hematoma</option>
+                                <option value="SAH-Traumatic">SAH - Traumatic</option>
+                                <option value="Skull Fracture">Skull Fracture</option>
+                                <option value="Penetrating">Penetrating Injury</option>
+                                <option value="Polytrauma">Polytrauma</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Age</label>
+                            <input type="number" id="tbiAddAge" placeholder="Age" min="0" max="120">
+                        </div>
+                        <div class="form-group">
+                            <label>Sex</label>
+                            <select id="tbiAddSex"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Race</label>
+                            <select id="tbiAddRace"><option value="">Select</option><option value="White">White</option><option value="Black">Black or African American</option><option value="Asian">Asian</option><option value="AIAN">American Indian/Alaska Native</option><option value="NHPI">Native Hawaiian/Pacific Islander</option><option value="Other">Other</option><option value="Unknown">Unknown</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ethnicity</label>
+                            <select id="tbiAddEthnicity"><option value="">Select</option><option value="Hispanic">Hispanic or Latino</option><option value="Non-Hispanic">Not Hispanic or Latino</option><option value="Unknown">Unknown</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Injury Date</label>
+                            <input type="date" id="tbiAddInjuryDate">
+                        </div>
+                        <div class="form-group">
+                            <label>Mechanism of Injury</label>
+                            <select id="tbiAddMechanism">
+                                <option value="">Select</option>
+                                <option value="MVC">Motor Vehicle Collision</option>
+                                <option value="Motorcycle">Motorcycle Crash</option>
+                                <option value="Pedestrian">Pedestrian Struck</option>
+                                <option value="Fall">Fall</option>
+                                <option value="Assault">Assault</option>
+                                <option value="Sports">Sports Injury</option>
+                                <option value="GSW">Gunshot Wound</option>
+                                <option value="Bicycle">Bicycle</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Anticoagulation</label>
+                            <select id="tbiAddAnticoag">
+                                <option value="">None</option>
+                                <option value="Warfarin">Warfarin</option>
+                                <option value="Apixaban">Apixaban</option>
+                                <option value="Rivaroxaban">Rivaroxaban</option>
+                                <option value="Dabigatran">Dabigatran</option>
+                                <option value="Enoxaparin">Enoxaparin</option>
+                                <option value="Aspirin">Aspirin</option>
+                                <option value="Clopidogrel">Clopidogrel</option>
+                                <option value="Dual Antiplatelet">Dual Antiplatelet</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Field/ED Assessment -->
+                <div class="wizard-panel" data-step="2">
+                    <h3>Field / ED Assessment</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>GCS - Field</label>
+                            <input type="number" id="tbiAddGCSField" min="3" max="15" placeholder="3-15">
+                        </div>
+                        <div class="form-group">
+                            <label>GCS - ED</label>
+                            <input type="number" id="tbiAddGCSED" min="3" max="15" placeholder="3-15">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>GCS Eye</label>
+                            <input type="number" id="tbiAddGCSEye" min="1" max="4" placeholder="1-4">
+                        </div>
+                        <div class="form-group">
+                            <label>GCS Verbal</label>
+                            <input type="number" id="tbiAddGCSVerbal" min="1" max="5" placeholder="1-5">
+                        </div>
+                        <div class="form-group">
+                            <label>GCS Motor</label>
+                            <input type="number" id="tbiAddGCSMotor" min="1" max="6" placeholder="1-6">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Pupils</label>
+                            <select id="tbiAddPupils">
+                                <option value="">Select</option>
+                                <option value="Equal Reactive">Equal Reactive</option>
+                                <option value="Unilateral Fixed">Unilateral Fixed/Dilated</option>
+                                <option value="Bilateral Fixed">Bilateral Fixed/Dilated</option>
+                                <option value="Unequal Reactive">Unequal but Reactive</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Intubated in Field</label>
+                            <select id="tbiAddIntubated"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>SBP (mmHg)</label>
+                            <input type="number" id="tbiAddSBP" placeholder="Systolic BP">
+                        </div>
+                        <div class="form-group">
+                            <label>HR (bpm)</label>
+                            <input type="number" id="tbiAddHR" placeholder="Heart rate">
+                        </div>
+                        <div class="form-group">
+                            <label>SpO2 (%)</label>
+                            <input type="number" id="tbiAddSpO2" placeholder="Oxygen saturation">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Associated Injuries</label>
+                        <textarea id="tbiAddAssocInjuries" rows="2" placeholder="e.g. C-spine fracture, facial fractures..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Step 3: CT Findings -->
+                <div class="wizard-panel" data-step="3">
+                    <h3>CT Findings</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Marshall CT Classification</label>
+                            <select id="tbiAddMarshall">
+                                <option value="">Select</option>
+                                <option value="I">I - No visible pathology</option>
+                                <option value="II">II - Cisterns present, shift &lt;5mm</option>
+                                <option value="III">III - Cisterns compressed/absent, shift &lt;5mm</option>
+                                <option value="IV">IV - Shift &gt;5mm, no mass</option>
+                                <option value="V">V - Evacuated mass lesion</option>
+                                <option value="VI">VI - Non-evacuated mass &gt;25cc</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Rotterdam Score</label>
+                            <input type="number" id="tbiAddRotterdam" min="1" max="6" placeholder="1-6">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Midline Shift (mm)</label>
+                            <input type="number" id="tbiAddMidlineShift" min="0" step="0.5" placeholder="mm">
+                        </div>
+                        <div class="form-group">
+                            <label>Herniation</label>
+                            <select id="tbiAddHerniation"><option value="">Select</option><option value="None">None</option><option value="Uncal">Uncal</option><option value="Subfalcine">Subfalcine</option><option value="Tonsillar">Tonsillar</option><option value="Upward">Upward</option><option value="Multiple">Multiple</option></select>
+                        </div>
+                    </div>
+                    <h4 class="section-subtitle">Hemorrhage Details</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>SDH</label>
+                            <select id="tbiAddSDH"><option value="">None</option><option value="Acute">Acute</option><option value="Subacute">Subacute</option><option value="Chronic">Chronic</option><option value="Mixed">Mixed Density</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>SDH Thickness (mm)</label>
+                            <input type="number" id="tbiAddSDHThickness" min="0" step="0.5" placeholder="mm">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>EDH</label>
+                            <select id="tbiAddEDH"><option value="">None</option><option value="Yes">Yes</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>EDH Volume (cc)</label>
+                            <input type="number" id="tbiAddEDHVolume" min="0" placeholder="cc">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Contusion</label>
+                            <select id="tbiAddContusion"><option value="">None</option><option value="Single">Single</option><option value="Multiple">Multiple</option><option value="Hemorrhagic">Hemorrhagic</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>DAI (Diffuse Axonal Injury)</label>
+                            <select id="tbiAddDAI"><option value="">None</option><option value="Grade 1">Grade 1</option><option value="Grade 2">Grade 2</option><option value="Grade 3">Grade 3</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Traumatic SAH</label>
+                            <select id="tbiAddTSAH"><option value="">None</option><option value="Yes">Yes</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>IVH</label>
+                            <select id="tbiAddIVH"><option value="">None</option><option value="Yes">Yes</option></select>
+                        </div>
+                    </div>
+                    <h4 class="section-subtitle">Skull Fracture</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Fracture Type</label>
+                            <select id="tbiAddFractureType"><option value="">None</option><option value="Linear">Linear</option><option value="Depressed">Depressed</option><option value="Basilar">Basilar</option><option value="Comminuted">Comminuted</option><option value="Open/Compound">Open/Compound</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Fracture Location</label>
+                            <input type="text" id="tbiAddFractureLocation" placeholder="e.g. Right temporal">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Surgery / ICP Management -->
+                <div class="wizard-panel" data-step="4">
+                    <h3>Surgery &amp; ICP Management</h3>
+                    <h4 class="section-subtitle">Surgical Intervention</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Surgery Performed</label>
+                            <select id="tbiAddSurgery">
+                                <option value="">Select</option>
+                                <option value="None">None (Conservative)</option>
+                                <option value="Craniotomy">Craniotomy for Evacuation</option>
+                                <option value="Decompressive Craniectomy">Decompressive Craniectomy</option>
+                                <option value="Burr Hole">Burr Hole Drainage</option>
+                                <option value="Cranioplasty">Cranioplasty</option>
+                                <option value="Elevation">Fracture Elevation</option>
+                                <option value="EVD">EVD Placement</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Surgery Date</label>
+                            <input type="date" id="tbiAddSurgDate">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Surgeon</label>
+                            <input type="text" id="tbiAddSurgeon" placeholder="Surgeon name">
+                        </div>
+                        <div class="form-group">
+                            <label>Time to Surgery (hrs)</label>
+                            <input type="number" id="tbiAddTimeToSurg" min="0" step="0.5" placeholder="Hours from injury">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Surgical Complications</label>
+                        <input type="text" id="tbiAddSurgComplications" placeholder="e.g. None, hemorrhage, infection">
+                    </div>
+                    <h4 class="section-subtitle">ICP Management</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>EVD Placed</label>
+                            <select id="tbiAddEVD"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>ICP Monitor Type</label>
+                            <select id="tbiAddICPMonitor"><option value="">None</option><option value="EVD">EVD</option><option value="Bolt">Parenchymal Bolt</option><option value="Both">Both</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Hyperosmolar Therapy</label>
+                            <select id="tbiAddHyperosmolar"><option value="">None</option><option value="Mannitol">Mannitol</option><option value="HTS">Hypertonic Saline</option><option value="Both">Both</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Decompressive Craniectomy</label>
+                            <select id="tbiAddDecompCrani"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Barbiturate Coma</label>
+                            <select id="tbiAddBarbComa"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Therapeutic Hypothermia</label>
+                            <select id="tbiAddHypothermia"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 5: ICU Course + Outcomes -->
+                <div class="wizard-panel" data-step="5">
+                    <h3>ICU Course &amp; Outcomes</h3>
+                    <h4 class="section-subtitle">ICU Course</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>ICU Days</label>
+                            <input type="number" id="tbiAddICUDays" min="0" placeholder="Days">
+                        </div>
+                        <div class="form-group">
+                            <label>Ventilator Days</label>
+                            <input type="number" id="tbiAddVentDays" min="0" placeholder="Days">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tracheostomy</label>
+                            <select id="tbiAddTrach"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>PEG Tube</label>
+                            <select id="tbiAddPEG"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                    </div>
+                    <h4 class="section-subtitle">Complications</h4>
+                    <div class="form-group">
+                        <div class="checkbox-grid">
+                            <label class="cb-label"><input type="checkbox" value="DVT" class="tbi-comp"> DVT</label>
+                            <label class="cb-label"><input type="checkbox" value="PE" class="tbi-comp"> PE</label>
+                            <label class="cb-label"><input type="checkbox" value="Pneumonia" class="tbi-comp"> Pneumonia</label>
+                            <label class="cb-label"><input type="checkbox" value="UTI" class="tbi-comp"> UTI</label>
+                            <label class="cb-label"><input type="checkbox" value="Seizure" class="tbi-comp"> Seizure</label>
+                            <label class="cb-label"><input type="checkbox" value="Hydrocephalus" class="tbi-comp"> Hydrocephalus</label>
+                            <label class="cb-label"><input type="checkbox" value="Wound Infection" class="tbi-comp"> Wound Infection</label>
+                            <label class="cb-label"><input type="checkbox" value="Meningitis" class="tbi-comp"> Meningitis</label>
+                            <label class="cb-label"><input type="checkbox" value="CSF Leak" class="tbi-comp"> CSF Leak</label>
+                            <label class="cb-label"><input type="checkbox" value="Coagulopathy" class="tbi-comp"> Coagulopathy</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>VP Shunt Required</label>
+                        <select id="tbiAddShunt"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                    </div>
+                    <h4 class="section-subtitle">Outcomes</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>GOS</label>
+                            <select id="tbiAddGOS">
+                                <option value="">Select</option>
+                                <option value="1">1 - Dead</option>
+                                <option value="2">2 - Vegetative State</option>
+                                <option value="3">3 - Severe Disability</option>
+                                <option value="4">4 - Moderate Disability</option>
+                                <option value="5">5 - Good Recovery</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>GOS-E</label>
+                            <select id="tbiAddGOSE">
+                                <option value="">Select</option>
+                                <option value="1">1 - Dead</option>
+                                <option value="2">2 - Vegetative State</option>
+                                <option value="3">3 - Lower Severe Disability</option>
+                                <option value="4">4 - Upper Severe Disability</option>
+                                <option value="5">5 - Lower Moderate Disability</option>
+                                <option value="6">6 - Upper Moderate Disability</option>
+                                <option value="7">7 - Lower Good Recovery</option>
+                                <option value="8">8 - Upper Good Recovery</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>DRS Score</label>
+                            <input type="number" id="tbiAddDRS" min="0" max="29" placeholder="0-29">
+                        </div>
+                        <div class="form-group">
+                            <label>Rancho Level</label>
+                            <select id="tbiAddRancho">
+                                <option value="">Select</option>
+                                <option value="I">I - No Response</option>
+                                <option value="II">II - Generalized Response</option>
+                                <option value="III">III - Localized Response</option>
+                                <option value="IV">IV - Confused-Agitated</option>
+                                <option value="V">V - Confused-Inappropriate</option>
+                                <option value="VI">VI - Confused-Appropriate</option>
+                                <option value="VII">VII - Automatic-Appropriate</option>
+                                <option value="VIII">VIII - Purposeful-Appropriate</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Mortality</label>
+                            <select id="tbiAddMortality"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Brain Death</label>
+                            <select id="tbiAddBrainDeath"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Organ Donor</label>
+                            <select id="tbiAddOrganDonor"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Discharge Disposition</label>
+                            <select id="tbiAddDisposition">
+                                <option value="">Select</option>
+                                <option value="Home">Home</option>
+                                <option value="Rehab">Acute Rehab</option>
+                                <option value="SNF">Skilled Nursing</option>
+                                <option value="LTAC">LTAC</option>
+                                <option value="Deceased">Deceased</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wizard-footer">
+                    <button class="btn btn-outline" id="tbiWizPrev" onclick="tbiWizardPrev()" disabled><i class="fas fa-arrow-left"></i> Previous</button>
+                    <button class="btn btn-accent" id="tbiWizNext" onclick="tbiWizardNext()">Next <i class="fas fa-arrow-right"></i></button>
+                    <button class="btn btn-primary" id="tbiWizSubmit" onclick="tbiSubmitNewPatient()" style="display:none"><i class="fas fa-save"></i> Save Patient</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: PATIENT DETAIL ==================== -->
+        <section id="tbi-detail" class="btr-page">
+            <div id="tbiDetailContent">
+                <div class="detail-placeholder">
+                    <i class="fas fa-user-circle"></i>
+                    <p>Select a patient from a list or Query Builder to view details.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: QUERY BUILDER ==================== -->
+        <section id="tbi-query" class="btr-page">
+            <div class="query-layout">
+                <div class="filter-panel glass-card">
+                    <h3><i class="fas fa-filter"></i> Filters</h3>
+                    <div class="filter-group">
+                        <label>Category</label>
+                        <select id="tbiQCategory"><option value="">All</option><option value="TBI">TBI</option><option value="SDH">SDH</option><option value="EDH">EDH</option><option value="SAH-Traumatic">SAH</option><option value="Skull Fracture">Skull Fracture</option><option value="Penetrating">Penetrating</option><option value="Polytrauma">Polytrauma</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Severity</label>
+                        <select id="tbiQSeverity"><option value="">All</option><option value="Severe">Severe (GCS 3-8)</option><option value="Moderate">Moderate (GCS 9-12)</option><option value="Mild">Mild (GCS 13-15)</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Mechanism</label>
+                        <select id="tbiQMechanism"><option value="">All</option><option value="MVC">MVC</option><option value="Fall">Fall</option><option value="Assault">Assault</option><option value="Sports">Sports</option><option value="GSW">GSW</option><option value="Other">Other</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>GCS Range</label>
+                        <div class="range-row">
+                            <input type="number" id="tbiQGCSMin" placeholder="Min" min="3" max="15">
+                            <span>-</span>
+                            <input type="number" id="tbiQGCSMax" placeholder="Max" min="3" max="15">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>Age Range</label>
+                        <div class="range-row">
+                            <input type="number" id="tbiQAgeMin" placeholder="Min" min="0" max="120">
+                            <span>-</span>
+                            <input type="number" id="tbiQAgeMax" placeholder="Max" min="0" max="120">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>Sex</label>
+                        <select id="tbiQSex"><option value="">All</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Marshall Class</label>
+                        <select id="tbiQMarshall"><option value="">All</option><option value="I">I</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option><option value="V">V</option><option value="VI">VI</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Surgery</label>
+                        <select id="tbiQSurgery"><option value="">All</option><option value="Yes">Had Surgery</option><option value="No">Conservative</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>GOS</label>
+                        <select id="tbiQGOS"><option value="">All</option><option value="1">1 - Dead</option><option value="2">2 - Vegetative</option><option value="3">3 - Severe Disability</option><option value="4">4 - Moderate Disability</option><option value="5">5 - Good Recovery</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Mortality</label>
+                        <select id="tbiQMortality"><option value="">All</option><option value="Yes">Deceased</option><option value="No">Alive</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Surgeon</label>
+                        <input type="text" id="tbiQSurgeon" placeholder="Surgeon name">
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-accent" onclick="tbiRunQuery()"><i class="fas fa-search"></i> Search</button>
+                        <button class="btn btn-outline" onclick="tbiClearQueryFilters()"><i class="fas fa-times"></i> Clear</button>
+                    </div>
+                </div>
+                <div class="query-results">
+                    <div class="query-results-header">
+                        <span id="tbiQueryCount">0 patients found</span>
+                        <button class="btn btn-sm btn-outline" onclick="tbiExportQueryCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="btr-table" id="tbiQueryTable">
+                            <thead>
+                                <tr>
+                                    <th data-sort="study_id">Study ID <i class="fas fa-sort"></i></th>
+                                    <th data-sort="age">Age <i class="fas fa-sort"></i></th>
+                                    <th data-sort="sex">Sex <i class="fas fa-sort"></i></th>
+                                    <th data-sort="category">Category <i class="fas fa-sort"></i></th>
+                                    <th data-sort="mechanism">Mechanism <i class="fas fa-sort"></i></th>
+                                    <th data-sort="gcs_ed">GCS <i class="fas fa-sort"></i></th>
+                                    <th data-sort="marshall_class">Marshall <i class="fas fa-sort"></i></th>
+                                    <th data-sort="surgery">Surgery <i class="fas fa-sort"></i></th>
+                                    <th data-sort="gos">GOS <i class="fas fa-sort"></i></th>
+                                    <th data-sort="mortality">Mortality <i class="fas fa-sort"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbiQueryTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: ICP MONITOR ==================== -->
+        <section id="tbi-icp" class="btr-page">
+            <div class="page-toolbar">
+                <h2>ICP Trend Monitor</h2>
+            </div>
+            <div class="form-row" style="margin-bottom: 20px;">
+                <div class="form-group">
+                    <label>Select Patient</label>
+                    <select id="tbiICPPatientSelect" onchange="tbiLoadICPData()">
+                        <option value="">-- Select Patient --</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display:flex;align-items:flex-end;">
+                    <button class="btn btn-accent" onclick="tbiShowAddICPModal()"><i class="fas fa-plus"></i> Add ICP Reading</button>
+                </div>
+            </div>
+            <div class="stat-cards" id="icpStatCards"></div>
+            <div class="chart-grid">
+                <div class="chart-card chart-wide">
+                    <h3><i class="fas fa-heartbeat"></i> ICP Trend Over Time</h3>
+                    <div id="icpTrendChart" class="chart-container" style="min-height:350px"></div>
+                </div>
+                <div class="chart-card chart-wide">
+                    <h3><i class="fas fa-tachometer-alt"></i> CPP Trend</h3>
+                    <div id="cppTrendChart" class="chart-container" style="min-height:300px"></div>
+                </div>
+            </div>
+            <div class="table-wrap" style="margin-top: 20px;">
+                <table class="btr-table" id="icpTable">
+                    <thead>
+                        <tr>
+                            <th>Date/Time</th>
+                            <th>ICP (mmHg)</th>
+                            <th>CPP (mmHg)</th>
+                            <th>MAP (mmHg)</th>
+                            <th>Intervention</th>
+                        </tr>
+                    </thead>
+                    <tbody id="icpTbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: OUTCOMES ==================== -->
+        <section id="tbi-outcomes" class="btr-page">
+            <div class="stat-cards" id="tbiOutcomeStatCards"></div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-pie"></i> GOS Distribution</h3>
+                    <div id="outcomeGOSPie" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> GOS-E Distribution</h3>
+                    <div id="outcomeGOSEChart" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-skull-crossbones"></i> Mortality by Severity</h3>
+                    <div id="outcomeMortSeverity" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-hospital"></i> Discharge Disposition</h3>
+                    <div id="outcomeDisposition" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-briefcase"></i> Return to Work</h3>
+                    <div id="outcomeRTW" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> GOS by Category</h3>
+                    <div id="outcomeGOSByCategory" class="chart-container"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ==================== MODALS ==================== -->
+    <div id="btrModalOverlay" class="modal-overlay" onclick="closeTbiModal()">
+        <div class="modal-content glass-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="btrModalTitle">Modal</h3>
+                <button class="modal-close" onclick="closeTbiModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="btrModalBody" class="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="btrToastContainer"></div>
+
+    <script src="tbi.js"></script>
+</body>
+</html>
