@@ -20,6 +20,30 @@ var _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 var currentUserId = null;       // Supabase auth user UUID
 var currentUserProfile = null;  // Full profile row from profiles table
 
+/* --- Reusable File Upload to Supabase Storage --- */
+async function uploadFile(file, folder) {
+    var filePath = folder + '/' + Date.now() + '_' + file.name;
+    var { data, error } = await _sb.storage.from('research-files').upload(filePath, file);
+    if (error) { showToast('Upload failed: ' + error.message, 'error'); return null; }
+    var { data: urlData } = _sb.storage.from('research-files').getPublicUrl(filePath);
+    return urlData.publicUrl || filePath;
+}
+
+/* --- Audit Log --- */
+async function logAudit(action, entityType, entityId, details) {
+    try {
+        await _sb.from('audit_log').insert({
+            action: action,
+            entity_type: entityType,
+            entity_id: entityId ? String(entityId) : null,
+            details: details || '',
+            user_id: currentUserId,
+            user_name: currentUserName,
+            user_role: currentUserRole
+        });
+    } catch (e) { console.error('Audit log error:', e); }
+}
+
 /* --- Loading state helper --- */
 function _showLoading(el) {
     if (el) el.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem;color:#00d4ff;"></i><p style="margin-top:10px;color:var(--text-muted);">Loading...</p></div>';
@@ -151,14 +175,14 @@ async function showForgotPassword() {
     var emailInput = document.getElementById('loginEmail');
     var emailVal = emailInput ? emailInput.value.trim() : '';
     if (!emailVal) {
-        showToast('Please enter your email address first, then click Forgot Password.', 'info');
-        return;
+        emailVal = prompt('Enter your email address to receive a password reset link:');
     }
+    if (!emailVal) return;
     var { error } = await _sb.auth.resetPasswordForEmail(emailVal, { redirectTo: window.location.href.split('?')[0] });
     if (error) {
-        showToast('Error sending reset email: ' + error.message, 'error');
+        showToast('Error: ' + error.message, 'error');
     } else {
-        showToast('Password reset instructions have been sent to your email.', 'info');
+        showToast('Password reset link sent to ' + emailVal + '. Check your inbox.', 'success');
     }
 }
 
@@ -855,7 +879,14 @@ function switchTab(tabName) {
     // Update dashboard projects when switching to dashboard
     if (tabName === 'dashboard') {
         renderDashboardProjects();
+        renderDashboardStats();
+        renderAnnouncements();
         animateCounters();
+    }
+
+    // Render forum when switching to forum tab
+    if (tabName === 'forum') {
+        renderForumThreads();
     }
 
     // Render People Directory dynamically
@@ -2144,6 +2175,9 @@ async function wizardSubmit() {
     _wizStep = 1;
     showToast('Project "' + titleVal + '" submitted as Pre-submission!', 'success');
 
+    // Audit log
+    await logAudit('created', 'project', inserted.id, 'Project "' + titleVal + '" created by ' + currentUserName);
+
     // Send notification to Dr. Hayner and Ahmad for review
     await _sendProjectNotification(inserted, 'new');
 }
@@ -2247,6 +2281,9 @@ async function submitIRBDecision(projId) {
     }
 
     await _sb.from('projects').update(updates).eq('id', projId);
+
+    // Audit log
+    await logAudit('irb_decision', 'project', projId, 'IRB decision: ' + decision.value + ' for "' + (proj.title || '') + '"');
 
     // Merge for notification
     Object.assign(proj, updates);
@@ -2442,9 +2479,11 @@ async function removeProjectMember(projectId, memberId) {
 
 async function deleteProject(id) {
     if (!confirm('Are you sure you want to delete this project?')) return;
+    var proj = await _findProject(id);
     await _sb.from('project_members').delete().eq('project_id', id);
     await _sb.from('project_publications').delete().eq('project_id', id);
     await _sb.from('projects').delete().eq('id', id);
+    await logAudit('deleted', 'project', id, 'Project "' + (proj ? proj.title : id) + '" deleted by ' + currentUserName);
     await renderProjects();
     _populateProjectDropdowns();
     showToast('Project deleted.', 'info');
@@ -3072,20 +3111,36 @@ function _zScore(p) {
    ================================================ */
 async function submitCITICert(formEl) {
     var inputs = formEl.querySelectorAll('input, select');
+    var fileInput = formEl.querySelector('input[type="file"]');
+    var certUrl = null;
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+        showToast('Uploading certificate...', 'info');
+        certUrl = await uploadFile(fileInput.files[0], 'citi-certs/' + currentUserId);
+    }
     await _sb.from('citi_training').insert({
         user_id: currentUserId,
-        human_subjects_status: 'submitted'
+        human_subjects_status: 'submitted',
+        certificate_url: certUrl
     });
     showToast('Certificate submitted for review by Dr. Kolakowsky-Hayner.', 'success');
 }
 
 async function submitCMECredits(formEl) {
     var inputs = formEl.querySelectorAll('input, select');
+    var fileInput = formEl.querySelector('input[type="file"]');
+    var certUrl = null;
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+        showToast('Uploading certificate...', 'info');
+        certUrl = await uploadFile(fileInput.files[0], 'cme-certs/' + currentUserId);
+    }
+    var creditsInput = formEl.querySelector('input[type="number"]');
+    var creditsVal = creditsInput ? parseFloat(creditsInput.value) || 0 : 0;
     await _sb.from('cme_records').insert({
         user_id: currentUserId,
-        credits_earned: 0,
+        credits_earned: creditsVal,
         credits_required: 25,
-        status: 'submitted'
+        status: 'submitted',
+        certificate_url: certUrl
     });
     showToast('CME credits submitted for review by Dr. Kolakowsky-Hayner.', 'success');
 }
@@ -3105,8 +3160,9 @@ async function saveGrant(formEl) {
         grant_number: inputs[8] ? inputs[8].value : '',
         created_by: currentUserId
     };
-    var { error } = await _sb.from('grants').insert(data);
+    var { data: inserted, error } = await _sb.from('grants').insert(data).select().single();
     if (error) { showToast('Error saving grant: ' + error.message, 'error'); return; }
+    await logAudit('created', 'grant', inserted ? inserted.id : null, 'Grant "' + data.title + '" created by ' + currentUserName);
     closeModal();
     showToast('Grant added successfully!', 'success');
 }
@@ -3186,10 +3242,17 @@ async function saveForumRequest(formEl) {
 
 async function saveDocument(formEl) {
     var inputs = formEl.querySelectorAll('input, select, textarea');
+    var fileInput = formEl.querySelector('input[type="file"]');
+    var fileUrl = null;
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+        showToast('Uploading document...', 'info');
+        fileUrl = await uploadFile(fileInput.files[0], 'documents');
+    }
     var data = {
         name: inputs[0] ? inputs[0].value : '',
         category: inputs[1] ? inputs[1].value : '',
         content: inputs[3] ? inputs[3].value : '',
+        file_url: fileUrl,
         uploaded_by: currentUserId
     };
     var { error } = await _sb.from('documents').insert(data);
@@ -3358,10 +3421,13 @@ function _showDocSubsection(name) {
 async function uploadProjectFile(projId, fileKey, inputEl) {
     var proj = await _findProject(projId);
     if (!proj || !inputEl.files || !inputEl.files[0]) return;
+    var file = inputEl.files[0];
+    showToast('Uploading ' + file.name + '...', 'info');
+    var url = await uploadFile(file, 'projects/' + projId);
     var currentFiles = proj.files || {};
-    currentFiles[fileKey] = inputEl.files[0].name;
+    currentFiles[fileKey] = url || file.name;
     await _sb.from('projects').update({ files: currentFiles }).eq('id', projId);
-    showToast(inputEl.files[0].name + ' uploaded!', 'success');
+    showToast(file.name + ' uploaded!', 'success');
     closeModal();
     setTimeout(function () { openModal('projectDetail', projId); }, 200);
 }
@@ -3493,6 +3559,7 @@ async function approveProject(projId) {
     }).eq('id', projId);
     proj.admin_approved = true;
     proj.adminApproved = true;
+    await logAudit('approved', 'project', projId, 'Project "' + (proj.title || '') + '" approved by ' + currentUserName);
     await _sendProjectNotification(proj, 'approved');
     showToast('Project approved and forwarded to departments!', 'success');
     closeModal();
@@ -4791,14 +4858,26 @@ async function approveLoginRequest(email) {
     // Update the user's profile to mark as approved
     await _sb.from('profiles').update({ login_approved: true }).eq('email', email);
 
-    // Send notification back to user
+    // Onboarding automation: create CITI training record for user
+    var { data: approvedUser } = await _sb.from('profiles').select('id, name').eq('email', email).single();
+    if (approvedUser) {
+        await _sb.from('citi_training').insert({
+            user_id: approvedUser.id,
+            human_subjects_status: 'not_started'
+        }).then(function() {}).catch(function() {});
+    }
+
+    // Send welcome notification to user
     await _sb.from('notifications').insert({
         type: 'login_approved',
-        message: 'Your login access has been approved by ' + currentUserName + '. You can now log in to the research database.',
+        message: 'Welcome to the Saint Luke\'s Neuroscience Research Database! Your login access has been approved by ' + currentUserName + '. Please complete your profile setup and upload your CITI training certificate in the Requirements tab.',
         from_user: currentUserName,
         recipients: [email],
         read: false
     });
+
+    // Audit log
+    await logAudit('approved', 'login_request', null, 'Login request approved for ' + email + ' by ' + currentUserName);
 
     showToast('Login access approved for ' + email + '. They can now log in.', 'success');
     await renderPendingLoginApprovals();
@@ -4884,6 +4963,781 @@ async function exportCredentialsCSV() {
     URL.revokeObjectURL(url);
     showToast('Directory CSV exported!', 'success');
 }
+
+/* ================================================
+   FEATURE: LIVE DASHBOARD STATS
+   ================================================ */
+async function renderDashboardStats() {
+    try {
+        var { count: projectCount } = await _sb.from('projects').select('*', { count: 'exact', head: true });
+        var { count: facultyCount } = await _sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'Faculty');
+        var { count: pubCount } = await _sb.from('publications').select('*', { count: 'exact', head: true });
+        var { count: grantCount } = await _sb.from('grants').select('*', { count: 'exact', head: true }).eq('status', 'Active');
+
+        var stats = document.querySelectorAll('.stat-number[data-target]');
+        var statValues = [projectCount || 0, facultyCount || 0, pubCount || 0, grantCount || 0];
+        stats.forEach(function(el, i) {
+            if (i < statValues.length) {
+                el.dataset.target = statValues[i];
+            }
+        });
+        animateCounters();
+    } catch (e) { console.error('Dashboard stats error:', e); }
+}
+
+/* ================================================
+   FEATURE: GLOBAL SEARCH
+   ================================================ */
+var _searchDebounceTimer = null;
+
+async function globalSearch(query) {
+    if (!query || query.length < 2) {
+        _hideSearchResults();
+        return;
+    }
+
+    var results = [];
+
+    // Search profiles
+    var { data: people } = await _sb.from('profiles').select('name, email, role').ilike('name', '%' + query + '%').limit(5);
+    if (people) people.forEach(function(p) {
+        results.push({ type: 'Person', icon: 'fa-user', title: p.name, subtitle: p.role + ' · ' + p.email, action: "switchTab('people')" });
+    });
+
+    // Search projects
+    var { data: projects } = await _sb.from('projects').select('id, title, pi, status').ilike('title', '%' + query + '%').limit(5);
+    if (projects) projects.forEach(function(p) {
+        results.push({ type: 'Project', icon: 'fa-project-diagram', title: p.title, subtitle: (p.pi || '') + ' · ' + (p.status || ''), action: "openModal('projectDetail'," + p.id + ")" });
+    });
+
+    // Search grants
+    var { data: grants } = await _sb.from('grants').select('id, title, pi').ilike('title', '%' + query + '%').limit(5);
+    if (grants) grants.forEach(function(g) {
+        results.push({ type: 'Grant', icon: 'fa-dollar-sign', title: g.title, subtitle: g.pi || '', action: "switchTab('grants')" });
+    });
+
+    // Search publications
+    var { data: pubs } = await _sb.from('publications').select('id, title, pub_type').ilike('title', '%' + query + '%').limit(5);
+    if (pubs) pubs.forEach(function(p) {
+        results.push({ type: 'Publication', icon: 'fa-book', title: p.title, subtitle: p.pub_type || '', action: "switchTab('publications')" });
+    });
+
+    renderSearchResults(results, query);
+}
+
+function renderSearchResults(results, query) {
+    var existing = document.getElementById('searchResultsDropdown');
+    if (existing) existing.remove();
+
+    if (!results || results.length === 0) {
+        var dd = document.createElement('div');
+        dd.id = 'searchResultsDropdown';
+        dd.style.cssText = 'position:absolute;top:100%;left:0;right:0;background:var(--bg-elevated,#1a1a2e);border:1px solid var(--border-color,rgba(255,255,255,0.1));border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.5);z-index:3000;max-height:400px;overflow-y:auto;padding:12px;';
+        dd.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.82rem;"><i class="fas fa-search" style="display:block;margin-bottom:8px;font-size:1.2rem;"></i>No results for "' + _esc(query) + '"</div>';
+        var searchWrap = document.getElementById('globalSearch');
+        if (searchWrap) {
+            var parent = searchWrap.parentElement;
+            if (parent) { parent.style.position = 'relative'; parent.appendChild(dd); }
+        }
+        return;
+    }
+
+    var dd = document.createElement('div');
+    dd.id = 'searchResultsDropdown';
+    dd.style.cssText = 'position:absolute;top:100%;left:0;right:0;background:var(--bg-elevated,#1a1a2e);border:1px solid var(--border-color,rgba(255,255,255,0.1));border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.5);z-index:3000;max-height:400px;overflow-y:auto;padding:6px;';
+
+    var html = '';
+    results.forEach(function(r) {
+        html += '<div onclick="' + r.action + '; _hideSearchResults();" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background=\'rgba(0,212,255,0.08)\'" onmouseout="this.style.background=\'none\'">' +
+            '<div style="width:36px;height:36px;border-radius:10px;background:rgba(0,212,255,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas ' + r.icon + '" style="color:#00d4ff;font-size:0.82rem;"></i></div>' +
+            '<div style="flex:1;min-width:0;">' +
+            '<div style="font-size:0.85rem;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _esc(r.title) + '</div>' +
+            '<div style="font-size:0.72rem;color:var(--text-muted);">' + _esc(r.subtitle) + '</div></div>' +
+            '<span style="font-size:0.65rem;color:var(--text-muted);background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:10px;white-space:nowrap;">' + r.type + '</span></div>';
+    });
+
+    dd.innerHTML = html;
+    var searchWrap = document.getElementById('globalSearch');
+    if (searchWrap) {
+        var parent = searchWrap.parentElement;
+        if (parent) { parent.style.position = 'relative'; parent.appendChild(dd); }
+    }
+}
+
+function _hideSearchResults() {
+    var dd = document.getElementById('searchResultsDropdown');
+    if (dd) dd.remove();
+}
+
+// Wire up global search input
+document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('globalSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            var val = this.value.trim();
+            clearTimeout(_searchDebounceTimer);
+            _searchDebounceTimer = setTimeout(function() { globalSearch(val); }, 300);
+        });
+        searchInput.addEventListener('blur', function() {
+            setTimeout(_hideSearchResults, 200);
+        });
+    }
+});
+
+/* ================================================
+   FEATURE: ANNOUNCEMENTS SYSTEM
+   ================================================ */
+async function renderAnnouncements() {
+    var container = document.getElementById('announcementsList');
+    if (!container) return;
+
+    var { data: announcements } = await _sb.from('announcements').select('*').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(10);
+
+    if (!announcements || announcements.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);">' +
+            '<i class="fas fa-bullhorn" style="font-size:2rem;margin-bottom:8px;display:block;"></i>' +
+            'No announcements yet<br><small>Announcements will appear here as they are posted.</small></div>';
+        return;
+    }
+
+    var html = '';
+    announcements.forEach(function(a) {
+        var priorityColor = a.priority === 'high' ? '#ef4444' : a.priority === 'medium' ? '#f59e0b' : '#10b981';
+        html += '<div style="padding:12px 16px;border-bottom:1px solid var(--border-default,rgba(255,255,255,0.06));">' +
+            (a.pinned ? '<i class="fas fa-thumbtack" style="color:#f59e0b;margin-right:6px;font-size:0.72rem;"></i>' : '') +
+            '<strong style="font-size:0.85rem;color:var(--text-primary);">' + _esc(a.title) + '</strong>' +
+            '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:' + priorityColor + ';margin-left:8px;vertical-align:middle;"></span>' +
+            '<p style="font-size:0.78rem;color:var(--text-secondary);margin:4px 0 0;">' + _esc(a.content) + '</p>' +
+            '<small style="color:var(--text-muted);font-size:0.7rem;">' + new Date(a.created_at).toLocaleDateString() + (a.created_by ? ' · ' + _esc(a.created_by) : '') + '</small></div>';
+    });
+
+    // Add admin post button
+    if (currentUserRole === 'Admin') {
+        html += '<div style="padding:12px 16px;text-align:center;">' +
+            '<button class="btn btn-primary btn-sm" onclick="openPostAnnouncementModal()"><i class="fas fa-bullhorn"></i> Post Announcement</button></div>';
+    }
+
+    container.innerHTML = html;
+}
+
+function openPostAnnouncementModal() {
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'Post Announcement';
+
+    var html = '<form onsubmit="event.preventDefault(); submitAnnouncement(this);">' +
+        '<div class="form-group"><label>Title *</label><input type="text" id="annTitle" placeholder="Announcement title..." required></div>' +
+        '<div class="form-group"><label>Content *</label><textarea id="annContent" rows="4" placeholder="Announcement details..." required></textarea></div>' +
+        '<div class="form-row"><div class="form-group"><label>Priority</label><select id="annPriority">' +
+        '<option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>' +
+        '<div class="form-group"><label>Pin to Top</label><select id="annPinned">' +
+        '<option value="false">No</option><option value="true">Yes</option></select></div></div>' +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+        '<button type="submit" class="btn btn-primary"><i class="fas fa-bullhorn"></i> Post</button></div></form>';
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+async function submitAnnouncement(formEl) {
+    var title = document.getElementById('annTitle').value.trim();
+    var content = document.getElementById('annContent').value.trim();
+    var priority = document.getElementById('annPriority').value;
+    var pinned = document.getElementById('annPinned').value === 'true';
+
+    if (!title || !content) { showToast('Title and content are required.', 'error'); return; }
+
+    var { error } = await _sb.from('announcements').insert({
+        title: title,
+        content: content,
+        priority: priority,
+        pinned: pinned,
+        created_by: currentUserName
+    });
+
+    if (error) { showToast('Error posting announcement: ' + error.message, 'error'); return; }
+    await logAudit('created', 'announcement', null, 'Announcement "' + title + '" posted by ' + currentUserName);
+    closeModal();
+    showToast('Announcement posted!', 'success');
+    renderAnnouncements();
+}
+
+/* ================================================
+   FEATURE: AUDIT LOG VIEWER (Admin Panel)
+   ================================================ */
+async function renderAuditLog() {
+    var container = document.getElementById('auditLogBody');
+    if (!container) return;
+
+    _showLoading(container);
+
+    var { data: logs } = await _sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(100);
+    if (!logs || logs.length === 0) {
+        container.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">No audit log entries yet.</td></tr>';
+        return;
+    }
+
+    var html = '';
+    logs.forEach(function(log) {
+        var actionColor = log.action === 'created' ? '#10b981' : log.action === 'deleted' ? '#ef4444' : log.action === 'approved' ? '#00d4ff' : '#f59e0b';
+        html += '<tr>' +
+            '<td style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap;">' + new Date(log.created_at).toLocaleString() + '</td>' +
+            '<td><span style="font-size:0.72rem;font-weight:600;color:' + actionColor + ';text-transform:uppercase;">' + _esc(log.action) + '</span></td>' +
+            '<td style="font-size:0.82rem;">' + _esc(log.entity_type || '') + '</td>' +
+            '<td style="font-size:0.78rem;color:var(--text-secondary);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(log.details || '') + '</td>' +
+            '<td style="font-size:0.82rem;">' + _esc(log.user_name || '') + '</td>' +
+            '<td><span style="font-size:0.7rem;background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:10px;">' + _esc(log.user_role || '') + '</span></td>' +
+            '</tr>';
+    });
+
+    container.innerHTML = html;
+}
+
+/* ================================================
+   FEATURE: RESEARCH FORUM (Threaded Discussions)
+   ================================================ */
+var _forumCurrentThread = null;
+
+async function renderForumThreads() {
+    var container = document.getElementById('forumContent');
+    if (!container) return;
+
+    _showLoading(container);
+    _forumCurrentThread = null;
+
+    var { data: threads } = await _sb.from('forum_posts').select('*').is('parent_id', null).order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(50);
+    if (!threads) threads = [];
+
+    // Get reply counts
+    var threadIds = threads.map(function(t) { return t.id; });
+    var replyCounts = {};
+    if (threadIds.length > 0) {
+        var { data: replies } = await _sb.from('forum_posts').select('parent_id').in('parent_id', threadIds);
+        if (replies) {
+            replies.forEach(function(r) {
+                replyCounts[r.parent_id] = (replyCounts[r.parent_id] || 0) + 1;
+            });
+        }
+    }
+
+    var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+        '<h3 style="font-family:\'Space Grotesk\',sans-serif;font-size:1.1rem;color:var(--text-primary);"><i class="fas fa-comments" style="color:#00d4ff;margin-right:8px;"></i>Research Forum</h3>' +
+        '<button class="btn btn-primary btn-sm" onclick="openNewForumThread()"><i class="fas fa-plus"></i> New Thread</button></div>';
+
+    // Category filter
+    html += '<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">' +
+        '<button class="btn btn-outline btn-sm forum-cat-btn active" onclick="filterForumCategory(null, this)">All</button>' +
+        '<button class="btn btn-outline btn-sm forum-cat-btn" onclick="filterForumCategory(\'Statistical Consultation\', this)">Statistical</button>' +
+        '<button class="btn btn-outline btn-sm forum-cat-btn" onclick="filterForumCategory(\'Data Query\', this)">Data Query</button>' +
+        '<button class="btn btn-outline btn-sm forum-cat-btn" onclick="filterForumCategory(\'Collaboration\', this)">Collaboration</button>' +
+        '<button class="btn btn-outline btn-sm forum-cat-btn" onclick="filterForumCategory(\'General Discussion\', this)">General</button></div>';
+
+    if (threads.length === 0) {
+        html += '<div style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fas fa-comments" style="font-size:2rem;display:block;margin-bottom:12px;"></i>No forum threads yet.<br><small>Start a discussion by clicking "New Thread".</small></div>';
+    } else {
+        html += '<div id="forumThreadList">';
+        threads.forEach(function(t) {
+            var catColors = { 'Statistical Consultation': '#7c3aed', 'Data Query': '#00d4ff', 'Collaboration': '#10b981', 'General Discussion': '#f59e0b' };
+            var catColor = catColors[t.category] || '#64748b';
+            var replyCount = replyCounts[t.id] || 0;
+            html += '<div class="forum-thread-card" data-category="' + _esc(t.category || '') + '" onclick="openForumThread(' + t.id + ')" style="padding:16px;border-radius:12px;background:var(--card-bg,rgba(255,255,255,0.02));border:1px solid var(--border-color,rgba(255,255,255,0.06));margin-bottom:10px;cursor:pointer;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'rgba(0,212,255,0.3)\'" onmouseout="this.style.borderColor=\'var(--border-color,rgba(255,255,255,0.06))\'">' +
+                (t.pinned ? '<i class="fas fa-thumbtack" style="color:#f59e0b;margin-right:6px;font-size:0.72rem;"></i>' : '') +
+                (t.resolved ? '<i class="fas fa-check-circle" style="color:#10b981;margin-right:6px;font-size:0.72rem;"></i>' : '') +
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+                '<span style="font-size:0.68rem;background:' + catColor + '22;color:' + catColor + ';padding:2px 10px;border-radius:10px;font-weight:500;">' + _esc(t.category || 'General') + '</span>' +
+                '</div>' +
+                '<h4 style="font-size:0.92rem;font-weight:600;color:var(--text-primary);margin-bottom:4px;">' + _esc(t.title) + '</h4>' +
+                '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + _esc(t.content || '') + '</p>' +
+                '<div style="display:flex;align-items:center;gap:16px;font-size:0.72rem;color:var(--text-muted);">' +
+                '<span><i class="fas fa-user"></i> ' + _esc(t.author_name || 'Anonymous') + '</span>' +
+                '<span><i class="fas fa-comment"></i> ' + replyCount + ' replies</span>' +
+                '<span><i class="fas fa-clock"></i> ' + new Date(t.created_at).toLocaleDateString() + '</span>' +
+                '</div></div>';
+        });
+        html += '</div>';
+    }
+
+    container.innerHTML = html;
+}
+
+function filterForumCategory(category, btn) {
+    // Update active button
+    document.querySelectorAll('.forum-cat-btn').forEach(function(b) { b.classList.remove('active'); });
+    if (btn) btn.classList.add('active');
+
+    var cards = document.querySelectorAll('.forum-thread-card');
+    cards.forEach(function(card) {
+        if (!category) { card.style.display = ''; return; }
+        var cardCat = card.getAttribute('data-category');
+        card.style.display = (cardCat === category) ? '' : 'none';
+    });
+}
+
+function openNewForumThread() {
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'New Forum Thread';
+
+    var html = '<form onsubmit="event.preventDefault(); submitForumThread(this);">' +
+        '<div class="form-group"><label>Title *</label><input type="text" id="forumThreadTitle" placeholder="Discussion topic..." required></div>' +
+        '<div class="form-group"><label>Category *</label><select id="forumThreadCat" required>' +
+        '<option value="">Select category...</option>' +
+        '<option>Statistical Consultation</option><option>Data Query</option>' +
+        '<option>Collaboration</option><option>General Discussion</option></select></div>' +
+        '<div class="form-group"><label>Content *</label><textarea id="forumThreadContent" rows="6" placeholder="Describe your question or topic..." required></textarea></div>' +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+        '<button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Post Thread</button></div></form>';
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+async function submitForumThread(formEl) {
+    var title = document.getElementById('forumThreadTitle').value.trim();
+    var category = document.getElementById('forumThreadCat').value;
+    var content = document.getElementById('forumThreadContent').value.trim();
+
+    if (!title || !content || !category) { showToast('All fields are required.', 'error'); return; }
+
+    var { error } = await _sb.from('forum_posts').insert({
+        title: title,
+        category: category,
+        content: content,
+        author_id: currentUserId,
+        author_name: currentUserName,
+        parent_id: null,
+        resolved: false,
+        pinned: false
+    });
+
+    if (error) { showToast('Error creating thread: ' + error.message, 'error'); return; }
+    closeModal();
+    showToast('Thread posted!', 'success');
+    renderForumThreads();
+}
+
+async function openForumThread(threadId) {
+    var container = document.getElementById('forumContent');
+    if (!container) return;
+
+    _showLoading(container);
+    _forumCurrentThread = threadId;
+
+    var { data: thread } = await _sb.from('forum_posts').select('*').eq('id', threadId).single();
+    if (!thread) { container.innerHTML = '<p>Thread not found.</p>'; return; }
+
+    var { data: replies } = await _sb.from('forum_posts').select('*').eq('parent_id', threadId).order('created_at', { ascending: true });
+    if (!replies) replies = [];
+
+    var catColors = { 'Statistical Consultation': '#7c3aed', 'Data Query': '#00d4ff', 'Collaboration': '#10b981', 'General Discussion': '#f59e0b' };
+    var catColor = catColors[thread.category] || '#64748b';
+
+    var html = '<div style="margin-bottom:16px;">' +
+        '<button class="btn btn-outline btn-sm" onclick="renderForumThreads()" style="margin-bottom:16px;"><i class="fas fa-arrow-left"></i> Back to Forum</button>' +
+        '<div style="padding:20px;border-radius:14px;background:var(--card-bg,rgba(255,255,255,0.02));border:1px solid var(--border-color,rgba(255,255,255,0.06));">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
+        '<span style="font-size:0.72rem;background:' + catColor + '22;color:' + catColor + ';padding:2px 10px;border-radius:10px;font-weight:500;">' + _esc(thread.category || 'General') + '</span>' +
+        (thread.resolved ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.15);color:#10b981;padding:2px 10px;border-radius:10px;"><i class="fas fa-check"></i> Resolved</span>' : '') +
+        '</div>' +
+        '<h3 style="font-size:1.1rem;font-weight:600;color:var(--text-primary);margin-bottom:8px;">' + _esc(thread.title) + '</h3>' +
+        '<p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;white-space:pre-wrap;">' + _esc(thread.content) + '</p>' +
+        '<div style="display:flex;align-items:center;gap:16px;font-size:0.75rem;color:var(--text-muted);">' +
+        '<span><i class="fas fa-user"></i> ' + _esc(thread.author_name || 'Anonymous') + '</span>' +
+        '<span><i class="fas fa-clock"></i> ' + new Date(thread.created_at).toLocaleString() + '</span>' +
+        '</div>';
+
+    // Admin/author controls
+    if (currentUserRole === 'Admin' || currentUserId === thread.author_id) {
+        html += '<div style="margin-top:12px;display:flex;gap:8px;">';
+        if (!thread.resolved) {
+            html += '<button class="btn btn-outline btn-sm" onclick="resolveForumThread(' + threadId + ')" style="border-color:#10b981;color:#10b981;"><i class="fas fa-check"></i> Mark Resolved</button>';
+        }
+        html += '</div>';
+    }
+
+    html += '</div></div>';
+
+    // Replies
+    html += '<h4 style="font-size:0.92rem;color:var(--text-primary);margin:20px 0 12px;"><i class="fas fa-reply" style="color:#00d4ff;margin-right:6px;"></i>Replies (' + replies.length + ')</h4>';
+
+    if (replies.length === 0) {
+        html += '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.82rem;">No replies yet. Be the first to respond!</div>';
+    } else {
+        replies.forEach(function(r) {
+            html += '<div style="padding:14px 16px;border-radius:10px;background:var(--card-bg,rgba(255,255,255,0.02));border:1px solid var(--border-color,rgba(255,255,255,0.04));margin-bottom:8px;">' +
+                '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
+                '<div style="width:32px;height:32px;border-radius:50%;background:rgba(0,212,255,0.15);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;color:#00d4ff;">' + _esc((r.author_name || '?').charAt(0)) + '</div>' +
+                '<div><div style="font-size:0.82rem;font-weight:500;color:var(--text-primary);">' + _esc(r.author_name || 'Anonymous') + '</div>' +
+                '<div style="font-size:0.68rem;color:var(--text-muted);">' + new Date(r.created_at).toLocaleString() + '</div></div></div>' +
+                '<p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;white-space:pre-wrap;">' + _esc(r.content) + '</p></div>';
+        });
+    }
+
+    // Reply form
+    html += '<div style="margin-top:16px;padding:16px;border-radius:12px;background:var(--card-bg,rgba(255,255,255,0.02));border:1px solid var(--border-color,rgba(255,255,255,0.06));">' +
+        '<div class="form-group"><label>Reply</label><textarea id="forumReplyContent" rows="3" placeholder="Write your reply..." style="width:100%;"></textarea></div>' +
+        '<button class="btn btn-primary btn-sm" onclick="submitForumReply(' + threadId + ')"><i class="fas fa-paper-plane"></i> Post Reply</button></div>';
+
+    container.innerHTML = html;
+}
+
+async function submitForumReply(threadId) {
+    var contentEl = document.getElementById('forumReplyContent');
+    if (!contentEl || !contentEl.value.trim()) { showToast('Please write a reply.', 'error'); return; }
+
+    var { error } = await _sb.from('forum_posts').insert({
+        content: contentEl.value.trim(),
+        parent_id: threadId,
+        author_id: currentUserId,
+        author_name: currentUserName,
+        resolved: false,
+        pinned: false
+    });
+
+    if (error) { showToast('Error posting reply: ' + error.message, 'error'); return; }
+    showToast('Reply posted!', 'success');
+    openForumThread(threadId);
+}
+
+async function resolveForumThread(threadId) {
+    await _sb.from('forum_posts').update({ resolved: true }).eq('id', threadId);
+    showToast('Thread marked as resolved.', 'success');
+    openForumThread(threadId);
+}
+
+/* ================================================
+   FEATURE: FACULTY RESEARCH PROFILES
+   ================================================ */
+async function openFacultyProfile(userId) {
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+
+    bodyEl.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem;color:#00d4ff;"></i></div>';
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    var { data: profile } = await _sb.from('profiles').select('*').eq('id', userId).single();
+    if (!profile) { bodyEl.innerHTML = '<p>Profile not found.</p>'; return; }
+
+    var { data: facultyData } = await _sb.from('faculty_profiles').select('*').eq('user_id', userId).single();
+    if (!facultyData) facultyData = {};
+
+    // Fetch their projects
+    var { data: projects } = await _sb.from('projects').select('id, title, status, phase').ilike('pi', '%' + (profile.name || '').split(',')[0] + '%');
+    if (!projects) projects = [];
+
+    titleEl.textContent = profile.name || 'Faculty Profile';
+
+    var roleColor = _getRoleColor(profile.role);
+    var html = '<div style="max-height:70vh;overflow-y:auto;">';
+
+    // Header
+    html += '<div style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
+        '<div style="width:72px;height:72px;border-radius:50%;background:' + roleColor + ';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.3rem;color:#fff;flex-shrink:0;">' + _esc(profile.initials || '?') + '</div>' +
+        '<div>' +
+        '<h3 style="font-size:1.1rem;font-weight:600;color:var(--text-primary);margin-bottom:2px;">' + _esc(profile.name) + '</h3>' +
+        '<p style="font-size:0.85rem;color:var(--text-secondary);">' + _esc(profile.title || '') + '</p>' +
+        '<p style="font-size:0.78rem;color:var(--accent-primary);">' + _esc(profile.email) + '</p>' +
+        '</div></div>';
+
+    // Bio & Research Interests
+    if (facultyData.bio || facultyData.research_interests) {
+        html += '<div style="margin-bottom:20px;">';
+        if (facultyData.bio) {
+            html += '<h4 style="font-size:0.88rem;color:var(--accent-primary);margin-bottom:6px;"><i class="fas fa-user-md" style="margin-right:6px;"></i>Biography</h4>' +
+                '<p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin-bottom:12px;">' + _esc(facultyData.bio) + '</p>';
+        }
+        if (facultyData.research_interests) {
+            html += '<h4 style="font-size:0.88rem;color:var(--accent-primary);margin-bottom:6px;"><i class="fas fa-flask" style="margin-right:6px;"></i>Research Interests</h4>' +
+                '<p style="font-size:0.82rem;color:var(--text-secondary);">' + _esc(facultyData.research_interests) + '</p>';
+        }
+        html += '</div>';
+    }
+
+    // Academic metrics
+    if (facultyData.h_index || facultyData.total_citations || facultyData.orcid) {
+        html += '<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">';
+        if (facultyData.h_index) {
+            html += '<div style="padding:12px 18px;border-radius:10px;background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.15);text-align:center;">' +
+                '<div style="font-size:1.3rem;font-weight:700;color:#00d4ff;">' + facultyData.h_index + '</div>' +
+                '<div style="font-size:0.68rem;color:var(--text-muted);">h-index</div></div>';
+        }
+        if (facultyData.total_citations) {
+            html += '<div style="padding:12px 18px;border-radius:10px;background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.15);text-align:center;">' +
+                '<div style="font-size:1.3rem;font-weight:700;color:#7c3aed;">' + facultyData.total_citations + '</div>' +
+                '<div style="font-size:0.68rem;color:var(--text-muted);">Citations</div></div>';
+        }
+        if (facultyData.orcid) {
+            html += '<div style="padding:12px 18px;border-radius:10px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);text-align:center;">' +
+                '<div style="font-size:0.82rem;font-weight:600;color:#10b981;">' + _esc(facultyData.orcid) + '</div>' +
+                '<div style="font-size:0.68rem;color:var(--text-muted);">ORCID</div></div>';
+        }
+        html += '</div>';
+    }
+
+    // Links
+    if (facultyData.lab_website || facultyData.google_scholar) {
+        html += '<div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">';
+        if (facultyData.lab_website) {
+            html += '<a href="' + _esc(facultyData.lab_website) + '" target="_blank" class="btn btn-outline btn-sm"><i class="fas fa-globe"></i> Lab Website</a>';
+        }
+        if (facultyData.google_scholar) {
+            html += '<a href="' + _esc(facultyData.google_scholar) + '" target="_blank" class="btn btn-outline btn-sm"><i class="fas fa-graduation-cap"></i> Google Scholar</a>';
+        }
+        html += '</div>';
+    }
+
+    // Projects
+    if (projects.length > 0) {
+        html += '<h4 style="font-size:0.88rem;color:var(--accent-primary);margin-bottom:10px;"><i class="fas fa-project-diagram" style="margin-right:6px;"></i>Research Projects (' + projects.length + ')</h4>';
+        projects.forEach(function(p) {
+            var statusClass = (p.status || 'active').toLowerCase();
+            html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.02);margin-bottom:6px;cursor:pointer;" onclick="closeModal(); setTimeout(function(){ openModal(\'projectDetail\',' + p.id + '); }, 300);">' +
+                '<div style="flex:1;"><div style="font-size:0.82rem;font-weight:500;color:var(--text-primary);">' + _esc(p.title) + '</div>' +
+                '<div style="font-size:0.7rem;color:var(--text-muted);">' + _esc(p.phase || '') + '</div></div>' +
+                '<span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,0.12);color:var(--text-secondary);">' + _esc(p.status || '') + '</span></div>';
+        });
+    }
+
+    // Edit button for own profile or admin
+    if (currentUserId === userId || currentUserRole === 'Admin') {
+        html += '<div style="margin-top:20px;text-align:center;">' +
+            '<button class="btn btn-outline btn-sm" onclick="editFacultyProfile(\'' + userId + '\')"><i class="fas fa-edit"></i> Edit Profile</button></div>';
+    }
+
+    html += '</div>';
+    bodyEl.innerHTML = html;
+}
+
+async function editFacultyProfile(userId) {
+    var { data: facultyData } = await _sb.from('faculty_profiles').select('*').eq('user_id', userId).single();
+    if (!facultyData) facultyData = {};
+
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'Edit Faculty Profile';
+
+    var html = '<form onsubmit="event.preventDefault(); saveFacultyProfile(this, \'' + userId + '\');" style="max-height:65vh;overflow-y:auto;">' +
+        '<div class="form-group"><label>Biography</label><textarea id="fpBio" rows="4" placeholder="Professional biography...">' + _esc(facultyData.bio || '') + '</textarea></div>' +
+        '<div class="form-group"><label>Research Interests</label><textarea id="fpInterests" rows="2" placeholder="e.g., Epilepsy, Deep Learning, fMRI...">' + _esc(facultyData.research_interests || '') + '</textarea></div>' +
+        '<div class="form-group"><label>Education</label><textarea id="fpEducation" rows="2" placeholder="Degrees and institutions...">' + _esc(facultyData.education || '') + '</textarea></div>' +
+        '<div class="form-group"><label>Clinical Focus</label><input type="text" id="fpClinical" value="' + _esc(facultyData.clinical_focus || '') + '" placeholder="e.g., Movement Disorders, Neuro-oncology..."></div>' +
+        '<div class="form-row"><div class="form-group"><label>Lab Website</label><input type="url" id="fpLabWeb" value="' + _esc(facultyData.lab_website || '') + '" placeholder="https://..."></div>' +
+        '<div class="form-group"><label>ORCID</label><input type="text" id="fpOrcid" value="' + _esc(facultyData.orcid || '') + '" placeholder="0000-0000-0000-0000"></div></div>' +
+        '<div class="form-row"><div class="form-group"><label>Google Scholar URL</label><input type="url" id="fpScholar" value="' + _esc(facultyData.google_scholar || '') + '" placeholder="https://scholar.google.com/..."></div>' +
+        '<div class="form-group"><label>Office Location</label><input type="text" id="fpOffice" value="' + _esc(facultyData.office_location || '') + '" placeholder="Building, Room"></div></div>' +
+        '<div class="form-row"><div class="form-group"><label>h-index</label><input type="number" id="fpHIndex" value="' + (facultyData.h_index || '') + '" placeholder="0"></div>' +
+        '<div class="form-group"><label>Total Citations</label><input type="number" id="fpCitations" value="' + (facultyData.total_citations || '') + '" placeholder="0"></div></div>' +
+        '<div class="form-group" style="display:flex;align-items:center;gap:10px;"><input type="checkbox" id="fpAccepting" ' + (facultyData.accepting_students ? 'checked' : '') + ' style="width:auto;">' +
+        '<label for="fpAccepting" style="margin:0;cursor:pointer;font-size:0.85rem;">Currently accepting research students</label></div>' +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+        '<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Profile</button></div></form>';
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+async function saveFacultyProfile(formEl, userId) {
+    var data = {
+        user_id: userId,
+        bio: document.getElementById('fpBio').value.trim(),
+        research_interests: document.getElementById('fpInterests').value.trim(),
+        education: document.getElementById('fpEducation').value.trim(),
+        clinical_focus: document.getElementById('fpClinical').value.trim(),
+        lab_website: document.getElementById('fpLabWeb').value.trim(),
+        orcid: document.getElementById('fpOrcid').value.trim(),
+        google_scholar: document.getElementById('fpScholar').value.trim(),
+        office_location: document.getElementById('fpOffice').value.trim(),
+        h_index: parseInt(document.getElementById('fpHIndex').value) || null,
+        total_citations: parseInt(document.getElementById('fpCitations').value) || null,
+        accepting_students: document.getElementById('fpAccepting').checked
+    };
+
+    // Upsert
+    var { error } = await _sb.from('faculty_profiles').upsert(data, { onConflict: 'user_id' });
+    if (error) { showToast('Error saving profile: ' + error.message, 'error'); return; }
+    closeModal();
+    showToast('Faculty profile updated!', 'success');
+}
+
+/* ================================================
+   FEATURE: RESEARCH METRICS DASHBOARD
+   ================================================ */
+async function renderResearchMetrics() {
+    var overlay = document.getElementById('modalOverlay');
+    var titleEl = document.getElementById('modalTitle');
+    var bodyEl = document.getElementById('modalBody');
+    titleEl.textContent = 'Research Metrics Dashboard';
+
+    bodyEl.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:2rem;color:#00d4ff;"></i><p style="margin-top:10px;color:var(--text-muted);">Loading metrics...</p></div>';
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Fetch data
+    var { data: allProjects } = await _sb.from('projects').select('status, pillar, created_at');
+    if (!allProjects) allProjects = [];
+    var { data: allGrants } = await _sb.from('grants').select('status, amount, period_start');
+    if (!allGrants) allGrants = [];
+    var { data: allPubs } = await _sb.from('publications').select('pub_type, year');
+    if (!allPubs) allPubs = [];
+
+    // Projects by status
+    var statusCounts = {};
+    allProjects.forEach(function(p) {
+        var s = p.status || 'Unknown';
+        statusCounts[s] = (statusCounts[s] || 0) + 1;
+    });
+
+    // Projects by pillar
+    var pillarCounts = {};
+    allProjects.forEach(function(p) {
+        var pl = p.pillar || 'Unassigned';
+        pillarCounts[pl] = (pillarCounts[pl] || 0) + 1;
+    });
+
+    // Grants by status
+    var grantStatusCounts = {};
+    allGrants.forEach(function(g) {
+        var s = g.status || 'Unknown';
+        grantStatusCounts[s] = (grantStatusCounts[s] || 0) + 1;
+    });
+
+    // Build HTML charts (CSS bar charts)
+    var html = '<div style="max-height:70vh;overflow-y:auto;">';
+
+    // Projects by Status
+    html += '<h4 style="font-size:0.92rem;color:var(--accent-primary);margin-bottom:12px;"><i class="fas fa-chart-bar" style="margin-right:6px;"></i>Projects by Status</h4>';
+    html += _buildBarChart(statusCounts, { 'Active': '#10b981', 'Pre-submission': '#f59e0b', 'Completed': '#7c3aed', 'On Hold': '#ef4444' });
+
+    // Projects by Pillar
+    html += '<h4 style="font-size:0.92rem;color:var(--accent-primary);margin:24px 0 12px;"><i class="fas fa-columns" style="margin-right:6px;"></i>Projects by Research Pillar</h4>';
+    html += _buildBarChart(pillarCounts, { 'Translational': '#00d4ff', 'Clinical': '#7c3aed', 'Computational': '#10b981', 'Unassigned': '#64748b' });
+
+    // Grants by Status
+    html += '<h4 style="font-size:0.92rem;color:var(--accent-primary);margin:24px 0 12px;"><i class="fas fa-dollar-sign" style="margin-right:6px;"></i>Grants by Status</h4>';
+    html += _buildBarChart(grantStatusCounts, { 'Active': '#10b981', 'Pending': '#f59e0b', 'Submitted': '#00d4ff', 'Completed': '#7c3aed', 'Not Funded': '#ef4444' });
+
+    // Summary stats
+    html += '<div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap;">';
+    html += _buildMetricCard('Total Projects', allProjects.length, '#00d4ff', 'fa-project-diagram');
+    html += _buildMetricCard('Total Grants', allGrants.length, '#7c3aed', 'fa-dollar-sign');
+    html += _buildMetricCard('Total Publications', allPubs.length, '#10b981', 'fa-book');
+    html += _buildMetricCard('Active Projects', statusCounts['Active'] || 0, '#f59e0b', 'fa-play-circle');
+    html += '</div>';
+
+    html += '<div class="modal-actions" style="margin-top:20px;">' +
+        '<button type="button" class="btn btn-outline" onclick="closeModal()">Close</button></div></div>';
+
+    bodyEl.innerHTML = html;
+}
+
+function _buildBarChart(data, colorMap) {
+    var maxVal = 0;
+    Object.keys(data).forEach(function(k) { if (data[k] > maxVal) maxVal = data[k]; });
+    if (maxVal === 0) return '<div style="padding:16px;color:var(--text-muted);font-size:0.82rem;">No data available.</div>';
+
+    var html = '<div style="padding:8px 0;">';
+    Object.keys(data).forEach(function(k) {
+        var val = data[k];
+        var pct = maxVal > 0 ? (val / maxVal * 100) : 0;
+        var color = colorMap[k] || '#64748b';
+        html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
+            '<span style="font-size:0.78rem;color:var(--text-secondary);min-width:120px;text-align:right;">' + _esc(k) + '</span>' +
+            '<div style="flex:1;height:24px;background:rgba(255,255,255,0.04);border-radius:6px;overflow:hidden;">' +
+            '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:6px;transition:width 0.6s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;">' +
+            '<span style="font-size:0.7rem;font-weight:600;color:#fff;">' + val + '</span></div></div></div>';
+    });
+    html += '</div>';
+    return html;
+}
+
+function _buildMetricCard(label, value, color, icon) {
+    return '<div style="flex:1;min-width:120px;padding:16px;border-radius:12px;background:' + color + '08;border:1px solid ' + color + '22;text-align:center;">' +
+        '<i class="fas ' + icon + '" style="color:' + color + ';font-size:1.2rem;margin-bottom:6px;display:block;"></i>' +
+        '<div style="font-size:1.5rem;font-weight:700;color:' + color + ';">' + value + '</div>' +
+        '<div style="font-size:0.72rem;color:var(--text-muted);">' + label + '</div></div>';
+}
+
+/* ================================================
+   FEATURE: PWA SUPPORT LOGIC
+   ================================================ */
+function initPWA() {
+    // Register service worker if available
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            console.log('Service Worker registered with scope:', reg.scope);
+        }).catch(function(err) {
+            console.log('Service Worker registration skipped:', err.message);
+        });
+    }
+
+    // Handle install prompt
+    var _deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        _deferredPrompt = e;
+        // Show install button if desired
+        var installBtn = document.getElementById('pwaInstallBtn');
+        if (installBtn) {
+            installBtn.style.display = '';
+            installBtn.onclick = function() {
+                if (_deferredPrompt) {
+                    _deferredPrompt.prompt();
+                    _deferredPrompt.userChoice.then(function(choiceResult) {
+                        if (choiceResult.outcome === 'accepted') {
+                            showToast('App installed successfully!', 'success');
+                        }
+                        _deferredPrompt = null;
+                        installBtn.style.display = 'none';
+                    });
+                }
+            };
+        }
+    });
+}
+
+// Initialize PWA on load
+document.addEventListener('DOMContentLoaded', function() {
+    initPWA();
+});
+
+/* ================================================
+   UPDATE: Wire People Directory with Faculty Profile clicks
+   ================================================ */
+var _origRenderPeopleDirectory = renderPeopleDirectory;
+renderPeopleDirectory = async function(filterRole) {
+    await _origRenderPeopleDirectory(filterRole);
+    // Add click handlers to faculty person cards
+    var grid = document.getElementById('peopleGrid');
+    if (!grid) return;
+    var cards = grid.querySelectorAll('.person-card');
+    // Re-fetch profiles to get user IDs for click handlers
+    var { data: profiles } = await _sb.from('profiles').select('id, name, role');
+    if (!profiles) return;
+    var profileMap = {};
+    profiles.forEach(function(p) { profileMap[p.name] = p; });
+
+    cards.forEach(function(card) {
+        var nameEl = card.querySelector('h4');
+        if (!nameEl) return;
+        var name = nameEl.textContent.trim();
+        var p = profileMap[name];
+        if (p && (p.role === 'Faculty' || p.role === 'Admin')) {
+            card.style.cursor = 'pointer';
+            card.onclick = function() { openFacultyProfile(p.id); };
+        }
+    });
+};
 
 // Auto-refresh timestamps placeholder
 setInterval(function () { /* updateTimestamps */ }, 60000);
