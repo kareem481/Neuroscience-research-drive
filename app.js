@@ -187,6 +187,7 @@ function togglePassword(fieldId) {
 }
 
 async function handleLogin() {
+  try {
     var emailInput = document.getElementById('loginEmail');
     var passwordInput = document.getElementById('loginPassword');
     var emailVal = emailInput ? emailInput.value.toLowerCase().trim() : '';
@@ -200,6 +201,8 @@ async function handleLogin() {
         showToast('Please enter your password.', 'error');
         return;
     }
+
+    showToast('Signing in...', 'info');
 
     // Sign in via Supabase Auth
     var { data: authData, error: authError } = await _sb.auth.signInWithPassword({ email: emailVal, password: passwordVal });
@@ -295,6 +298,10 @@ async function handleLogin() {
     }, 100);
 
     showToast('Welcome, ' + currentUserName.split(',')[0].split(' ')[0] + '!', 'success');
+  } catch (err) {
+    console.error('Login error:', err);
+    showToast('Login error: ' + err.message, 'error');
+  }
 }
 
 /* --- Toggle IRB access visibility --- */
