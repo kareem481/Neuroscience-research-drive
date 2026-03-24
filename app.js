@@ -4506,11 +4506,14 @@ async function renderSendEmailTab() {
             email: u.email,
             role: u.role,
             credential: u.credential || '',
-            password: '(set in auth)',
+            password: _generateTempPassword(u.name, u.role),
             needsProfileSetup: u.needs_profile_setup,
             sent: false
         };
     });
+
+    // Store globally for sendAll to access
+    window._inviteUsers = allUsers;
 
     // Sort by role then name
     allUsers.sort(function(a, b) {
@@ -4569,7 +4572,7 @@ function previewInviteEmail() {
     var bodyEl = document.getElementById('modalBody');
     titleEl.textContent = 'Email Invitation Template Preview';
 
-    var loginUrl = window.location.href.split('?')[0];
+    var loginUrl = 'https://slresearchhub.com';
 
     var html = '<div style="background:#0f0f2e;border:1px solid var(--border-color);border-radius:12px;padding:24px;max-height:60vh;overflow-y:auto;">' +
         '<div style="text-align:center;margin-bottom:20px;">' +
@@ -4617,75 +4620,122 @@ function previewInviteEmail() {
     document.body.style.overflow = 'hidden';
 }
 
-async function sendSingleInviteEmail(email) {
-    var user = await _findAnyUserByEmail(email);
-    if (!user) { showToast('User not found.', 'error'); return; }
+/* --- Generate temp password from name (matches seed script pattern) --- */
+function _generateTempPassword(name, role) {
+    if (role === 'IRB') return 'SLNeuro_IRB2026!';
+    // Extract last name: "Andrew Abumoussa, MD" -> "Abumoussa", "Arlene O'Shea, APRN" -> "OShea"
+    var parts = name.split(',')[0].trim().split(' ');
+    var lastName = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+    // Remove apostrophes and special chars
+    lastName = lastName.replace(/[^a-zA-Z]/g, '');
+    return 'SLNeuro_' + lastName + '1!';
+}
 
-    var loginUrl = window.location.href.split('?')[0];
-
-    var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database — Your Account is Ready');
-    var body = encodeURIComponent(
-        'Dear ' + user.name + ',\n\n' +
+/* --- Build email body for a single user --- */
+function _buildInviteEmailBody(userName, userEmail, tempPassword) {
+    var loginUrl = 'https://slresearchhub.com';
+    return 'Dear ' + userName + ',\n\n' +
         'We are pleased to invite you to the Saint Luke\'s Neuroscience Research Database — a centralized hub for our Neurology & Neurosurgery research operations.\n\n' +
         'This platform supports the full research lifecycle: project submissions, IRB tracking, data collection, publications, and team collaboration.\n\n' +
-        '--- YOUR LOGIN CREDENTIALS ---\n' +
+        '========================================\n' +
+        'YOUR LOGIN CREDENTIALS\n' +
+        '========================================\n' +
         'Login URL: ' + loginUrl + '\n' +
-        'Email: ' + user.email + '\n' +
-        'Temporary Password: (provided separately)\n\n' +
-        '--- GETTING STARTED ---\n' +
-        '1. Click the login URL above\n' +
-        '2. Enter your email and temporary password\n' +
-        '3. Your login request will be submitted for approval\n' +
+        'Email: ' + userEmail + '\n' +
+        'Temporary Password: ' + tempPassword + '\n' +
+        '========================================\n\n' +
+        'GETTING STARTED:\n' +
+        '1. Go to ' + loginUrl + '\n' +
+        '2. Enter your email and temporary password above\n' +
+        '3. Your login request will be submitted for admin approval\n' +
         '4. Once approved by Dr. Hayner or Dr. Almekkawi, log in again\n' +
         '5. You will be prompted to change your password and complete your profile\n' +
         '6. Upload your CITI training certificate (required for all personnel)\n\n' +
+        'IMPORTANT: Please change your password on first login. Do not share your credentials.\n\n' +
         'If you have any questions, please contact:\n' +
-        '- Dr. Stephanie Kolakowsky-Hayner — skolakowsky@saint-lukes.org\n' +
-        '- Dr. Ahmad Kareem Almekkawi — aalmekkawi@saint-lukes.org\n\n' +
-        'Best regards,\nNeuroscience Research Department\nSaint Luke\'s Health System'
-    );
+        '- Dr. Stephanie Kolakowsky-Hayner - skolakowsky@saint-lukes.org\n' +
+        '- Dr. Ahmad Kareem Almekkawi - aalmekkawi@saint-lukes.org\n\n' +
+        'Best regards,\n' +
+        'Neuroscience Research Department\n' +
+        'Saint Luke\'s Health System';
+}
 
-    // Determine sender email
-    var fromEmail = currentUserEmail;
+async function sendSingleInviteEmail(email) {
+    // Find user in the cached invite list or fetch from DB
+    var user = (window._inviteUsers || []).find(function(u) { return u.email === email; });
+    if (!user) {
+        var profile = await _findAnyUserByEmail(email);
+        if (!profile) { showToast('User not found.', 'error'); return; }
+        user = { name: profile.name, email: profile.email, role: profile.role };
+        user.password = _generateTempPassword(user.name, user.role);
+    }
 
-    // Open mailto link
-    window.open('mailto:' + user.email + '?subject=' + subject + '&body=' + body, '_blank');
+    var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database - Your Account is Ready');
+    var body = encodeURIComponent(_buildInviteEmailBody(user.name, user.email, user.password));
 
-    showToast('Email invitation opened for ' + user.name + '. Send from your email client.', 'success');
+    // Use location.href (not window.open) to open in default mail client (Outlook)
+    window.location.href = 'mailto:' + user.email + '?subject=' + subject + '&body=' + body;
+
+    showToast('Email opened for ' + user.name + '. Send from your email client.', 'success');
 }
 
 function sendAllInviteEmails() {
     // Get checked users
     var checkboxes = document.querySelectorAll('.email-user-cb:checked');
-    var emails = [];
-    checkboxes.forEach(function(cb) { emails.push(cb.dataset.email); });
+    var selectedEmails = [];
+    checkboxes.forEach(function(cb) { selectedEmails.push(cb.dataset.email); });
 
-    if (emails.length === 0) {
+    if (selectedEmails.length === 0) {
         showToast('Please select users to send invitations to.', 'info');
         return;
     }
 
-    var loginUrl = window.location.href.split('?')[0];
-    var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database — Your Account is Ready');
-    var body = encodeURIComponent(
-        'Dear Team Member,\n\n' +
-        'We are pleased to invite you to the Saint Luke\'s Neuroscience Research Database.\n\n' +
-        'Please log in at: ' + loginUrl + '\n\n' +
-        'Use your Saint Luke\'s email address and the password that was provided to you.\n\n' +
-        'Getting Started:\n' +
-        '1. Enter your email and password\n' +
-        '2. Your login request will be submitted for approval\n' +
-        '3. Once approved, you will be prompted to set a new password\n' +
-        '4. Upload your CITI training certificate\n\n' +
-        'Contact Dr. Kolakowsky-Hayner or Dr. Almekkawi with questions.\n\n' +
-        'Best regards,\nNeuroscience Research Department\nSaint Luke\'s Health System'
-    );
+    // Get user data from cached list
+    var users = (window._inviteUsers || []).filter(function(u) {
+        return selectedEmails.indexOf(u.email) !== -1;
+    });
 
-    // Open batch email (up to 10 at a time)
-    var batchSize = 10;
-    var firstBatch = emails.slice(0, batchSize);
-    window.open('mailto:?bcc=' + firstBatch.join(',') + '&subject=' + subject + '&body=' + body, '_blank');
-    showToast('Batch email opened for ' + Math.min(emails.length, batchSize) + ' users. Send from your email client.', 'success');
+    if (users.length === 0) {
+        showToast('No user data found. Please refresh the tab.', 'error');
+        return;
+    }
+
+    // Since each user has unique credentials, we must send individual emails.
+    // Open them in batches with a delay so the mail client can handle it.
+    var batchSize = 5;
+    var delay = 1500; // ms between each email
+    var totalBatches = Math.ceil(users.length / batchSize);
+    var currentIndex = 0;
+
+    showToast('Opening ' + users.length + ' emails in batches of ' + batchSize + '... Please send each one from your email client.', 'info');
+
+    function sendNextEmail() {
+        if (currentIndex >= users.length) {
+            showToast('All ' + users.length + ' invitation emails have been opened!', 'success');
+            return;
+        }
+
+        var user = users[currentIndex];
+        var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database - Your Account is Ready');
+        var body = encodeURIComponent(_buildInviteEmailBody(user.name, user.email, user.password));
+
+        window.location.href = 'mailto:' + user.email + '?subject=' + subject + '&body=' + body;
+        currentIndex++;
+
+        // Update progress
+        var pct = Math.round((currentIndex / users.length) * 100);
+        showToast('Opening email ' + currentIndex + ' of ' + users.length + ' (' + pct + '%)...', 'info');
+
+        setTimeout(sendNextEmail, delay);
+    }
+
+    // Confirm before sending many emails
+    if (users.length > 5) {
+        var ok = confirm('This will open ' + users.length + ' individual emails in your default email client (Outlook).\n\nEach email includes the recipient\'s personal login credentials.\n\nProceed?');
+        if (!ok) return;
+    }
+
+    sendNextEmail();
 }
 
 /* ================================================
