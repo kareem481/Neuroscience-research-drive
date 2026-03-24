@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brain Tumor Registry - Saint Luke's Neuroscience</title>
+    <link rel="stylesheet" href="btr.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jstat@1/dist/jstat.min.js"></script>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav id="btrSidebar" class="btr-sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-back" title="Back to Research Hub"><i class="fas fa-arrow-left"></i></a>
+            <div class="sidebar-brand">
+                <i class="fas fa-brain"></i>
+                <span>BTR</span>
+            </div>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="#" class="sidebar-link active" data-page="btr-dashboard" title="Dashboard"><i class="fas fa-chart-line"></i><span>Dashboard</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-tree" title="Pathology Tree"><i class="fas fa-sitemap"></i><span>Path Tree</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-query" title="Query Builder"><i class="fas fa-search"></i><span>Query</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-add" title="Add Patient"><i class="fas fa-user-plus"></i><span>Add Patient</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-detail" title="Patient Detail"><i class="fas fa-user"></i><span>Patient</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-trials" title="Clinical Trials"><i class="fas fa-flask"></i><span>Trials</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-quality" title="Data Quality"><i class="fas fa-clipboard-check"></i><span>Quality</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-biobank" title="Biobank"><i class="fas fa-vials"></i><span>Biobank</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-tumorboard" title="Tumor Board"><i class="fas fa-users-medical"></i><span>Tumor Board</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-followup" title="Follow-Up Alerts"><i class="fas fa-bell"></i><span>Follow-Up</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-cohorts" title="Cohort Builder"><i class="fas fa-layer-group"></i><span>Cohorts</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-publications" title="Publications"><i class="fas fa-book-medical"></i><span>Pubs</span></a></li>
+            <li><a href="#" class="sidebar-link" data-page="btr-genomics" title="Genomics"><i class="fas fa-dna"></i><span>Genomics</span></a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main id="btrMain" class="btr-main">
+        <!-- Top Header -->
+        <header class="btr-header">
+            <div class="btr-header-left">
+                <button id="sidebarToggle" class="sidebar-toggle"><i class="fas fa-bars"></i></button>
+                <h1 id="btrPageTitle">Dashboard</h1>
+            </div>
+            <div class="btr-header-right">
+                <span id="btrUserName" class="header-user"></span>
+                <button class="btn btn-sm btn-outline" onclick="btrLogout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <!-- ==================== PAGE: DASHBOARD ==================== -->
+        <section id="btr-dashboard" class="btr-page active">
+            <div class="stat-cards" id="dashStatCards"></div>
+            <div class="chart-grid">
+                <div class="chart-card chart-wide">
+                    <h3><i class="fas fa-chart-area"></i> Kaplan-Meier Survival</h3>
+                    <div class="km-controls">
+                        <label>Curve: <select id="kmCurveType"><option value="os">Overall Survival</option><option value="pfs">Progression-Free Survival</option></select></label>
+                        <label>Stratify: <select id="kmStratify"><option value="none">None</option><option value="diagnosis">Diagnosis</option><option value="idh_status">IDH Status</option><option value="who_grade">WHO Grade</option></select></label>
+                        <button class="btn btn-sm btn-accent" onclick="renderKMCurve()">Update</button>
+                    </div>
+                    <div id="kmChart" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-dna"></i> Molecular Alterations</h3>
+                    <div id="molBarChart" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-pie"></i> WHO Grade Distribution</h3>
+                    <div id="gradeDonut" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-microscope"></i> Diagnosis Distribution</h3>
+                    <div id="dxBarChart" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-syringe"></i> Treatment Modalities</h3>
+                    <div id="txBarChart" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="fas fa-cut"></i> Extent of Resection</h3>
+                    <div id="eorBarChart" class="chart-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: PATHOLOGY TREE ==================== -->
+        <section id="btr-tree" class="btr-page">
+            <div class="tree-layout">
+                <div class="tree-panel">
+                    <div class="tree-toolbar">
+                        <button class="btn btn-sm btn-outline" onclick="btrTreeExpandAll()"><i class="fas fa-expand-arrows-alt"></i> Expand All</button>
+                        <button class="btn btn-sm btn-outline" onclick="btrTreeCollapseAll()"><i class="fas fa-compress-arrows-alt"></i> Collapse All</button>
+                    </div>
+                    <div id="pathologyTree" class="tree-container"></div>
+                </div>
+                <div class="tree-detail" id="treeDetailPanel">
+                    <div class="tree-detail-placeholder">
+                        <i class="fas fa-sitemap"></i>
+                        <p>Select a tumor type to view patients</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: QUERY BUILDER ==================== -->
+        <section id="btr-query" class="btr-page">
+            <div class="query-layout">
+                <div class="filter-panel glass-card">
+                    <h3><i class="fas fa-filter"></i> Filters</h3>
+                    <div class="filter-group">
+                        <label>Age Range</label>
+                        <div class="range-row">
+                            <input type="number" id="qAgeMin" placeholder="Min" min="0" max="120">
+                            <span>-</span>
+                            <input type="number" id="qAgeMax" placeholder="Max" min="0" max="120">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>Sex</label>
+                        <select id="qSex"><option value="">All</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>WHO Grade</label>
+                        <select id="qGrade"><option value="">All</option><option value="I">I</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Extent of Resection</label>
+                        <select id="qEOR"><option value="">All</option><option value="GTR">GTR</option><option value="STR">STR</option><option value="Biopsy">Biopsy</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>IDH Status</label>
+                        <select id="qIDH"><option value="">All</option><option value="Mutant">Mutant</option><option value="Wildtype">Wildtype</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>MGMT Status</label>
+                        <select id="qMGMT"><option value="">All</option><option value="Methylated">Methylated</option><option value="Unmethylated">Unmethylated</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Vital Status</label>
+                        <select id="qVital"><option value="">All</option><option value="Alive">Alive</option><option value="Deceased">Deceased</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Surgeon</label>
+                        <input type="text" id="qSurgeon" placeholder="Surgeon name">
+                    </div>
+                    <div class="filter-group">
+                        <label>Diagnosis</label>
+                        <input type="text" id="qDiagnosis" placeholder="e.g. Glioblastoma">
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-accent" onclick="runQuery()"><i class="fas fa-search"></i> Search</button>
+                        <button class="btn btn-outline" onclick="clearQueryFilters()"><i class="fas fa-times"></i> Clear</button>
+                    </div>
+                </div>
+                <div class="query-results">
+                    <div class="query-results-header">
+                        <span id="queryCount">0 patients found</span>
+                        <button class="btn btn-sm btn-outline" onclick="exportQueryCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="btr-table" id="queryTable">
+                            <thead>
+                                <tr>
+                                    <th data-sort="study_id">Study ID <i class="fas fa-sort"></i></th>
+                                    <th data-sort="age_at_diagnosis">Age <i class="fas fa-sort"></i></th>
+                                    <th data-sort="sex">Sex <i class="fas fa-sort"></i></th>
+                                    <th data-sort="diagnosis">Diagnosis <i class="fas fa-sort"></i></th>
+                                    <th data-sort="who_grade">Grade <i class="fas fa-sort"></i></th>
+                                    <th data-sort="idh_status">IDH <i class="fas fa-sort"></i></th>
+                                    <th data-sort="mgmt_status">MGMT <i class="fas fa-sort"></i></th>
+                                    <th data-sort="extent_of_resection">EOR <i class="fas fa-sort"></i></th>
+                                    <th data-sort="vital_status">Status <i class="fas fa-sort"></i></th>
+                                    <th data-sort="os_months">OS (mo) <i class="fas fa-sort"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody id="queryTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: ADD PATIENT ==================== -->
+        <section id="btr-add" class="btr-page">
+            <div class="wizard-container glass-card">
+                <div class="wizard-steps">
+                    <div class="wizard-step active" data-step="1"><span class="step-num">1</span><span class="step-label">Identification</span></div>
+                    <div class="wizard-step" data-step="2"><span class="step-num">2</span><span class="step-label">Clinical</span></div>
+                    <div class="wizard-step" data-step="3"><span class="step-num">3</span><span class="step-label">Surgery</span></div>
+                    <div class="wizard-step" data-step="4"><span class="step-num">4</span><span class="step-label">Pathology</span></div>
+                </div>
+
+                <!-- Step 1: Identification -->
+                <div class="wizard-panel active" data-step="1">
+                    <h3>Patient Identification</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Study ID</label>
+                            <div class="input-with-btn">
+                                <input type="text" id="addStudyId" placeholder="BTR-0001" required>
+                                <button class="btn btn-sm btn-outline" onclick="autoGenerateStudyId()"><i class="fas fa-magic"></i> Auto</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Age at Diagnosis</label>
+                            <input type="number" id="addAge" placeholder="Age" min="0" max="120">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Sex</label>
+                            <select id="addSex"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Race</label>
+                            <select id="addRace"><option value="">Select</option><option value="White">White</option><option value="Black">Black or African American</option><option value="Asian">Asian</option><option value="AIAN">American Indian/Alaska Native</option><option value="NHPI">Native Hawaiian/Pacific Islander</option><option value="Other">Other</option><option value="Unknown">Unknown</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Ethnicity</label>
+                            <select id="addEthnicity"><option value="">Select</option><option value="Hispanic">Hispanic or Latino</option><option value="Non-Hispanic">Not Hispanic or Latino</option><option value="Unknown">Unknown</option></select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Clinical -->
+                <div class="wizard-panel" data-step="2">
+                    <h3>Clinical Presentation</h3>
+                    <div class="form-group">
+                        <label>Presenting Symptoms</label>
+                        <div class="checkbox-grid">
+                            <label class="cb-label"><input type="checkbox" value="Headache" class="add-symptom"> Headache</label>
+                            <label class="cb-label"><input type="checkbox" value="Seizure" class="add-symptom"> Seizure</label>
+                            <label class="cb-label"><input type="checkbox" value="Weakness" class="add-symptom"> Weakness</label>
+                            <label class="cb-label"><input type="checkbox" value="Vision Changes" class="add-symptom"> Vision Changes</label>
+                            <label class="cb-label"><input type="checkbox" value="Speech Difficulty" class="add-symptom"> Speech Difficulty</label>
+                            <label class="cb-label"><input type="checkbox" value="Cognitive Changes" class="add-symptom"> Cognitive Changes</label>
+                            <label class="cb-label"><input type="checkbox" value="Nausea/Vomiting" class="add-symptom"> Nausea/Vomiting</label>
+                            <label class="cb-label"><input type="checkbox" value="Gait Instability" class="add-symptom"> Gait Instability</label>
+                            <label class="cb-label"><input type="checkbox" value="Incidental" class="add-symptom"> Incidental</label>
+                            <label class="cb-label"><input type="checkbox" value="Other" class="add-symptom"> Other</label>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>KPS Score</label>
+                            <select id="addKPS"><option value="">Select</option><option value="100">100</option><option value="90">90</option><option value="80">80</option><option value="70">70</option><option value="60">60</option><option value="50">50</option><option value="40">40</option><option value="30">30</option><option value="20">20</option><option value="10">10</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>GCS Score</label>
+                            <input type="number" id="addGCS" min="3" max="15" placeholder="3-15">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Medical History</label>
+                        <textarea id="addMedHistory" rows="3" placeholder="Relevant PMH..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Step 3: Surgery -->
+                <div class="wizard-panel" data-step="3">
+                    <h3>Surgery Details</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Surgery Date</label>
+                            <input type="date" id="addSurgDate">
+                        </div>
+                        <div class="form-group">
+                            <label>Surgery Type</label>
+                            <select id="addSurgType"><option value="">Select</option><option value="Craniotomy">Craniotomy</option><option value="Biopsy">Stereotactic Biopsy</option><option value="Endoscopic">Endoscopic</option><option value="Awake Craniotomy">Awake Craniotomy</option><option value="Transsphenoidal">Transsphenoidal</option><option value="Other">Other</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Approach</label>
+                            <input type="text" id="addApproach" placeholder="e.g. Left frontal">
+                        </div>
+                        <div class="form-group">
+                            <label>Extent of Resection</label>
+                            <select id="addEOR"><option value="">Select</option><option value="GTR">Gross Total Resection</option><option value="STR">Subtotal Resection</option><option value="Biopsy">Biopsy Only</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Surgeon</label>
+                            <input type="text" id="addSurgeon" placeholder="Surgeon name">
+                        </div>
+                        <div class="form-group">
+                            <label>Complications</label>
+                            <input type="text" id="addComplications" placeholder="e.g. None">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Pathology/Molecular -->
+                <div class="wizard-panel" data-step="4">
+                    <h3>Pathology &amp; Molecular</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Diagnosis</label>
+                            <select id="addDiagnosis">
+                                <option value="">Select</option>
+                                <optgroup label="Diffuse Gliomas - Adult">
+                                    <option value="Astrocytoma, IDH-mutant">Astrocytoma, IDH-mutant</option>
+                                    <option value="Oligodendroglioma, IDH-mutant, 1p/19q-codeleted">Oligodendroglioma, IDH-mutant, 1p/19q-codeleted</option>
+                                    <option value="Glioblastoma, IDH-wildtype">Glioblastoma, IDH-wildtype</option>
+                                </optgroup>
+                                <optgroup label="Diffuse Gliomas - Pediatric">
+                                    <option value="Diffuse Midline Glioma, H3 K27-altered">Diffuse Midline Glioma, H3 K27-altered</option>
+                                    <option value="Diffuse Hemispheric Glioma, H3 G34-mutant">Diffuse Hemispheric Glioma, H3 G34-mutant</option>
+                                </optgroup>
+                                <optgroup label="Circumscribed Gliomas">
+                                    <option value="Pilocytic Astrocytoma">Pilocytic Astrocytoma</option>
+                                    <option value="Pleomorphic Xanthoastrocytoma">Pleomorphic Xanthoastrocytoma</option>
+                                    <option value="SEGA">Subependymal Giant Cell Astrocytoma</option>
+                                    <option value="Ependymoma">Ependymoma</option>
+                                </optgroup>
+                                <optgroup label="Glioneuronal Tumors">
+                                    <option value="Ganglioglioma">Ganglioglioma</option>
+                                    <option value="DNET">DNET</option>
+                                    <option value="Central Neurocytoma">Central Neurocytoma</option>
+                                </optgroup>
+                                <optgroup label="Meningiomas">
+                                    <option value="Meningioma WHO I">Meningioma WHO I</option>
+                                    <option value="Meningioma WHO II">Meningioma WHO II</option>
+                                    <option value="Meningioma WHO III">Meningioma WHO III</option>
+                                </optgroup>
+                                <optgroup label="Sellar Region">
+                                    <option value="Pituitary Adenoma">Pituitary Adenoma</option>
+                                    <option value="Craniopharyngioma">Craniopharyngioma</option>
+                                    <option value="Rathke's Cleft Cyst">Rathke's Cleft Cyst</option>
+                                </optgroup>
+                                <optgroup label="Nerve Sheath">
+                                    <option value="Vestibular Schwannoma">Vestibular Schwannoma</option>
+                                    <option value="Neurofibroma">Neurofibroma</option>
+                                    <option value="MPNST">MPNST</option>
+                                </optgroup>
+                                <optgroup label="Embryonal">
+                                    <option value="Medulloblastoma">Medulloblastoma</option>
+                                    <option value="AT/RT">AT/RT</option>
+                                    <option value="ETMR">ETMR</option>
+                                </optgroup>
+                                <optgroup label="Other">
+                                    <option value="Brain Metastasis">Brain Metastasis</option>
+                                    <option value="Primary CNS Lymphoma">Primary CNS Lymphoma</option>
+                                    <option value="Hemangioblastoma">Hemangioblastoma</option>
+                                    <option value="Chordoma">Chordoma</option>
+                                    <option value="Chondrosarcoma">Chondrosarcoma</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>WHO Grade</label>
+                            <select id="addGrade"><option value="">Select</option><option value="I">I</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Pathology ID</label>
+                            <input type="text" id="addPathId" placeholder="e.g. SP-24-12345">
+                        </div>
+                    </div>
+                    <h4 class="section-subtitle">Molecular Markers</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>IDH Status</label>
+                            <select id="addIDH"><option value="">Unknown</option><option value="Mutant">Mutant</option><option value="Wildtype">Wildtype</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>MGMT Promoter</label>
+                            <select id="addMGMT"><option value="">Unknown</option><option value="Methylated">Methylated</option><option value="Unmethylated">Unmethylated</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>1p/19q Co-deletion</label>
+                            <select id="add1p19q"><option value="">Unknown</option><option value="Codeleted">Codeleted</option><option value="Non-codeleted">Non-codeleted</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>TERT Promoter</label>
+                            <select id="addTERT"><option value="">Unknown</option><option value="Mutant">Mutant</option><option value="Wildtype">Wildtype</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>EGFR Amplification</label>
+                            <select id="addEGFR"><option value="">Unknown</option><option value="Amplified">Amplified</option><option value="Not Amplified">Not Amplified</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>TP53 Mutation</label>
+                            <select id="addTP53"><option value="">Unknown</option><option value="Mutant">Mutant</option><option value="Wildtype">Wildtype</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>ATRX Status</label>
+                            <select id="addATRX"><option value="">Unknown</option><option value="Lost">Lost</option><option value="Retained">Retained</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>CDKN2A Deletion</label>
+                            <select id="addCDKN2A"><option value="">Unknown</option><option value="Deleted">Deleted</option><option value="Not Deleted">Not Deleted</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Ki-67 (%)</label>
+                            <input type="number" id="addKi67" min="0" max="100" placeholder="0-100">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wizard-footer">
+                    <button class="btn btn-outline" id="wizPrev" onclick="wizardPrev()" disabled><i class="fas fa-arrow-left"></i> Previous</button>
+                    <button class="btn btn-accent" id="wizNext" onclick="wizardNext()">Next <i class="fas fa-arrow-right"></i></button>
+                    <button class="btn btn-primary" id="wizSubmit" onclick="submitNewPatient()" style="display:none"><i class="fas fa-save"></i> Save Patient</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: PATIENT DETAIL ==================== -->
+        <section id="btr-detail" class="btr-page">
+            <div id="detailContent">
+                <div class="detail-placeholder">
+                    <i class="fas fa-user-circle"></i>
+                    <p>Select a patient from the Query Builder or Pathology Tree to view details.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: CLINICAL TRIALS ==================== -->
+        <section id="btr-trials" class="btr-page">
+            <div class="page-toolbar">
+                <h2>Clinical Trials</h2>
+                <button class="btn btn-accent" onclick="showAddTrialModal()"><i class="fas fa-plus"></i> Add Trial</button>
+            </div>
+            <div id="trialsContainer" class="cards-grid"></div>
+        </section>
+
+        <!-- ==================== PAGE: DATA QUALITY ==================== -->
+        <section id="btr-quality" class="btr-page">
+            <div id="qualityStatCards" class="stat-cards"></div>
+            <div class="quality-grid">
+                <div class="glass-card quality-bars-card">
+                    <h3><i class="fas fa-tasks"></i> Category Completeness</h3>
+                    <div id="qualityBars"></div>
+                </div>
+                <div class="glass-card">
+                    <h3><i class="fas fa-chart-pie"></i> Completeness Distribution</h3>
+                    <div id="qualityPie" class="chart-container"></div>
+                </div>
+                <div class="glass-card full-width">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Critical Fields (below 50% coverage)</h3>
+                    <div id="criticalFieldsTable" class="table-wrap"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: BIOBANK ==================== -->
+        <section id="btr-biobank" class="btr-page">
+            <div class="page-toolbar">
+                <h2>Biobank Specimens</h2>
+                <button class="btn btn-accent" onclick="showAddSpecimenModal()"><i class="fas fa-plus"></i> Add Specimen</button>
+            </div>
+            <div id="biobankStats" class="stat-cards"></div>
+            <div class="biobank-grid">
+                <div class="glass-card">
+                    <h3><i class="fas fa-chart-pie"></i> Tissue Type Distribution</h3>
+                    <div id="tissueTypePie" class="chart-container"></div>
+                </div>
+                <div class="glass-card biobank-table-card">
+                    <div class="table-toolbar">
+                        <input type="text" id="biobankSearch" placeholder="Search specimens..." oninput="filterBiobankTable()">
+                    </div>
+                    <div class="table-wrap">
+                        <table class="btr-table" id="biobankTable">
+                            <thead>
+                                <tr>
+                                    <th>Specimen ID</th>
+                                    <th>Patient</th>
+                                    <th>Type</th>
+                                    <th>Tissue</th>
+                                    <th>Collection Date</th>
+                                    <th>Storage</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="biobankTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: TUMOR BOARD ==================== -->
+        <section id="btr-tumorboard" class="btr-page">
+            <div class="page-toolbar">
+                <h2>Tumor Board</h2>
+                <button class="btn btn-accent" onclick="showAddMeetingModal()"><i class="fas fa-plus"></i> Add Meeting</button>
+            </div>
+            <div id="tumorBoardList" class="cards-grid"></div>
+        </section>
+
+        <!-- ==================== PAGE: FOLLOW-UP ALERTS ==================== -->
+        <section id="btr-followup" class="btr-page">
+            <div class="followup-tabs">
+                <button class="followup-tab active" data-tab="overdue" onclick="switchFollowupTab('overdue')"><i class="fas fa-exclamation-circle"></i> Overdue MRI</button>
+                <button class="followup-tab" data-tab="upcoming" onclick="switchFollowupTab('upcoming')"><i class="fas fa-calendar-check"></i> Upcoming MRI</button>
+                <button class="followup-tab" data-tab="lost" onclick="switchFollowupTab('lost')"><i class="fas fa-user-slash"></i> Lost to Follow-Up</button>
+            </div>
+            <div id="followupContent" class="followup-cards"></div>
+        </section>
+
+        <!-- ==================== PAGE: COHORT BUILDER ==================== -->
+        <section id="btr-cohorts" class="btr-page">
+            <div class="cohorts-layout">
+                <div class="glass-card cohorts-saved">
+                    <h3><i class="fas fa-layer-group"></i> Saved Cohorts</h3>
+                    <div id="savedCohortsList"></div>
+                </div>
+                <div class="cohorts-builder">
+                    <div class="glass-card">
+                        <h3><i class="fas fa-tools"></i> Build New Cohort</h3>
+                        <div class="form-row">
+                            <div class="form-group"><label>Diagnosis</label><input type="text" id="cohDiagnosis" placeholder="e.g. Glioblastoma"></div>
+                            <div class="form-group"><label>IDH Status</label><select id="cohIDH"><option value="">All</option><option value="Mutant">Mutant</option><option value="Wildtype">Wildtype</option></select></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>MGMT</label><select id="cohMGMT"><option value="">All</option><option value="Methylated">Methylated</option><option value="Unmethylated">Unmethylated</option></select></div>
+                            <div class="form-group"><label>Vital Status</label><select id="cohVital"><option value="">All</option><option value="Alive">Alive</option><option value="Deceased">Deceased</option></select></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Age Min</label><input type="number" id="cohAgeMin" placeholder="Min"></div>
+                            <div class="form-group"><label>Age Max</label><input type="number" id="cohAgeMax" placeholder="Max"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>WHO Grade</label><select id="cohGrade"><option value="">All</option><option value="I">I</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option></select></div>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="btn btn-accent" onclick="previewCohort()"><i class="fas fa-eye"></i> Preview</button>
+                            <button class="btn btn-primary" onclick="saveCohort()"><i class="fas fa-save"></i> Save Cohort</button>
+                        </div>
+                    </div>
+                    <div class="glass-card" id="cohortPreview" style="display:none">
+                        <h3>Preview <span id="cohortPreviewCount"></span></h3>
+                        <div class="table-wrap">
+                            <table class="btr-table">
+                                <thead><tr><th>Study ID</th><th>Age</th><th>Diagnosis</th><th>Grade</th><th>Status</th></tr></thead>
+                                <tbody id="cohortPreviewTbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="filter-actions" style="margin-top:12px">
+                            <button class="btn btn-sm btn-outline" onclick="exportCohortCSV()"><i class="fas fa-file-csv"></i> CSV</button>
+                            <button class="btn btn-sm btn-outline" onclick="exportCohortJSON()"><i class="fas fa-code"></i> JSON</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: PUBLICATIONS ==================== -->
+        <section id="btr-publications" class="btr-page">
+            <div class="page-toolbar">
+                <h2>Publications</h2>
+                <button class="btn btn-accent" onclick="showAddPubModal()"><i class="fas fa-plus"></i> Add Publication</button>
+            </div>
+            <div id="pubStats" class="stat-cards"></div>
+            <div class="glass-card">
+                <div class="table-toolbar">
+                    <input type="text" id="pubSearch" placeholder="Search publications..." oninput="filterPubTable()">
+                </div>
+                <div id="pubList" class="table-wrap"></div>
+            </div>
+        </section>
+
+        <!-- ==================== PAGE: GENOMICS ==================== -->
+        <section id="btr-genomics" class="btr-page">
+            <div class="chart-grid">
+                <div class="chart-card chart-wide">
+                    <h3><i class="fas fa-dna"></i> Molecular Alterations Overview</h3>
+                    <div id="genomicsOverview" class="chart-container"></div>
+                </div>
+                <div class="chart-card chart-wide">
+                    <h3><i class="fas fa-th"></i> Co-occurrence Matrix</h3>
+                    <div id="cooccurrenceMatrix" class="chart-container"></div>
+                </div>
+                <div class="chart-card chart-wide">
+                    <h3><i class="fas fa-chart-bar"></i> Mutation Frequency by Diagnosis</h3>
+                    <div id="mutByDiagnosis" class="chart-container"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ==================== MODALS ==================== -->
+    <div id="btrModalOverlay" class="modal-overlay" onclick="closeBtrModal()">
+        <div class="modal-content glass-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="btrModalTitle">Modal</h3>
+                <button class="modal-close" onclick="closeBtrModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="btrModalBody" class="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="btrToastContainer"></div>
+
+    <script src="btr.js"></script>
+</body>
+</html>

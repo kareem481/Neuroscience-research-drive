@@ -4,3 +4,6 @@ package-lock.json
 seed-users.js
 nul
 .claude/
+
+.vercel
+seed-btr-patients.js
