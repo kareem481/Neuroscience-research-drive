@@ -4700,52 +4700,36 @@ function sendAllInviteEmails() {
         return;
     }
 
-    // Get user data from cached list
-    var users = (window._inviteUsers || []).filter(function(u) {
-        return selectedEmails.indexOf(u.email) !== -1;
-    });
+    var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database - Your Account is Ready');
+    var body = encodeURIComponent(
+        'Dear Neuroscience Research Team,\n\n' +
+        'We are pleased to invite you to the Saint Luke\'s Neuroscience Research Database — a centralized hub for our Neurology & Neurosurgery research operations.\n\n' +
+        'This platform supports the full research lifecycle: project submissions, IRB tracking, data collection, publications, and team collaboration.\n\n' +
+        '========================================\n' +
+        'LOGIN INSTRUCTIONS\n' +
+        '========================================\n' +
+        'Login URL: https://slresearchhub.com\n' +
+        'Username: Your Saint Luke\'s or university email address\n' +
+        'Password: Will be provided to you separately\n' +
+        '========================================\n\n' +
+        'GETTING STARTED:\n' +
+        '1. Go to https://slresearchhub.com\n' +
+        '2. Enter your email and the password provided to you\n' +
+        '3. Your login request will be submitted for admin approval\n' +
+        '4. Once approved by Dr. Hayner or Dr. Almekkawi, log in again\n' +
+        '5. You will be prompted to change your password and complete your profile\n' +
+        '6. Upload your CITI training certificate (required for all personnel)\n\n' +
+        'If you have any questions, please contact:\n' +
+        '- Dr. Stephanie Kolakowsky-Hayner - skolakowsky@saint-lukes.org\n' +
+        '- Dr. Ahmad Kareem Almekkawi - aalmekkawi@saint-lukes.org\n\n' +
+        'Best regards,\n' +
+        'Neuroscience Research Department\n' +
+        'Saint Luke\'s Health System'
+    );
 
-    if (users.length === 0) {
-        showToast('No user data found. Please refresh the tab.', 'error');
-        return;
-    }
-
-    // Since each user has unique credentials, we must send individual emails.
-    // Open them in batches with a delay so the mail client can handle it.
-    var batchSize = 5;
-    var delay = 1500; // ms between each email
-    var totalBatches = Math.ceil(users.length / batchSize);
-    var currentIndex = 0;
-
-    showToast('Opening ' + users.length + ' emails in batches of ' + batchSize + '... Please send each one from your email client.', 'info');
-
-    function sendNextEmail() {
-        if (currentIndex >= users.length) {
-            showToast('All ' + users.length + ' invitation emails have been opened!', 'success');
-            return;
-        }
-
-        var user = users[currentIndex];
-        var subject = encodeURIComponent('Saint Luke\'s Neuroscience Research Database - Your Account is Ready');
-        var body = encodeURIComponent(_buildInviteEmailBody(user.name, user.email, user.password));
-
-        window.location.href = 'mailto:' + user.email + '?subject=' + subject + '&body=' + body;
-        currentIndex++;
-
-        // Update progress
-        var pct = Math.round((currentIndex / users.length) * 100);
-        showToast('Opening email ' + currentIndex + ' of ' + users.length + ' (' + pct + '%)...', 'info');
-
-        setTimeout(sendNextEmail, delay);
-    }
-
-    // Confirm before sending many emails
-    if (users.length > 5) {
-        var ok = confirm('This will open ' + users.length + ' individual emails in your default email client (Outlook).\n\nEach email includes the recipient\'s personal login credentials.\n\nProceed?');
-        if (!ok) return;
-    }
-
-    sendNextEmail();
+    // Send as one group BCC email
+    window.location.href = 'mailto:?bcc=' + selectedEmails.join(',') + '&subject=' + subject + '&body=' + body;
+    showToast('Group email opened with ' + selectedEmails.length + ' recipients in BCC. Send from your email client.', 'success');
 }
 
 /* ================================================
