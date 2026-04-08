@@ -236,6 +236,12 @@ async function handleLogin() {
         return;
     }
 
+    // Validate Saint Luke's email domain
+    if (!_isValidSaintLukesEmail(emailVal)) {
+        showToast('Email must end with @saintlukeskc.org or @saint-lukes.org', 'error');
+        return;
+    }
+
     showToast('Signing in...', 'info');
 
     // Sign in via Supabase Auth
@@ -447,6 +453,28 @@ function _toggleAdminTab(show) {
     });
 }
 
+/* --- Saint Luke's email domain validation --- */
+function _isValidSaintLukesEmail(email) {
+    if (!email) return false;
+    var lower = email.toLowerCase().trim();
+    return lower.endsWith('@saintlukeskc.org') || lower.endsWith('@saint-lukes.org');
+}
+
+/* --- Invoke the send-notification-email Edge Function --- */
+async function _sendEmailViaEdgeFunction(payload) {
+    try {
+        var { data, error } = await _sb.functions.invoke('send-notification-email', { body: payload });
+        if (error) {
+            console.error('Email function error:', error);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.error('Email function exception:', e);
+        return false;
+    }
+}
+
 async function submitAccessRequest() {
     var nameInput = document.getElementById('requestName');
     var emailInput = document.getElementById('requestEmail');
@@ -460,7 +488,14 @@ async function submitAccessRequest() {
         return;
     }
 
-    await _sb.from('pending_login_approvals').insert({
+    // Validate Saint Luke's email domain
+    if (!_isValidSaintLukesEmail(reqEmail)) {
+        showToast('Email must end with @saintlukeskc.org or @saint-lukes.org', 'error');
+        return;
+    }
+
+    // Insert into pending approvals
+    var { error: insertError } = await _sb.from('pending_login_approvals').insert({
         email: reqEmail,
         name: reqName,
         role: reqRole,
@@ -468,7 +503,47 @@ async function submitAccessRequest() {
         status: 'pending'
     });
 
-    showToast('Access request submitted! You will be notified once approved.', 'success');
+    if (insertError) {
+        showToast('Error submitting request: ' + insertError.message, 'error');
+        return;
+    }
+
+    // Create in-app notification for admins
+    await _sb.from('notifications').insert({
+        type: 'access_request',
+        message: reqName + ' (' + reqRole + ' — ' + reqEmail + ') has requested access to the research database. Please review in Admin Panel.',
+        from_user: reqName,
+        from_email: reqEmail,
+        recipients: ['skolakowsky@saint-lukes.org', 'aalmekkawi@saint-lukes.org', 'cabagley@saint-lukes.org'],
+        read: false
+    });
+
+    // Send actual email to admins via Edge Function
+    var loginUrl = window.location.origin;
+    await _sendEmailViaEdgeFunction({
+        to: ['skolakowsky@saint-lukes.org', 'aalmekkawi@saint-lukes.org', 'cabagley@saint-lukes.org'],
+        subject: 'New Access Request: ' + reqName,
+        html: '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">' +
+            '<div style="background:linear-gradient(135deg,#00d4ff,#7c3aed);padding:20px;color:#fff;text-align:center;">' +
+            '<h2 style="margin:0;">Saint Luke\'s Neuroscience Research</h2>' +
+            '<p style="margin:4px 0 0;">New Access Request</p></div>' +
+            '<div style="padding:24px;background:#f8f9fa;">' +
+            '<p><strong>A new user has requested access to the research database:</strong></p>' +
+            '<table style="width:100%;border-collapse:collapse;margin:16px 0;">' +
+            '<tr><td style="padding:8px;border-bottom:1px solid #ddd;"><strong>Name:</strong></td><td style="padding:8px;border-bottom:1px solid #ddd;">' + _esc(reqName) + '</td></tr>' +
+            '<tr><td style="padding:8px;border-bottom:1px solid #ddd;"><strong>Email:</strong></td><td style="padding:8px;border-bottom:1px solid #ddd;">' + _esc(reqEmail) + '</td></tr>' +
+            '<tr><td style="padding:8px;border-bottom:1px solid #ddd;"><strong>Role:</strong></td><td style="padding:8px;border-bottom:1px solid #ddd;">' + _esc(reqRole) + '</td></tr>' +
+            '<tr><td style="padding:8px;"><strong>Requested:</strong></td><td style="padding:8px;">' + new Date().toLocaleString() + '</td></tr>' +
+            '</table>' +
+            '<p>Please log in to the <a href="' + loginUrl + '" style="color:#00d4ff;">research database</a> and review this request in the Admin Panel.</p>' +
+            '<div style="text-align:center;margin:24px 0;">' +
+            '<a href="' + loginUrl + '" style="display:inline-block;background:#00d4ff;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;">Review Request</a>' +
+            '</div>' +
+            '<p style="color:#666;font-size:0.85rem;">This is an automated notification from the Saint Luke\'s Neuroscience Research Database.</p>' +
+            '</div></div>'
+    });
+
+    showToast('Access request submitted! Administrators have been notified.', 'success');
     setTimeout(function () {
         showLogin();
     }, 2000);
@@ -4815,8 +4890,32 @@ async function _sendLoginApprovalNotification(user) {
         message: user.name + ' (' + user.role + ') has requested login access. Please review and approve.',
         from_user: user.name,
         from_email: user.email || '',
-        recipients: ['skolakowsky@saint-lukes.org', 'aalmekkawi@saint-lukes.org'],
+        recipients: ['skolakowsky@saint-lukes.org', 'aalmekkawi@saint-lukes.org', 'cabagley@saint-lukes.org'],
         read: false
+    });
+
+    // Send actual email to admins
+    var loginUrl = window.location.origin;
+    await _sendEmailViaEdgeFunction({
+        to: ['skolakowsky@saint-lukes.org', 'aalmekkawi@saint-lukes.org', 'cabagley@saint-lukes.org'],
+        subject: 'Login Approval Needed: ' + user.name,
+        html: '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">' +
+            '<div style="background:linear-gradient(135deg,#00d4ff,#7c3aed);padding:20px;color:#fff;text-align:center;">' +
+            '<h2 style="margin:0;">Saint Luke\'s Neuroscience Research</h2>' +
+            '<p style="margin:4px 0 0;">First-Time Login Approval</p></div>' +
+            '<div style="padding:24px;background:#f8f9fa;">' +
+            '<p><strong>A user is attempting their first login and needs approval:</strong></p>' +
+            '<table style="width:100%;border-collapse:collapse;margin:16px 0;">' +
+            '<tr><td style="padding:8px;border-bottom:1px solid #ddd;"><strong>Name:</strong></td><td style="padding:8px;border-bottom:1px solid #ddd;">' + _esc(user.name) + '</td></tr>' +
+            '<tr><td style="padding:8px;border-bottom:1px solid #ddd;"><strong>Email:</strong></td><td style="padding:8px;border-bottom:1px solid #ddd;">' + _esc(user.email || '') + '</td></tr>' +
+            '<tr><td style="padding:8px;border-bottom:1px solid #ddd;"><strong>Role:</strong></td><td style="padding:8px;border-bottom:1px solid #ddd;">' + _esc(user.role) + '</td></tr>' +
+            '<tr><td style="padding:8px;"><strong>Requested:</strong></td><td style="padding:8px;">' + new Date().toLocaleString() + '</td></tr>' +
+            '</table>' +
+            '<div style="text-align:center;margin:24px 0;">' +
+            '<a href="' + loginUrl + '" style="display:inline-block;background:#00d4ff;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;">Approve in Admin Panel</a>' +
+            '</div>' +
+            '<p style="color:#666;font-size:0.85rem;">This is an automated notification from the Saint Luke\'s Neuroscience Research Database.</p>' +
+            '</div></div>'
     });
 }
 
