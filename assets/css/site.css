@@ -75,11 +75,11 @@ hr.rule{border:0;border-top:1px solid var(--line);margin:32px 0}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes shimmer{to{background-position:-200% 0}}
 @keyframes borderFlow{0%{background-position:0% 50%}100%{background-position:200% 50%}}
-.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+.reveal{opacity:0;transform:translateY(14px);transition:opacity .45s cubic-bezier(.2,.7,.2,1),transform .45s cubic-bezier(.2,.7,.2,1)}
 .reveal.in{opacity:1;transform:none}
-.reveal-stagger > *{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease}
+.reveal-stagger > *{opacity:0;transform:translateY(12px);transition:opacity .4s ease,transform .4s ease}
 .reveal-stagger.in > *{opacity:1;transform:none}
-.reveal-stagger.in > *:nth-child(2){transition-delay:.08s}.reveal-stagger.in > *:nth-child(3){transition-delay:.16s}.reveal-stagger.in > *:nth-child(4){transition-delay:.24s}.reveal-stagger.in > *:nth-child(5){transition-delay:.32s}.reveal-stagger.in > *:nth-child(6){transition-delay:.4s}
+.reveal-stagger.in > *:nth-child(2){transition-delay:.05s}.reveal-stagger.in > *:nth-child(3){transition-delay:.1s}.reveal-stagger.in > *:nth-child(4){transition-delay:.15s}.reveal-stagger.in > *:nth-child(5){transition-delay:.2s}.reveal-stagger.in > *:nth-child(6){transition-delay:.25s}
 .float{animation:float 6s ease-in-out infinite}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}.reveal,.reveal-stagger>*{opacity:1;transform:none}}
 

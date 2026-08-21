@@ -118,7 +118,12 @@
     root = root || document;
     SL.qsa('section.section, div.section, div.grid, .card:not(.reveal):not(.grid > .card), .pub, .stat, .page-head', root).forEach((el) => { if (!el.closest('.reveal, .reveal-stagger, .modal')) el.classList.add(el.tagName === 'DIV' && el.classList.contains('grid') ? 'reveal-stagger' : 'reveal'); });
     const io = SL._io || (SL._io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); SL._io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px', threshold: .05 }));
-    SL.qsa('.reveal:not(.in), .reveal-stagger:not(.in)', root).forEach((el) => io.observe(el));
+    const vh = window.innerHeight || 800;
+    SL.qsa('.reveal:not(.in), .reveal-stagger:not(.in)', root).forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.top < vh * 1.1 && r.bottom > 0) el.classList.add('in');   // already on screen: show immediately, no observer lag
+      else io.observe(el);
+    });
     SL.qsa('.stat .n', root).forEach(SL.countUp);
   };
   /** Animates a numeric stat tile from 0 to its value once. */
