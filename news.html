@@ -36,8 +36,16 @@ const main = SL.qs('#content');
 const prio = (n) => n.priority && !/^(normal|low)$/i.test(n.priority) ? `<span class="tag ${/high|urgent/i.test(n.priority) ? 'tag-warn' : 'tag-info'}">${SL.esc(n.priority)}</span>` : '';
 
 async function list() {
-  main.innerHTML = `<section class="page-hero"><div class="container"><div class="eyebrow">Department</div><h1>News <span class="grad-text">&amp; announcements</span></h1><p class="lead">Updates from the research office: symposia, funding opportunities, new resources and milestones.</p></div></section>
-    <section class="container section-tight"><div class="news-list" id="list"><div class="skeleton" style="width:70%"></div><div class="skeleton" style="width:50%"></div></div></section>`;
+  const tab = SL.param('tab') === 'literature' ? 'literature' : 'announcements';
+  main.innerHTML = `<section class="page-hero"><div class="container"><div class="eyebrow">Department</div><h1>News <span class="grad-text">&amp; updates</span></h1><p class="lead">Announcements from the research office, plus a daily digest of new papers in neurology, neurosurgery and neuroscience from the field's leading journals.</p>
+      <div class="tabs" style="margin-top:18px;border-bottom:0"><button class="${tab === 'announcements' ? 'active' : ''}" onclick="location.search='?'">Announcements</button><button class="${tab === 'literature' ? 'active' : ''}" onclick="location.search='?tab=literature'">Literature watch</button></div></div></section>
+    <section class="container section-tight">${tab === 'literature' ? `<div class="feed-chips" id="feedChips"><button class="chip active" data-f="">All fields</button><button class="chip" data-f="Neurosurgery">Neurosurgery</button><button class="chip" data-f="Neurology">Neurology</button><button class="chip" data-f="Neuroscience">Neuroscience</button></div><div id="feed"></div><p class="xs muted mt-3" id="feedNote">Titles link to PubMed. Sources: J Neurosurg, Neurosurgery, World Neurosurg, Neuro-Oncology, JNIS, Spine, Lancet Neurol, JAMA Neurol, Neurology, Ann Neurol, Brain, Stroke, Epilepsia, Mov Disord, J Neurotrauma, Neurocrit Care, Nat Neurosci, Neuron, Nat Rev Neurosci, J Neurosci, Trends Neurosci, and neuro papers in NEJM/Lancet/JAMA. Updated daily.</p>` : `<div class="news-list" id="list"><div class="skeleton" style="width:70%"></div><div class="skeleton" style="width:50%"></div></div>`}</section>`;
+  if (tab === 'literature') {
+    const box = SL.qs('#feed'); const load = (f) => SL.renderFeed(box, { limit: 60, field: f || null }); load('');
+    SL.qsa('#feedChips .chip').forEach((c) => c.onclick = () => { SL.qsa('#feedChips .chip').forEach((x) => x.classList.remove('active')); c.classList.add('active'); load(c.dataset.f); });
+    try { const { data: lg } = await SL.sb.from('feed_sync_log').select('finished_at').eq('status', 'ok').order('id', { ascending: false }).limit(1); if (lg && lg[0]) SL.qs('#feedNote').insertAdjacentHTML('beforeend', ` Last refresh ${SL.fmtDateTime(lg[0].finished_at)}.`); } catch (e) { /* ignore */ }
+    return;
+  }
   const { data, error } = await SL.sb.from('announcements').select('id,title,content,priority,pinned,created_by,created_at,slug,image_url')
     .eq('visibility', 'public').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(100);
   const box = SL.qs('#list');

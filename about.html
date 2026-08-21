@@ -214,7 +214,6 @@ form.addEventListener('submit', async (e) => {
     const { data: r, error } = await SL.sb.rpc('request_access', { p_email: email, p_name: name, p_role: role === 'Other' ? null : role, p_title: (role === 'Other' ? 'Other · ' : '') + title });
     if (error) throw error;
     if (r === 'duplicate') { result.innerHTML = `<div class="alert alert-info" role="status">A request for <strong>${SL.esc(email)}</strong> is already pending review. You'll hear from the research office by email.</div>`; return; }
-    try { await SL.sendEmail(SL.ADMIN_EMAILS, subject, `<p>${SL.esc(body).replace(/\n/g, '<br>')}</p>`); } catch (e3) { /* edge function is auth-gated; in-app notification already created */ }
     result.innerHTML = `<div class="alert alert-ok" role="status">Thank you — your request has been received. The research office will review it and email you at <strong>${SL.esc(email)}</strong>.</div>`;
     form.reset(); SL.toast('Request submitted', 'ok');
   } catch (err) {

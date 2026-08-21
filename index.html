@@ -186,6 +186,17 @@
     </div>
   </section>
 
+  <section class="section" aria-labelledby="feed-title" id="feedSection">
+    <div class="container">
+      <div class="section-head">
+        <div><div class="eyebrow">Literature watch</div><h2 id="feed-title">Latest in neurology, neurosurgery &amp; neuroscience</h2><p class="muted small" style="margin:6px 0 0">New papers from the field's leading journals, pulled from PubMed every morning.</p></div>
+        <a class="btn btn-ghost btn-sm" href="/news.html?tab=literature">Full literature feed →</a>
+      </div>
+      <div class="feed-chips" id="feedChips"><button class="chip active" data-f="">All fields</button><button class="chip" data-f="Neurosurgery">Neurosurgery</button><button class="chip" data-f="Neurology">Neurology</button><button class="chip" data-f="Neuroscience">Neuroscience</button></div>
+      <div id="feed"><div class="skeleton" style="height:60px"></div><div class="skeleton" style="height:60px"></div></div>
+    </div>
+  </section>
+
   <section class="section" aria-labelledby="work-title">
     <div class="container">
       <div class="band">
@@ -279,6 +290,9 @@ loadStats().catch(() => SL.qsa('#stats .stat:not(.stat-funding) .n').forEach((el
 loadRecent().catch(() => { SL.qs('#recentPubs').innerHTML = '<div class="empty">Could not load publications.</div>'; });
 loadNews().catch(() => {});
 loadFunding().catch(() => {});
+  // literature feed
+  (function () { const box = document.getElementById('feed'); if (!box) return; const load = (f) => SL.renderFeed(box, { limit: 9, field: f || null }); load('');
+    document.querySelectorAll('#feedChips .chip').forEach((c) => c.onclick = () => { document.querySelectorAll('#feedChips .chip').forEach((x) => x.classList.remove('active')); c.classList.add('active'); load(c.dataset.f); }); })();
 </script>
 </body>
 </html>

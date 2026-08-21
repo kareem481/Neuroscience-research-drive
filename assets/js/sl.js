@@ -9,7 +9,7 @@
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const SL = { sb, url: SUPABASE_URL, user: null, profile: null };
-  const ROOT = document.currentScript && document.currentScript.dataset.root || '';   // '' at site root, '../' inside /hub
+  const ROOT = (document.currentScript && document.currentScript.dataset.root) || '/';   // always site-absolute so links work from any depth (e.g. /hub/registries/)
   SL.root = ROOT;
 
   // ---------- tiny helpers ----------
@@ -21,7 +21,7 @@
   SL.fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '';
   SL.initials = (name) => (name || '?').replace(/,.*$/, '').split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   SL.debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms || 250); }; };
-  SL.isValidEmail = (e) => /^[^@\s]+@(saintlukeskc\.org|saint-lukes\.org|saintlukes\.org|umkc\.edu)$/i.test(e || '');
+  SL.isValidEmail = (e) => /^[^@\s]+@(saintlukeskc\.org|saint-lukes\.org|saintlukes\.org|umkc\.edu|umsystem\.edu|mail\.umkc\.edu|cmh\.edu)$/i.test(e || '');
 
   // ---------- toast ----------
   SL.toast = (msg, type) => {
@@ -140,6 +140,7 @@
   const NAV = [
     { href: 'index.html', label: 'Home', key: 'home' },
     { href: 'research.html', label: 'Research', key: 'research' },
+    { href: 'projects.html', label: 'Projects', key: 'projects' },
     { href: 'publications.html', label: 'Publications', key: 'publications' },
     { href: 'people.html', label: 'People', key: 'people' },
     { href: 'services.html', label: 'Services', key: 'services' },
@@ -186,6 +187,7 @@
     { href: 'hub/registries/index.html', label: 'Clinical Registries', key: 'registries', icon: 'db' },
     { href: 'hub/tools.html', label: 'Research Tools', key: 'tools', icon: 'chart' },
     { href: 'hub/publications.html', label: 'Publications', key: 'publications', icon: 'book' },
+    { href: 'hub/report.html', label: 'Research Report', key: 'report', icon: 'award' },
     { group: 'People' },
     { href: 'hub/directory.html', label: 'Directory', key: 'directory', icon: 'users' },
     { href: 'hub/education.html', label: 'Training & Students', key: 'education', icon: 'graduation' },
@@ -296,6 +298,38 @@
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type: mime || 'text/plain' })); a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   SL.csv = (rows, cols) => [cols.join(','), ...rows.map((r) => cols.map((c) => `"${String(r[c] == null ? '' : r[c]).replace(/"/g, '""')}"`).join(','))].join('\n');
+
+  // ---------- literature feed (daily PubMed digest) ----------
+  SL.feedCard = function (a) {
+    const d = a.pub_date ? SL.fmtDate(a.pub_date) : '';
+    const f = a.field || '';
+    const col = { Neurosurgery: 'var(--teal)', Neurology: 'var(--violet-2)', Neuroscience: 'var(--gold)' }[f] || 'var(--muted)';
+    return `<a class="feed-item" href="${SL.esc(a.url || ('https://pubmed.ncbi.nlm.nih.gov/' + a.pmid + '/'))}" target="_blank" rel="noopener">
+      <div class="feed-meta"><span class="feed-field" style="color:${col};border-color:${col}">${SL.esc(f)}</span><span class="feed-journal">${SL.esc(a.journal_abbrev || a.journal || '')}</span>${d ? `<span class="muted">· ${d}</span>` : ''}</div>
+      <div class="feed-title">${SL.esc(a.title)}</div>
+      ${a.authors ? `<div class="feed-authors">${SL.esc(a.authors)}</div>` : ''}
+    </a>`;
+  };
+  SL.renderFeed = async function (el, opts) {
+    opts = opts || {};
+    if (!SL.qs('style[data-sl-feed]')) { const st = document.createElement('style'); st.dataset.slFeed = '1'; st.textContent = `
+      .feed-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+      .feed-item{display:block;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);backdrop-filter:blur(10px);color:inherit;transition:.2s;position:relative;overflow:hidden}
+      .feed-item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--grad);opacity:.7}
+      .feed-item:hover{text-decoration:none;transform:translateY(-2px);border-color:rgba(34,211,238,.4);box-shadow:var(--shadow)}
+      .feed-meta{display:flex;gap:8px;align-items:center;font-size:.74rem;flex-wrap:wrap;margin-bottom:6px}
+      .feed-field{border:1px solid;border-radius:999px;padding:1px 8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:.66rem}
+      .feed-journal{color:var(--ink-2);font-style:italic}
+      .feed-title{font-weight:600;color:#fff;line-height:1.35;font-size:.95rem}
+      .feed-authors{font-size:.78rem;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .feed-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}`; document.head.appendChild(st); }
+    let q = sb.from('literature_feed').select('pmid,title,journal,journal_abbrev,field,authors,pub_date,url,featured').order('featured', { ascending: false }).order('pub_date', { ascending: false, nullsFirst: false }).order('fetched_at', { ascending: false }).limit(opts.limit || 12);
+    if (opts.field) q = q.eq('field', opts.field);
+    const { data, error } = await q;
+    if (error || !data || !data.length) { el.innerHTML = `<div class="empty">${SL.icons.book}<p>The literature feed refreshes every morning. Check back shortly.</p></div>`; return []; }
+    el.innerHTML = `<div class="feed-list">${data.map(SL.feedCard).join('')}</div>`;
+    SL.reveal(el); return data;
+  };
 
   window.SL = SL;
 })();

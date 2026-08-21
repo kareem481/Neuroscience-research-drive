@@ -169,10 +169,11 @@
         const acct = prof ? (prof.login_approved ? '<span class="tag tag-ok">Exists · approved</span>' : '<span class="tag tag-teal">Exists</span>') : '<span class="tag tag-warn">No account</span>';
         const mail = 'mailto:' + SL.ADMIN_EMAILS.join(',') + '?subject=' + encodeURIComponent('Create Research Hub account: ' + (r.name || r.email)) + '&body=' + encodeURIComponent(`Please create a Research Hub account for:\n\nName: ${r.name || ''}\nEmail: ${r.email || ''}\nRole: ${r.role || ''}\nTitle: ${r.title || ''}\nRequested: ${SL.fmtDateTime(r.requested_at)}\n\nOnce created, approve the login request in the Admin Panel: ${location.origin}/hub/admin.html#approvals`);
         return `<tr><td style="font-weight:600">${esc(r.name)}</td><td>${esc(r.email)}</td><td><span class="tag">${esc(r.role || '')}</span></td><td>${esc(r.title || '')}</td><td class="small muted">${SL.fmtDateTime(r.requested_at)}</td><td>${acct}</td>
-          <td><div class="flex" style="gap:6px">${prof ? `<button class="btn btn-primary btn-sm" data-approve="${r.id}">Approve</button>` : `<a class="btn btn-accent btn-sm" href="${mail}">Invite</a>`}<button class="btn btn-outline btn-sm" data-deny="${r.id}">Deny</button></div></td></tr>`;
+          <td><div class="flex" style="gap:6px">${prof ? `<button class="btn btn-primary btn-sm" data-approve="${r.id}">Approve</button>` : `<button class="btn btn-accent btn-sm" data-create="${r.id}" title="Creates the account with a temporary password, then approves">Create account &amp; approve</button>`}<button class="btn btn-outline btn-sm" data-deny="${r.id}">Deny</button></div></td></tr>`;
       }).join('')}</tbody></table></div>`;
       qsa('[data-approve]', list).forEach((b) => b.onclick = () => approve(pending.find((p) => String(p.id) === b.dataset.approve), byEmail));
       qsa('[data-deny]', list).forEach((b) => b.onclick = () => deny(pending.find((p) => String(p.id) === b.dataset.deny)));
+      qsa('[data-create]', list).forEach((b) => b.onclick = () => createAndApprove(pending.find((p) => String(p.id) === b.dataset.create)));
     }
     const { data: hist } = await sb.from('pending_login_approvals').select('*').neq('status', 'pending').order('requested_at', { ascending: false }).limit(15);
     qs('#approvalsHistory').innerHTML = (hist && hist.length) ? `<div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>By</th><th>When</th></tr></thead><tbody>${hist.map((h) => `<tr><td>${esc(h.name)}</td><td>${esc(h.email)}</td><td><span class="tag ${h.status === 'approved' ? 'tag-ok' : 'tag-danger'}">${esc(h.status)}</span></td><td>${esc(h.approved_by || '')}</td><td class="small muted">${SL.fmtDateTime(h.approved_at || h.requested_at)}</td></tr>`).join('')}</tbody></table></div>` : '<span class="muted">Nothing processed yet.</span>';
@@ -191,15 +192,25 @@
         const { data: citi } = await sb.from('citi_training').select('id').eq('user_id', prof.id).limit(1);
         if (!citi || !citi.length) await sb.from('citi_training').insert({ user_id: prof.id, human_subjects_status: 'Not started' });
       }
-      await SL.notify([r.email], 'login_approved', `Welcome to the Research Hub! Your access was approved by ${me.name}. Please complete your profile and upload your CITI certificate under Training & Students.`);
-      try {
-        await SL.sendEmail([r.email], "Your Saint Luke's Research Hub access is approved",
-          `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><div style="background:#0b2545;padding:20px;color:#fff"><h2 style="margin:0">Saint Luke's Neuroscience Research</h2><p style="margin:4px 0 0;color:#c9d6e8">Research Hub access approved</p></div><div style="padding:24px;background:#f6f7f9;color:#1b1f23"><p>Hello ${esc(r.name || '')},</p><p>Your Research Hub login has been approved by ${esc(me.name)}. You can sign in with your institutional email address.</p><p style="text-align:center;margin:24px 0"><a href="${loginUrl}" style="display:inline-block;background:#0e7c7b;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600">Sign in to the Research Hub</a></p><p>Next steps: complete your profile in the Directory and upload your CITI training certificate under Training &amp; Students.</p><p style="color:#5b6573;font-size:.85rem">This is an automated message from the Saint Luke's Neuroscience Research Hub.</p></div></div>`);
-      } catch (mailErr) { console.warn('Welcome email failed', mailErr); SL.toast('Approved, but the welcome email could not be sent', 'warn'); }
+      // welcome notification + email are sent by the approve_login_request RPC (notifications trigger)
       SL.audit('approved', 'login_request', r.id, `Login approved for ${r.email}${res === 'approved_no_profile' ? ' (no profile yet)' : ''}`);
       SL.toast(res === 'approved_no_profile' ? `Request approved for ${r.email} — access unlocks once the account exists` : `Access approved for ${r.email}`, 'ok');
       loaded.users = false; loadApprovals();
     } catch (e) { err(e, 'Approval failed'); }
+  }
+  async function createAndApprove(r) {
+    if (!r) return;
+    const roleGuess = r.role || 'Faculty';
+    if (!await SL.confirm(`Create a Research Hub account for ${r.name || r.email} (${roleGuess}) and approve access? A temporary password (SLNeuro_<LastName>1!) is set; they must change it at first login.`, 'Create & approve')) return;
+    const { data, error } = await sb.functions.invoke('admin-provision', { body: { users: [{ email: r.email, name: r.name || r.email, role: roleGuess, title: r.title || null }] } });
+    if (error) return err(error, 'Account creation failed');
+    const u = (data && data.users && data.users[0]) || {};
+    if (u.status === 'error') return SL.toast('Account creation failed: ' + (u.error || ''), 'err');
+    const { data: res, error: e2 } = await sb.rpc('approve_login_request', { p_id: r.id, p_approve: true });
+    if (e2) return err(e2, 'Approval failed');
+    SL.audit('account_created', 'profiles', r.email, { via: 'admin_panel', result: res });
+    SL.modal(`<div class="modal-head"><h3>Account ready</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div><div class="modal-body"><p><strong>${esc(r.name || r.email)}</strong> can now sign in at <span class="mono">slresearchhub.com/login</span>.</p>${u.temp_password ? `<p>Temporary password: <span class="kbd" style="font-size:.95rem">${esc(u.temp_password)}</span><br><span class="xs muted">Share it by phone or a separate message — they will be asked to set a new password on first login.</span></p>` : '<p class="muted">The account already existed; access has been approved.</p>'}</div><div class="modal-foot"><button class="btn btn-primary" data-close>Done</button></div>`);
+    loaded.users = false; loadApprovals();
   }
   async function deny(r) {
     if (!r) return;

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research Projects | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Active research projects of the Saint Luke's Neuroscience Research Department — clinical trials, registry studies, reviews and more, with live progress and enrollment metrics.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .type-row{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 6px}
+  .proj{display:grid;grid-template-columns:1fr;gap:14px}
+  .proj-card{padding:20px 22px}
+  .proj-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+  .proj-title{font-family:var(--font-head);font-size:1.08rem;font-weight:600;color:#fff;margin:0 0 4px}
+  .proj-meta{font-size:.85rem;color:var(--muted)}
+  .pipe{display:flex;align-items:center;margin:14px 0 6px;position:relative}
+  .pipe .seg{flex:1;height:4px;background:rgba(255,255,255,.08);position:relative}
+  .pipe .seg.done{background:var(--ok)} .pipe .seg.on{background:linear-gradient(90deg,var(--ok),var(--teal))}
+  .pipe .node{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.18);background:var(--bg-2);flex:none;position:relative}
+  .pipe .node.done{background:var(--ok);border-color:var(--ok)} .pipe .node.on{background:var(--teal);border-color:var(--teal);box-shadow:0 0 0 4px rgba(34,211,238,.25),0 0 18px rgba(34,211,238,.6)}
+  .pipe-labels{display:flex;justify-content:space-between;font-size:.7rem;color:var(--faint);gap:4px}
+  .pipe-labels span{flex:1;text-align:center;line-height:1.2} .pipe-labels span:first-child{text-align:left} .pipe-labels span:last-child{text-align:right}
+  .pipe-labels span.on{color:var(--teal-600);font-weight:600}
+  .metrics{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .metric{min-width:140px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+  .metric .v{font-family:var(--font-head);font-size:1.25rem;color:#fff;line-height:1.1} .metric .v small{font-size:.8rem;color:var(--muted)}
+  .metric .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:2px}
+  .metric .progress{margin-top:6px;height:4px}
+  .type-head{display:flex;align-items:center;gap:12px;margin:36px 0 14px}
+  .type-head .sw{width:12px;height:12px;border-radius:4px}
+  .type-head h3{margin:0} .type-head .cnt{font-size:.85rem;color:var(--muted)}
+  .summary-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px}
+  @media(max-width:900px){.summary-tiles{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:640px){.pipe-labels span:not(.on):not(:first-child):not(:last-child){visibility:hidden}}
+</style>
+</head>
+<body>
+<main>
+  <section class="hero"><div class="container" style="grid-template-columns:1fr">
+    <div>
+      <div class="eyebrow">Research portfolio</div>
+      <h1>Projects <span class="grad-text">in progress</span></h1>
+      <p class="lead">Every study in the department moves through a pipeline that fits its design — a clinical trial is tracked by enrollment, a chart review by records abstracted, a systematic review by studies screened. Progress below updates live from the Research Hub.</p>
+      <div class="summary-tiles" id="tiles"><div class="card stat"><div class="n">—</div><div class="l">Active projects</div></div><div class="card stat"><div class="n">—</div><div class="l">Clinical trials</div></div><div class="card stat"><div class="n">—</div><div class="l">Patients enrolled</div></div><div class="card stat"><div class="n">—</div><div class="l">Published</div></div></div>
+    </div>
+  </div></section>
+
+  <section class="section"><div class="container">
+    <div class="filters">
+      <div class="search grow" style="max-width:380px"><input class="input" id="q" placeholder="Search projects, PI, disease focus…"></div>
+      <select class="input" id="fType"><option value="">All project types</option></select>
+      <select class="input" id="fPillar"><option value="">All programs</option></select>
+      <select class="input" id="fStage"><option value="">Any stage</option><option value="active">In progress</option><option value="published">Published / completed</option></select>
+    </div>
+    <div id="list"><div class="skeleton" style="height:90px"></div><div class="skeleton" style="height:90px"></div></div>
+    <p class="xs muted mt-3">Only projects approved for public display are shown. Enrollment counts are aggregate and contain no patient-level information. Investigators: update progress from the <a href="/hub/projects.html">Research Hub</a>.</p>
+  </div></section>
+</main>
+<script>
+(async () => {
+  SL.renderShell({ active: 'projects' });
+  const h = SL.esc;
+  const [{ data: rows }, { data: defs }] = await Promise.all([
+    SL.sb.from('public_projects').select('*').order('updated_at', { ascending: false }),
+    SL.sb.from('project_type_defs').select('*').order('sort_order'),
+  ]);
+  const all = rows || []; const DEFS = defs || [];
+  const defOf = (k) => DEFS.find((d) => d.key === k);
+  // tiles
+  const isDone = (p) => ['published', 'awarded', 'disseminate'].includes(p.stage);
+  const enrolled = all.reduce((s, p) => s + (Number((p.metrics || {}).enrolled) || 0), 0);
+  const tiles = SL.qs('#tiles').children;
+  tiles[0].querySelector('.n').textContent = all.filter((p) => !isDone(p)).length;
+  tiles[1].querySelector('.n').textContent = all.filter((p) => p.project_type === 'Clinical Trial').length;
+  tiles[2].querySelector('.n').textContent = enrolled.toLocaleString();
+  tiles[3].querySelector('.n').textContent = all.filter(isDone).length;
+  // filters
+  SL.qs('#fType').innerHTML += DEFS.filter((d) => all.some((p) => p.project_type === d.key)).map((d) => `<option value="${h(d.key)}">${h(d.label)}</option>`).join('');
+  SL.qs('#fPillar').innerHTML += [...new Set(all.map((p) => p.pillar).filter(Boolean))].sort().map((x) => `<option>${h(x)}</option>`).join('');
+  const F = { q: SL.qs('#q'), type: SL.qs('#fType'), pillar: SL.qs('#fPillar'), stage: SL.qs('#fStage') };
+  Object.values(F).forEach((el) => el.addEventListener('input', SL.debounce(render, 120)));
+  const q = SL.param('type'); if (q) { F.type.value = q; }
+
+  function metric(def, m) {
+    const v = m[def.key]; if (v == null || v === '') return '';
+    const tgt = def.target_key ? m[def.target_key] : null;
+    const val = def.kind === 'int' ? (def.unit === '$' ? '$' : '') + Number(v).toLocaleString() : def.kind === 'date' ? SL.fmtDate(v) : h(String(v));
+    const pct = tgt && def.kind === 'int' ? Math.min(100, Math.round(100 * Number(v) / Number(tgt))) : null;
+    return `<div class="metric"><div class="v">${val}${tgt ? `<small> / ${Number(tgt).toLocaleString()}</small>` : ''}</div><div class="k">${h(def.label)}</div>${pct != null ? `<div class="progress"><span style="width:${pct}%"></span></div>` : ''}</div>`;
+  }
+  function card(p) {
+    const d = defOf(p.project_type) || { stages: [], metrics: [], color: '#22d3ee', label: p.project_type };
+    const idx = d.stages.findIndex((s) => s.key === p.stage);
+    const pipe = d.stages.map((s, i) => `${i ? `<div class="seg ${i <= idx ? (i === idx ? 'on' : 'done') : ''}"></div>` : ''}<div class="node ${i < idx ? 'done' : i === idx ? 'on' : ''}" title="${h(s.label)}"></div>`).join('');
+    const labels = d.stages.map((s, i) => `<span class="${i === idx ? 'on' : ''}">${h(s.label)}</span>`).join('');
+    const m = p.metrics || {};
+    const shown = d.metrics.filter((def) => !d.metrics.some((o) => o.target_key === def.key)).map((def) => metric(def, m)).join('');
+    return `<article class="card card-hover proj-card" style="border-left:3px solid ${h(d.color)}">
+      <div class="proj-head"><div><h4 class="proj-title">${h(p.title)}</h4><div class="proj-meta">${p.pi ? `PI: <strong style="color:var(--ink-2)">${h(p.pi)}</strong> · ` : ''}${h(d.label)}${p.pillar ? ` · ${h(p.pillar)}` : ''}${p.disease_focus ? ` · ${h(p.disease_focus)}` : ''}${p.nct_number ? ` · <a href="https://clinicaltrials.gov/study/${encodeURIComponent(p.nct_number)}" target="_blank" rel="noopener">${h(p.nct_number)}</a>` : ''}</div></div>
+        <div class="tags"><span class="tag ${isDone(p) ? 'tag-ok' : 'tag-teal'}">${h((d.stages[idx] || {}).label || p.stage || 'Planned')}</span><span class="tag tag-outline">${p.progress}%</span></div></div>
+      ${p.public_summary ? `<p class="small" style="color:var(--ink-2);margin:10px 0 0">${h(p.public_summary)}</p>` : ''}
+      ${d.stages.length ? `<div class="pipe">${pipe}</div><div class="pipe-labels">${labels}</div>` : ''}
+      ${shown ? `<div class="metrics">${shown}</div>` : ''}
+      <div class="xs muted mt-2">${p.start_date ? `Started ${SL.fmtDate(p.start_date)} · ` : ''}${p.target_date ? `Target ${SL.fmtDate(p.target_date)} · ` : ''}Updated ${SL.fmtDate(p.updated_at)}</div>
+    </article>`;
+  }
+  function render() {
+    const s = F.q.value.trim().toLowerCase();
+    const rows = all.filter((p) => (!F.type.value || p.project_type === F.type.value) && (!F.pillar.value || p.pillar === F.pillar.value)
+      && (!F.stage.value || (F.stage.value === 'published' ? isDone(p) : !isDone(p)))
+      && (!s || [p.title, p.pi, p.disease_focus, p.public_summary, p.pillar].join(' ').toLowerCase().includes(s)));
+    const box = SL.qs('#list');
+    if (!rows.length) { box.innerHTML = `<div class="empty">${SL.icons.flask}<p>${all.length ? 'No projects match these filters.' : 'No projects have been published to the public portfolio yet. Investigators can mark a project public from its Progress & metrics tab in the Research Hub.'}</p></div>`; return; }
+    const groups = DEFS.filter((d) => rows.some((p) => p.project_type === d.key));
+    box.innerHTML = groups.map((d) => `<div class="type-head"><span class="sw" style="background:${h(d.color)}"></span><h3>${h(d.label)}</h3><span class="cnt">${rows.filter((p) => p.project_type === d.key).length}</span></div><div class="proj">${rows.filter((p) => p.project_type === d.key).map(card).join('')}</div>`).join('');
+    SL.reveal(box);
+  }
+  render();
+})();
+</script>
+</body>
+</html>

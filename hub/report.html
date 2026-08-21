@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research Report | Saint Luke's Neuroscience Research</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:22px}
+  @media(max-width:1200px){.kpis{grid-template-columns:repeat(3,1fr)}} @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi .n{font-size:1.9rem} .kpi .d{font-size:.75rem;color:var(--faint);margin-top:2px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:20px} @media(max-width:960px){.two{grid-template-columns:1fr}}
+  .bars{display:flex;flex-direction:column;gap:8px}
+  .bar{display:grid;grid-template-columns:170px 1fr 44px;gap:10px;align-items:center;font-size:.86rem}
+  .bar .t{height:10px;border-radius:5px;background:rgba(255,255,255,.06);overflow:hidden} .bar .t span{display:block;height:100%;border-radius:5px;background:var(--grad)}
+  .bar .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  .pubrow{padding:8px 0;border-bottom:1px solid var(--line);font-size:.9rem} .pubrow:last-child{border:0}
+  .report-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  @media print{
+    .sidebar,.topbar,.no-print,#slNeural{display:none!important} body{background:#fff;color:#111} body::before{display:none}
+    .shell{display:block} .main{padding:0} .card,.table-wrap{background:#fff;border:1px solid #ddd;backdrop-filter:none;box-shadow:none;break-inside:avoid}
+    h1,h2,h3,h4,.stat .n,.kpi .n{color:#111;-webkit-text-fill-color:#111;background:none} .muted,.xs,.d{color:#555} .bar .t{background:#eee} .bar .t span{background:#0e7c7b} .pubrow{border-color:#ddd}
+    .print-banner{display:block!important}
+  }
+  .print-banner{display:none;border-bottom:2px solid #0b2545;padding-bottom:8px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<main class="main" id="main">
+  <div class="print-banner"><strong>Saint Luke's Neuroscience Research Department</strong> — Research activity report · <span id="printPeriod"></span></div>
+  <div class="report-head">
+    <div><div class="eyebrow">Department</div><h1 style="font-size:1.8rem;margin:0">Research activity report</h1><div class="muted sub" id="periodLabel">—</div></div>
+    <div class="flex wrap no-print">
+      <select class="input" id="preset" style="min-width:190px"></select>
+      <input class="input" type="date" id="from" style="width:150px"><span class="muted">to</span><input class="input" type="date" id="to" style="width:150px">
+      <button class="btn btn-outline btn-sm" id="run">Update</button>
+      <button class="btn btn-primary btn-sm" id="print">Print / PDF</button>
+    </div>
+  </div>
+  <div id="body"><div class="skeleton" style="height:80px"></div><div class="skeleton" style="height:220px"></div></div>
+</main>
+<script>
+(async () => {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'report' });
+  const h = SL.esc, $ = SL.qs;
+  // period presets: last 4 quarters + YTD + last 12 months
+  const today = new Date(); const q = Math.floor(today.getMonth() / 3);
+  const presets = [];
+  for (let i = 1; i <= 4; i++) { const qi = q - i; const y = today.getFullYear() + Math.floor(qi / 4); const qq = ((qi % 4) + 4) % 4; const from = new Date(y, qq * 3, 1), to = new Date(y, qq * 3 + 3, 1); presets.push({ label: `Q${qq + 1} ${y}`, from, to }); }
+  presets.unshift({ label: `Q${q + 1} ${today.getFullYear()} (to date)`, from: new Date(today.getFullYear(), q * 3, 1), to: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1) });
+  presets.push({ label: `${today.getFullYear()} year to date`, from: new Date(today.getFullYear(), 0, 1), to: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1) });
+  presets.push({ label: 'Last 12 months', from: new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()), to: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1) });
+  presets.push({ label: 'Custom…', from: null, to: null });
+  const iso = (d) => d.toISOString().slice(0, 10);
+  $('#preset').innerHTML = presets.map((p, i) => `<option value="${i}">${h(p.label)}</option>`).join('');
+  $('#preset').value = '1';
+  const applyPreset = () => { const p = presets[+$('#preset').value]; if (p.from) { $('#from').value = iso(p.from); $('#to').value = iso(p.to); } };
+  applyPreset(); $('#preset').onchange = () => { applyPreset(); run(); };
+  $('#run').onclick = run; $('#print').onclick = () => window.print();
+
+  const bars = (rows, k, v, color) => rows.length ? `<div class="bars">${rows.map((r) => { const max = Math.max(...rows.map((x) => +x[v] || 0), 1); return `<div class="bar"><span title="${h(r[k])}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(r[k])}</span><div class="t"><span style="width:${Math.round(100 * (+r[v] || 0) / max)}%;${r.color ? 'background:' + h(r.color) : color ? 'background:' + color : ''}"></span></div><span class="v">${(+r[v] || 0).toLocaleString()}</span></div>`; }).join('')}</div>` : '<span class="muted small">No data in this period.</span>';
+  const kpi = (n, l, d) => `<div class="card stat kpi"><div class="n">${n}</div><div class="l">${l}</div>${d ? `<div class="d">${d}</div>` : ''}</div>`;
+
+  async function run() {
+    const from = $('#from').value, to = $('#to').value; if (!from || !to) return;
+    $('#periodLabel').textContent = `${SL.fmtDate(from)} – ${SL.fmtDate(new Date(new Date(to + 'T12:00:00') - 864e5).toISOString().slice(0, 10))} · generated ${new Date().toLocaleDateString()} by ${me.name}`;
+    $('#printPeriod').textContent = $('#periodLabel').textContent;
+    const { data: r, error } = await SL.sb.rpc('research_report', { p_from: from, p_to: to });
+    if (error) { $('#body').innerHTML = `<div class="alert alert-danger">${h(error.message)}</div>`; return; }
+    const pub = r.publications || {}, en = r.enrollment || {}, g = r.grants || {}, ppl = r.people || {}, tr = r.training || {};
+    const totalProjects = (r.projects_by_type || []).reduce((s, x) => s + x.total, 0), activeProjects = (r.projects_by_type || []).reduce((s, x) => s + x.active, 0);
+    $('#body').innerHTML = `
+      <div class="kpis">
+        ${kpi(pub.period ?? 0, 'Publications', `this period · ${pub.all ?? 0} total`)}
+        ${kpi(activeProjects, 'Active projects', `${totalProjects} total · ${r.new_projects} new`)}
+        ${kpi(en.trials ?? 0, 'Clinical trials', `${(en.enrolled || 0).toLocaleString()} / ${(en.target || 0).toLocaleString()} enrolled`)}
+        ${kpi(r.irb_approved ?? 0, 'IRB approvals', 'this period')}
+        ${kpi(g.active ?? 0, 'Active grants', g.active_amount ? '$' + Number(g.active_amount).toLocaleString() : '')}
+        ${kpi(r.stage_changes ?? 0, 'Stage advances', 'project pipeline moves')}
+      </div>
+      <div class="two">
+        <div class="card"><h4>Projects by type</h4>${bars((r.projects_by_type || []).map((x) => ({ type: `${x.type}`, n: x.total, color: x.color })), 'type', 'n')}<div class="xs muted mt-2">${(r.projects_by_type || []).map((x) => `${h(x.type)}: ${x.active} active · ${x.published} published`).join(' · ')}</div></div>
+        <div class="card"><h4>Projects by program</h4>${bars(r.projects_by_pillar || [], 'pillar', 'n')}</div>
+        <div class="card"><h4>Publications by type (period)</h4>${bars(pub.by_type || [], 'type', 'n', 'var(--violet-2)')}</div>
+        <div class="card"><h4>Most published faculty (period)</h4>${bars(pub.top_authors || [], 'name', 'n', 'var(--teal)')}</div>
+        <div class="card"><h4>Manuscript &amp; abstract submissions (period)</h4>${bars(r.submissions || [], 'status', 'n', 'var(--gold)')}</div>
+        <div class="card"><h4>Service requests (period)</h4>${bars(r.services || [], 'service', 'n', 'var(--info)')}</div>
+        <div class="card"><h4>People</h4>${bars([{ k: 'Faculty', n: ppl.faculty }, { k: 'Trainees & students', n: ppl.trainees }, { k: 'Research & clinical staff', n: ppl.staff }], 'k', 'n', 'var(--ok)')}</div>
+        <div class="card"><h4>Compliance</h4><div class="stat" style="padding:0"><div class="n" style="font-size:1.7rem">${tr.citi_current ?? 0}<span class="muted" style="font-size:1rem;-webkit-text-fill-color:var(--muted)"> / ${tr.citi_total ?? 0}</span></div><div class="l">CITI human-subjects training current</div></div><div class="xs muted mt-2">Retrospective chart abstraction logged across projects: ${(r.charts || 0).toLocaleString()} charts.</div></div>
+      </div>
+      <div class="card mt-3"><div class="flex between wrap"><h4 style="margin:0">Publications in period (${(pub.list || []).length})</h4><button class="btn btn-ghost btn-sm no-print" id="csv">${SL.icons.download} CSV</button></div>
+        ${(pub.list || []).length ? pub.list.map((p) => `<div class="pubrow"><strong>${h(p.title)}</strong><div class="xs muted">${h(p.authors || '')}</div><div class="xs muted"><em>${h(p.journal || '')}</em> · ${SL.fmtDate(p.date)}${p.pmid ? ` · <a href="https://pubmed.ncbi.nlm.nih.gov/${h(p.pmid)}/" target="_blank" rel="noopener">PMID ${h(p.pmid)}</a>` : ''}${p.doi ? ` · <a href="https://doi.org/${h(p.doi)}" target="_blank" rel="noopener">DOI</a>` : ''}</div></div>`).join('') : '<span class="muted small">No publications dated in this period.</span>'}
+      </div>
+      <p class="xs muted mt-3">Sources: Research Hub projects, PubMed-synced publications, grants, service requests and training records as of ${new Date().toLocaleString()}. Enrollment figures are aggregate counts entered by study teams.</p>`;
+    const c = $('#csv'); if (c) c.onclick = () => SL.download(`publications_${from}_${to}.csv`, SL.csv(pub.list || [], ['title', 'authors', 'journal', 'date', 'pmid', 'doi']), 'text/csv');
+    SL.audit('report_viewed', 'report', `${from}_${to}`);
+  }
+  run();
+})();
+</script>
+</body>
+</html>

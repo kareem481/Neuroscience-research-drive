@@ -97,7 +97,6 @@ $('#loginForm').addEventListener('submit', async (e) => {
   const email = $('#email').value.trim().toLowerCase(), password = $('#password').value;
   if (!email) { SL.toast('Please enter your email address.', 'err'); return; }
   if (!password) { SL.toast('Please enter your password.', 'err'); return; }
-  if (!SL.isValidEmail(email)) { showAlert('Please use your institutional email address (@saint-lukes.org, @saintlukeskc.org, @saintlukes.org or @umkc.edu).', 'warn'); return; }
   const btn = $('#signinBtn'); busy(btn, true, 'Sign in'); alerts.innerHTML = '';
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
@@ -112,9 +111,6 @@ $('#loginForm').addEventListener('submit', async (e) => {
       // Server-side RPC dedupes on email+pending and notifies admins (SECURITY DEFINER).
       let status = 'ok';
       try { const { data: r } = await sb.rpc('request_login_approval'); status = r || 'ok'; } catch (e1) { /* ignore */ }
-      if (status === 'ok') {
-        try { await SL.sendEmail(SL.ADMIN_EMAILS, `Login approval needed — ${profile.name}`, `<p><strong>${SL.esc(profile.name)}</strong> (${SL.esc(email)}, ${SL.esc(profile.role || '')}) signed in for the first time and is awaiting approval.</p><p>Approve in the Research Hub admin panel.</p>`); } catch (e4) { /* ignore */ }
-      }
       await sb.auth.signOut(); SL.user = null; SL.profile = null;
       showAlert('Your first login needs administrator approval — you\'ll get an email once your account is approved.', 'info');
       return;

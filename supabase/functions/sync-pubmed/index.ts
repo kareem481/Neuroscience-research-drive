@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
   let found = 0, inserted = 0, updated = 0, skipped = 0;
 
   try {
-    let q = admin.from("faculty_profiles").select("user_id, pubmed_author_terms, pubmed_affiliation_filter, pubmed_extra_query, profiles!inner(name)").eq("pubmed_enabled", true);
+    let q = admin.from("faculty_profiles").select("user_id, pubmed_author_terms, pubmed_affiliation_filter, pubmed_extra_query, orcid, profiles!inner(name)").eq("pubmed_enabled", true);
     if (Array.isArray(body.faculty_ids) && body.faculty_ids.length) q = q.in("user_id", body.faculty_ids);
     const { data: faculty, error: fe } = await q;
     if (fe) throw fe;
@@ -156,6 +156,7 @@ Deno.serve(async (req) => {
     const pmidOwners = new Map<string, Set<string>>();      // pmid -> faculty user_ids
     const facultyTerms = new Map<string, string[]>();
     const facultyExtra = new Map<string, string>();
+    const orcidOwners = new Set<string>();
     for (const f of faculty || []) {
       if (f.pubmed_extra_query) facultyExtra.set(f.user_id, f.pubmed_extra_query);
       const terms = (f.pubmed_author_terms || []).filter(Boolean);
@@ -164,6 +165,9 @@ Deno.serve(async (req) => {
       let term = "(" + terms.map((t: string) => `${t}[Author]`).join(" OR ") + ")";
       if (f.pubmed_affiliation_filter) term += ` AND (${AFFIL}${f.pubmed_extra_query ? " OR (" + f.pubmed_extra_query + ")" : ""})`;
       else if (f.pubmed_extra_query) term += ` AND (${f.pubmed_extra_query})`;
+      // ORCID (when set) is authoritative: include every paper PubMed has linked to the ORCID iD, regardless of affiliation.
+      const orcid = String(f.orcid || "").replace(/^https?:\/\/orcid\.org\//i, "").trim();
+      if (/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/i.test(orcid)) { term = `(${term}) OR ${orcid}[auid]`; orcidOwners.add(f.user_id); }
       if (sinceYear) term += ` AND ${sinceYear}:3000[dp]`;
       try {
         const xml = await eutil("esearch.fcgi", { db: "pubmed", term, retmax: String(maxPer), retmode: "json" });
@@ -205,9 +209,9 @@ Deno.serve(async (req) => {
           const pos = (r.authors as any[]).findIndex((a) => lasts.includes(normLast(a.last || "")));
           const aff = pos >= 0 ? String((r.authors as any[])[pos].affiliation || "") : "";
           const extra = String(facultyExtra.get(uid) || "").toLowerCase().replace(/\[affiliation\]/g, "").split(/\bor\b|\band\b/).map((x) => x.replace(/[()"]/g, "").trim()).filter((x) => x.length > 3);
-          const ok = /luke/i.test(aff) || /marion bloch/i.test(aff) || extra.some((x) => aff.toLowerCase().includes(x));
+          const ok = orcidOwners.has(uid) || /luke/i.test(aff) || /marion bloch/i.test(aff) || extra.some((x) => aff.toLowerCase().includes(x));
           if (aff && !ok) { rejected++; continue; }
-          if (!aff) unknown = true; else confirmed = true;
+          if (orcidOwners.has(uid) || aff) confirmed = true; else unknown = true;
           links.push({ publication_id: null, profile_id: uid, author_position: pos >= 0 ? pos + 1 : null, matched_term: terms[0] });
         }
         if (!links.length) { skipped++; continue; }

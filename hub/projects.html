@@ -54,6 +54,12 @@
   .ms-grid textarea.input{min-height:130px;font-family:var(--font-head);font-size:1rem;line-height:1.6}
   .drop-list{position:absolute;left:0;right:0;top:100%;background:var(--surface-solid);border:1px solid var(--line-2);border-radius:8px;box-shadow:var(--shadow-lg);z-index:5;max-height:260px;overflow:auto}
   .drop-list button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 12px;font-size:.88rem;cursor:pointer} .drop-list button:hover{background:rgba(34,211,238,.1)}
+  .pipe{display:flex;gap:6px;flex-wrap:wrap}
+  .pstep{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;border:1px solid var(--line-2);font-size:.82rem;color:var(--muted);background:rgba(255,255,255,.03)}
+  .pstep[data-stage]{cursor:pointer} .pstep[data-stage]:hover{border-color:var(--teal)}
+  .pstep .dotn{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:.7rem;background:rgba(255,255,255,.06);font-weight:600}
+  .pstep.done{color:var(--ink-2);border-color:rgba(52,211,153,.4)} .pstep.done .dotn{background:var(--ok);color:#06101a}
+  .pstep.on{color:#fff;border-color:rgba(34,211,238,.7);box-shadow:var(--glow);background:rgba(34,211,238,.12)} .pstep.on .dotn{background:var(--grad);color:#06101a}
 </style>
 </head>
 <body>
@@ -70,7 +76,8 @@
     <div class="search"><span id="sIcon"></span><input class="input" id="fSearch" type="search" placeholder="Search title, PI, disease focus…" aria-label="Search projects"></div>
     <select class="input" id="fStatus"><option value="">All statuses</option></select>
     <select class="input" id="fPillar"><option value="">All pillars</option><option>Translational</option><option>Clinical</option><option>Computational</option></select>
-    <select class="input" id="fType"><option value="">All study types</option></select>
+    <select class="input" id="fPType"><option value="">All project types</option></select>
+      <select class="input" id="fType"><option value="">All study types</option></select>
     <label class="check"><input type="checkbox" id="fMine"> Mine only</label>
     <div class="view-toggle" id="viewToggle" style="margin-left:auto"></div>
   </div>
@@ -84,6 +91,11 @@
   SL.renderHubShell({ active: 'projects' });
   const h = SL.esc, I = SL.icons;
   const isAdmin = SL.isAdmin(), isIRB = SL.hasRole('IRB');
+  let TYPE_DEFS = [];
+  SL.sb.from('project_type_defs').select('*').order('sort_order').then(({ data }) => { TYPE_DEFS = data || []; const sel = SL.qs('#fPType'); if (sel) sel.innerHTML = '<option value="">All project types</option>' + TYPE_DEFS.map((d) => `<option value="${h(d.key)}">${h(d.label)}</option>`).join(''); });
+  const typeDef = (k) => TYPE_DEFS.find((d) => d.key === k);
+  const stageIdx = (p) => { const d = typeDef(p.project_type); if (!d) return -1; return d.stages.findIndex((st) => st.key === p.stage); };
+  const progressOf = (p) => { const d = typeDef(p.project_type); const i = stageIdx(p); return d && i >= 0 ? Math.round(100 * i / Math.max(d.stages.length - 1, 1)) : (p.progress || 0); };
   const STATUSES = ['Pre-submission', 'Admin Review', 'IRB Review', 'Active', 'Data Collection', 'Analysis', 'Publication', 'Completed'];
   const EXTRA_STATUSES = ['On Hold', 'Archived'];
   const STUDY_TYPES = ['Prospective Cohort', 'Retrospective Cohort', 'Randomized Controlled Trial', 'Case-Control', 'Cross-Sectional', 'Case Series / Case Report', 'Systematic Review / Meta-Analysis', 'Translational / Bench-to-Bedside', 'Computational / AI / ML', 'Quality Improvement', 'Other'];
@@ -133,7 +145,7 @@
   async function notifyAll(recipients, type, message, p, subject) {
     if (!recipients.length) return;
     try { await SL.notify(recipients, type, message, { project_id: p.id, project_title: p.title }); } catch (e) { console.warn(e); }
-    try { await SL.sendEmail(recipients, subject || message, `<p>${h(message)}</p><p><a href="${location.origin}/hub/projects.html?id=${p.id}">Open project in Research Hub</a></p>`); } catch (e) { console.warn('email failed', e); }
+    // email delivery is handled by the notifications → send-notification-email database trigger
   }
 
   // ---------- data ----------
@@ -148,14 +160,14 @@
   }
 
   // ---------- filters & render ----------
-  const F = { q: SL.qs('#fSearch'), status: SL.qs('#fStatus'), pillar: SL.qs('#fPillar'), type: SL.qs('#fType'), mine: SL.qs('#fMine') };
+  const F = { q: SL.qs('#fSearch'), status: SL.qs('#fStatus'), pillar: SL.qs('#fPillar'), type: SL.qs('#fType'), ptype: SL.qs('#fPType'), mine: SL.qs('#fMine') };
   const qp = new URLSearchParams(location.search);
   if (qp.get('status')) F.status.value = qp.get('status');
   if (qp.get('mine')) F.mine.checked = true;
   Object.values(F).forEach((el) => el.addEventListener('input', SL.debounce(render, 120)));
   function filtered() {
     const q = F.q.value.trim().toLowerCase();
-    return all.filter((p) => (!F.status.value || p.status === F.status.value) && (!F.pillar.value || p.pillar === F.pillar.value) && (!F.type.value || p.study_type === F.type.value)
+    return all.filter((p) => (!F.status.value || p.status === F.status.value) && (!F.pillar.value || p.pillar === F.pillar.value) && (!F.type.value || p.study_type === F.type.value) && (!F.ptype.value || p.project_type === F.ptype.value)
       && (!F.mine.checked || isMine(p)) && (qp.get('pending') !== 'admin' || !p.admin_approved)
       && (!q || [p.title, p.pi, p.disease_focus, p.co_investigators, p.irb_protocol_number].filter(Boolean).join(' ').toLowerCase().includes(q)));
   }
@@ -217,6 +229,7 @@
         <div class="field"><label>Project title *</label><input class="input" name="title" required placeholder="e.g. Neural biomarkers in early Alzheimer's disease"></div>
         <div class="form-row">
           <div class="field"><label>Study type *</label><select class="input" name="study_type" required><option value="">Select…</option>${STUDY_TYPES.map((s) => `<option>${s}</option>`).join('')}</select></div>
+          <div class="field"><label>Project type (progress pipeline) *</label><select class="input" name="project_type" required><option value="">Select…</option>${TYPE_DEFS.map((d) => `<option value="${h(d.key)}">${h(d.label)}</option>`).join('')}</select><div class="help">Drives the stage pipeline and the metrics tracked (e.g. patients enrolled for trials, charts abstracted for reviews).</div></div>
           <div class="field"><label>Research pillar *</label><select class="input" name="pillar" required><option value="">Select…</option><option>Translational</option><option>Clinical</option><option>Computational</option></select></div>
         </div>
         <div class="form-row">
@@ -303,7 +316,7 @@
     const piName = () => v('pi') === '__other' ? v('pi_other') : v('pi');
     function validate(s) {
       const req = (names, msg) => { for (const n of names) { if (!v(n)) { form.elements[n].focus(); SL.toast(msg || 'Please complete the required fields', 'err'); return false; } } return true; };
-      if (s === 1) { if (!req(['title', 'study_type', 'pillar', 'department', 'disease_focus', 'abstract'])) return false; if (!piName()) { SL.toast('Select a principal investigator', 'err'); return false; } }
+      if (s === 1) { if (!req(['title', 'study_type', 'project_type', 'pillar', 'department', 'disease_focus', 'abstract'])) return false; if (!piName()) { SL.toast('Select a principal investigator', 'err'); return false; } }
       if (s === 2 && !form.elements.protocol_na.checked && !req(['background', 'objectives', 'design'], 'Background, objectives and design are required unless protocol is N/A')) return false;
       return true;
     }
@@ -339,7 +352,7 @@
       const rows = budgetRows();
       const budget = { na: form.elements.budget_na.checked, rows, total: rows.reduce((a, r) => a + r.total, 0) };
       const row = {
-        title: v('title'), study_type: v('study_type'), pillar: v('pillar'), department: v('department'), pi: piName(), co_investigators: v('co_investigators'), disease_focus: v('disease_focus'), abstract: v('abstract'),
+        title: v('title'), study_type: v('study_type'), project_type: v('project_type') || 'Retrospective Cohort', stage: (typeDef(v('project_type')) || { stages: [{ key: 'concept' }] }).stages[0].key, pillar: v('pillar'), department: v('department'), pi: piName(), co_investigators: v('co_investigators'), disease_focus: v('disease_focus'), abstract: v('abstract'),
         umbrella_irb: v('umbrella') === 'yes' ? v('umbrella_irb') : '', status: 'Pre-submission', phase: 'Protocol Preparation', progress: 0, irb_approved: false, irb_protocol_number: '', irb_personnel: irb_consent.personnel,
         created_by: me.id, admin_approved: false, protocol, irb_consent, budget, files: [], manuscript: {}, notes: v('notes'),
       };
@@ -368,7 +381,7 @@
     if (!canAccess(p)) return SL.toast('Access restricted: you must be listed on the IRB protocol to view this project.', 'err');
     history.replaceState(null, '', `?id=${id}`);
     const edit = canEdit(p), irbRole = canIRB();
-    const tabs = [['overview', 'Overview'], ['protocol', 'Protocol'], ['irb', 'IRB'], ['team', 'Team'], ['files', 'Files'], ['manuscript', 'Manuscript'], ['pubs', 'Publications'], ['status', 'Status']];
+    const tabs = [['overview', 'Overview'], ['protocol', 'Protocol'], ['irb', 'IRB'], ['team', 'Team'], ['files', 'Files'], ['manuscript', 'Manuscript'], ['pubs', 'Publications'], ['progress', 'Progress & metrics'], ['status', 'Status']];
     SL.modal(`<div class="modal-head" style="align-items:flex-start"><div><div class="tags mb-1">${statusTag(p.status)}<span class="tag tag-teal">${h(p.pillar || 'Unassigned')}</span>${p.admin_approved ? '<span class="tag tag-ok">Admin approved</span>' : '<span class="tag tag-warn">Awaiting admin review</span>'}${p.irb_approved ? `<span class="tag tag-ok">IRB ${h(p.irb_protocol_number || 'approved')}</span>` : ''}</div><h3 style="font-size:1.25rem">${h(p.title || 'Untitled')}</h3><div class="small muted">${h(p.pi || 'No PI')}${p.department ? ' · ' + h(p.department) : ''} · created ${SL.fmtDate(p.created_at)}</div></div><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
       <div class="modal-body" style="padding-top:12px"><div class="tabs" id="dtabs">${tabs.map(([k, l]) => `<button data-t="${k}" class="${(tab || 'overview') === k ? 'active' : ''}">${l}</button>`).join('')}</div><div class="detail-body" id="dbody"></div></div>
       <div class="modal-foot"><a class="btn btn-ghost btn-sm" href="?id=${id}" onclick="navigator.clipboard&&navigator.clipboard.writeText(location.origin+'/hub/projects.html?id=${id}');SL.toast('Link copied','ok');return false">Copy link</a>${edit ? `<button class="btn btn-outline btn-sm" id="delBtn" style="color:var(--danger)">Delete</button>` : ''}<button class="btn btn-primary btn-sm" data-close>Close</button></div>`, { size: 'xl' });
@@ -387,7 +400,7 @@
     function showTab(t) {
       if (t === 'overview') body.innerHTML = `
         ${p.abstract ? `<div class="sec"><h4>Abstract</h4><p style="white-space:pre-line">${h(p.abstract)}</p></div>` : ''}
-        <div class="sec"><h4>Details</h4><dl class="kv"><dt>Study type</dt><dd>${h(p.study_type || '—')}</dd><dt>Disease focus</dt><dd>${h(p.disease_focus || '—')}</dd><dt>Co-investigators</dt><dd>${h(p.co_investigators || '—')}</dd><dt>Phase</dt><dd>${h(p.phase || '—')}</dd><dt>Progress</dt><dd><div class="progress" style="max-width:240px;margin-top:8px"><span style="width:${p.progress || 0}%"></span></div>${p.progress || 0}%</dd>${p.umbrella_irb ? `<dt>Umbrella IRB</dt><dd>${h(p.umbrella_irb)}</dd>` : ''}<dt>Budget</dt><dd>${p.budget && p.budget.na ? 'Not applicable' : p.budget && p.budget.rows ? `$${(+p.budget.total || 0).toLocaleString()} (${p.budget.rows.length} items)` : h((p.budget && p.budget.totalEstimate) || '—')}</dd>${p.notes ? `<dt>Notes</dt><dd>${h(p.notes)}</dd>` : ''}</dl></div>
+        <div class="sec"><h4>Details</h4><dl class="kv"><dt>Study type</dt><dd>${h(p.study_type || '—')}</dd><dt>Disease focus</dt><dd>${h(p.disease_focus || '—')}</dd><dt>Co-investigators</dt><dd>${h(p.co_investigators || '—')}</dd><dt>Phase</dt><dd>${h(p.phase || '—')}</dd><dt>Progress</dt><dd><div class="progress" style="max-width:240px;margin-top:8px"><span style="width:${progressOf(p)}%"></span></div>${progressOf(p)}% · ${h((typeDef(p.project_type) || {}).label || p.project_type || '')}</dd>${p.umbrella_irb ? `<dt>Umbrella IRB</dt><dd>${h(p.umbrella_irb)}</dd>` : ''}<dt>Budget</dt><dd>${p.budget && p.budget.na ? 'Not applicable' : p.budget && p.budget.rows ? `$${(+p.budget.total || 0).toLocaleString()} (${p.budget.rows.length} items)` : h((p.budget && p.budget.totalEstimate) || '—')}</dd>${p.notes ? `<dt>Notes</dt><dd>${h(p.notes)}</dd>` : ''}</dl></div>
         ${p.budget && p.budget.rows && p.budget.rows.length ? `<div class="sec"><h4>Budget estimate</h4><div class="table-wrap"><table class="table"><thead><tr><th>Category</th><th>Item</th><th>Details</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Total</th></tr></thead><tbody>${p.budget.rows.map((r) => `<tr><td>${h(r.category)}</td><td>${h(r.item)}</td><td>${h(r.detail)}</td><td class="num">${r.qty}</td><td class="num">$${(+r.unit).toLocaleString()}</td><td class="num">$${(+r.total).toLocaleString()}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
       else if (t === 'protocol') body.innerHTML = `<div class="sec"><h4>Research protocol</h4>${p.protocol && p.protocol.na ? '<div class="alert alert-info">Protocol marked not applicable for this study.</div>' : kv(p.protocol, PROTOCOL_LABELS, ['na'])}</div>${edit ? `<button class="btn btn-outline btn-sm" id="editProt">${I.edit} Edit protocol</button>` : ''}`;
       else if (t === 'irb') renderIRB();
@@ -395,11 +408,77 @@
       else if (t === 'files') renderFiles();
       else if (t === 'manuscript') renderManuscript();
       else if (t === 'pubs') renderPubs();
+      else if (t === 'progress') renderProgress();
       else if (t === 'status') renderStatus();
       const ep = SL.qs('#editProt'); if (ep) ep.onclick = editProtocol;
     }
 
     // ---- protocol edit ----
+    function renderProgress() {
+      const d = typeDef(p.project_type);
+      const m = p.metrics || {};
+      const idx = stageIdx(p);
+      const fmtM = (def) => { const val = m[def.key]; if (val == null || val === '') return '—'; if (def.kind === 'int') return (def.unit === '$' ? '$' : '') + Number(val).toLocaleString(); if (def.kind === 'date') return SL.fmtDate(val); return h(String(val)); };
+      body.innerHTML = `
+        <div class="sec"><h4>Pipeline · ${h(d ? d.label : p.project_type || 'Unclassified')}</h4>
+          ${d ? `<div class="pipe">${d.stages.map((st, i) => `<div class="pstep ${i < idx ? 'done' : i === idx ? 'on' : ''}" ${edit ? `data-stage="${h(st.key)}" title="Set stage"` : ''}><span class="dotn">${i < idx ? '✓' : i + 1}</span><span>${h(st.label)}</span></div>`).join('')}</div>
+          <div class="progress mt-2" style="max-width:420px"><span style="width:${progressOf(p)}%"></span></div><div class="xs muted mt-1">${progressOf(p)}% · stage ${Math.max(idx + 1, 1)} of ${d.stages.length}${edit ? ' · click a stage to update' : ''}</div>` : '<div class="alert alert-warn">No project type set — edit below to choose one.</div>'}
+        </div>
+        <div class="sec"><h4>Metrics</h4>
+          ${d ? `<div class="grid grid-3" style="gap:12px">${d.metrics.filter((def) => !def.target_key || true).map((def) => { const tgt = def.target_key ? m[def.target_key] : null; const val = m[def.key]; const pct = tgt && val ? Math.min(100, Math.round(100 * val / tgt)) : null; return `<div class="card stat" style="padding:14px 16px"><div class="n" style="font-size:1.6rem">${fmtM(def)}${tgt ? `<span class="muted" style="font-size:.9rem;-webkit-text-fill-color:var(--muted)"> / ${Number(tgt).toLocaleString()}</span>` : ''}</div><div class="l">${h(def.label)}</div>${pct != null ? `<div class="progress mt-1"><span style="width:${pct}%"></span></div>` : ''}</div>`; }).join('')}</div>` : ''}
+          ${edit ? `<form id="metricsForm" class="mt-3"><div class="form-row"><div class="field"><label>Project type</label><select class="input" name="project_type">${TYPE_DEFS.map((t) => `<option value="${h(t.key)}" ${t.key === p.project_type ? 'selected' : ''}>${h(t.label)}</option>`).join('')}</select></div><div class="field"><label>Current stage</label><select class="input" name="stage">${(d ? d.stages : []).map((st) => `<option value="${h(st.key)}" ${st.key === p.stage ? 'selected' : ''}>${h(st.label)}</option>`).join('')}</select></div></div>
+            <div class="form-row">${(d ? d.metrics : []).map((def) => `<div class="field"><label>${h(def.label)}${def.unit ? ` (${h(def.unit)})` : ''}</label><input class="input" name="m_${h(def.key)}" type="${def.kind === 'int' ? 'number' : def.kind === 'date' ? 'date' : 'text'}" value="${h(m[def.key] == null ? '' : m[def.key])}"></div>`).join('')}</div>
+            <div class="form-row"><div class="field"><label>Start date</label><input class="input" type="date" name="start_date" value="${h(p.start_date || '')}"></div><div class="field"><label>Target completion</label><input class="input" type="date" name="target_date" value="${h(p.target_date || '')}"></div></div>
+            <div class="form-row"><div class="field"><label>ClinicalTrials.gov ID</label><input class="input" name="nct_number" placeholder="NCT00000000" value="${h(p.nct_number || '')}"></div><div class="field"><label class="check" style="margin-top:30px"><input type="checkbox" name="is_public" ${p.is_public ? 'checked' : ''}> Show on public Projects page</label></div></div>
+            <div class="field"><label>Public summary (lay language, no PHI)</label><textarea class="input" name="public_summary" rows="3">${h(p.public_summary || '')}</textarea></div>
+            <div class="flex"><button class="btn btn-primary btn-sm" type="submit">Save progress</button><span class="xs muted">Changes are logged to the project timeline.</span></div></form>` : ''}
+        </div>
+        <div class="sec"><div class="flex between wrap"><h4 style="margin:0">Submissions</h4>${edit ? `<button class="btn btn-outline btn-sm" id="addSub">${I.plus} Log submission</button>` : ''}</div><div id="subs" class="mt-2"><div class="skeleton"></div></div></div>
+        <div class="sec"><h4>Timeline</h4><div id="stageLog"><div class="skeleton"></div></div></div>`;
+      const SUB_STATUS = ['Submitted', 'Under review', 'Revision requested', 'Accepted', 'Rejected', 'Withdrawn', 'Published'];
+      const subTag = (st) => ({ 'Accepted': 'tag-ok', 'Published': 'tag-ok', 'Rejected': 'tag-danger', 'Withdrawn': 'tag-outline', 'Revision requested': 'tag-warn' }[st] || 'tag-info');
+      async function loadSubs() {
+        const { data } = await SL.sb.from('project_submissions').select('*').eq('project_id', id).order('submitted_at', { ascending: false });
+        const box = SL.qs('#subs'); if (!box) return;
+        box.innerHTML = (data && data.length) ? `<div class="table-wrap"><table class="table"><thead><tr><th>Type</th><th>Venue</th><th>Submitted</th><th>Status</th><th>Decision</th><th>IDs</th>${edit ? '<th></th>' : ''}</tr></thead><tbody>${data.map((r) => `<tr><td>${h(r.kind)}</td><td><strong>${h(r.venue)}</strong>${r.impact_factor ? `<div class="xs muted">IF ${h(r.impact_factor)}</div>` : ''}${r.notes ? `<div class="xs muted">${h(r.notes)}</div>` : ''}</td><td class="small">${SL.fmtDate(r.submitted_at)}</td><td><span class="tag ${subTag(r.status)}">${h(r.status)}</span></td><td class="small">${SL.fmtDate(r.decision_at)}</td><td class="xs">${r.manuscript_id ? `#${h(r.manuscript_id)} ` : ''}${r.doi ? `<a href="https://doi.org/${h(r.doi)}" target="_blank" rel="noopener">DOI</a> ` : ''}${r.pmid ? `<a href="https://pubmed.ncbi.nlm.nih.gov/${h(r.pmid)}/" target="_blank" rel="noopener">PMID</a>` : ''}</td>${edit ? `<td><button class="btn btn-ghost btn-sm btn-icon" data-sub="${r.id}" title="Edit">${I.edit}</button></td>` : ''}</tr>`).join('')}</tbody></table></div>` : '<span class="muted small">No submissions logged yet.</span>';
+        SL.qsa('[data-sub]', box).forEach((b) => b.onclick = () => subForm(data.find((x) => String(x.id) === b.dataset.sub)));
+      }
+      function subForm(r) {
+        r = r || {};
+        SL.modal(`<div class="modal-head"><h3>${r.id ? 'Edit' : 'Log'} submission</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div><div class="modal-body"><form id="subF">
+          <div class="form-row"><div class="field"><label>Type</label><select class="input" name="kind">${['Manuscript', 'Abstract', 'Poster', 'Oral presentation', 'Grant'].map((k) => `<option ${r.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div><div class="field"><label>Journal / conference / agency *</label><input class="input" name="venue" required value="${h(r.venue || '')}"></div></div>
+          <div class="form-row"><div class="field"><label>Submitted on</label><input class="input" type="date" name="submitted_at" value="${h(r.submitted_at || '')}"></div><div class="field"><label>Status</label><select class="input" name="status">${SUB_STATUS.map((k) => `<option ${(r.status || 'Submitted') === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
+          <div class="form-row"><div class="field"><label>Decision date</label><input class="input" type="date" name="decision_at" value="${h(r.decision_at || '')}"></div><div class="field"><label>Manuscript ID</label><input class="input" name="manuscript_id" value="${h(r.manuscript_id || '')}"></div></div>
+          <div class="form-row"><div class="field"><label>DOI</label><input class="input" name="doi" value="${h(r.doi || '')}"></div><div class="field"><label>PMID</label><input class="input" name="pmid" value="${h(r.pmid || '')}"></div></div>
+          <div class="form-row"><div class="field"><label>Impact factor</label><input class="input" type="number" step="0.1" name="impact_factor" value="${h(r.impact_factor ?? '')}"></div><div class="field"><label>Notes</label><input class="input" name="notes" value="${h(r.notes || '')}"></div></div>
+        </form></div><div class="modal-foot">${r.id ? `<button class="btn btn-ghost btn-sm" id="subDel" style="color:var(--danger);margin-right:auto">Delete</button>` : ''}<button class="btn btn-outline" data-close>Cancel</button><button class="btn btn-primary" id="subSave">Save</button></div>`);
+        SL.qs('#subSave').onclick = async () => {
+          const f = SL.qs('#subF'); if (!f.venue.value.trim()) return SL.toast('Venue is required', 'err');
+          const row = { project_id: id, kind: f.kind.value, venue: f.venue.value.trim(), submitted_at: f.submitted_at.value || null, status: f.status.value, decision_at: f.decision_at.value || null, manuscript_id: f.manuscript_id.value.trim() || null, doi: f.doi.value.trim() || null, pmid: f.pmid.value.trim() || null, impact_factor: f.impact_factor.value ? +f.impact_factor.value : null, notes: f.notes.value.trim() || null };
+          const { error } = r.id ? await SL.sb.from('project_submissions').update(row).eq('id', r.id) : await SL.sb.from('project_submissions').insert({ ...row, created_by: SL.user.id });
+          if (error) return SL.toast(error.message, 'err');
+          // auto-advance pipeline: any submission → "submitted" stage; Published → "published"
+          const d2 = typeDef(p.project_type); const want = row.status === 'Published' ? 'published' : 'submitted';
+          if (d2 && d2.stages.some((st) => st.key === want)) { const cur = stageIdx(p), tgt = d2.stages.findIndex((st) => st.key === want); if (tgt > cur) await SL.sb.from('projects').update({ stage: want }).eq('id', id); }
+          SL.audit(r.id ? 'submission_updated' : 'submission_logged', 'project', id, row); SL.toast('Saved', 'ok'); reopen('progress');
+        };
+        const del = SL.qs('#subDel'); if (del) del.onclick = async () => { if (!await SL.confirm('Delete this submission record?', 'Delete')) return; await SL.sb.from('project_submissions').delete().eq('id', r.id); reopen('progress'); };
+      }
+      loadSubs(); const ab = SL.qs('#addSub'); if (ab) ab.onclick = () => subForm();
+      SL.sb.from('project_stage_log').select('*').eq('project_id', id).order('changed_at', { ascending: false }).limit(20).then(({ data }) => {
+        const box = SL.qs('#stageLog'); if (!box) return;
+        box.innerHTML = (data && data.length) ? data.map((r) => { const st = d && d.stages.find((x) => x.key === r.stage); return `<div class="pub" style="padding:8px 0"><strong>${h(st ? st.label : r.stage || '—')}</strong> <span class="xs muted">· ${SL.fmtDateTime(r.changed_at)}</span>${r.metrics ? `<div class="xs muted">${h(Object.entries(r.metrics).filter(([, v]) => v !== '' && v != null).map(([k, v]) => `${k}: ${v}`).join(' · '))}</div>` : ''}</div>`; }).join('') : '<span class="muted">No stage changes yet.</span>';
+      });
+      SL.qsa('.pstep[data-stage]').forEach((el) => el.onclick = async () => { const { error } = await SL.sb.from('projects').update({ stage: el.dataset.stage }).eq('id', id); if (error) return SL.toast(error.message, 'err'); SL.audit('stage_changed', 'project', id, { stage: el.dataset.stage }); reopen('progress'); });
+      const f = SL.qs('#metricsForm'); if (f) {
+        f.project_type.onchange = async () => { const nd = typeDef(f.project_type.value); await SL.sb.from('projects').update({ project_type: f.project_type.value, stage: nd ? nd.stages[0].key : null }).eq('id', id); reopen('progress'); };
+        f.onsubmit = async (e) => { e.preventDefault();
+          const metrics = {}; (d ? d.metrics : []).forEach((def) => { const v = f['m_' + def.key].value; if (v !== '') metrics[def.key] = def.kind === 'int' ? Number(v) : v; });
+          const upd = { stage: f.stage.value, metrics, start_date: f.start_date.value || null, target_date: f.target_date.value || null, nct_number: f.nct_number.value.trim() || null, is_public: f.is_public.checked, public_summary: f.public_summary.value.trim() || null };
+          const { error } = await SL.sb.from('projects').update(upd).eq('id', id); if (error) return SL.toast(error.message, 'err');
+          SL.audit('progress_updated', 'project', id, upd); SL.toast('Progress saved', 'ok'); reopen('progress'); };
+      }
+    }
     function editProtocol() {
       const pr = p.protocol || {};
       body.innerHTML = `<form id="protForm"><label class="check mb-2"><input type="checkbox" name="na" ${pr.na ? 'checked' : ''}> Not applicable</label>${Object.keys(PROTOCOL_LABELS).filter((k) => !['aims', 'methods'].includes(k) || pr[k]).map((k) => `<div class="field"><label>${PROTOCOL_LABELS[k]}</label><textarea class="input" name="${k}" style="min-height:80px">${h(pr[k] || '')}</textarea></div>`).join('')}<div class="flex"><button class="btn btn-primary btn-sm" type="submit">Save protocol</button><button class="btn btn-outline btn-sm" type="button" id="cancelProt">Cancel</button></div></form>`;

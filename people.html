@@ -165,6 +165,10 @@ async function profile(slug) {
       <div>
         ${p.bio ? `<section><h2>About</h2><div class="text">${SL.esc(p.bio)}</div></section>` : ''}
         ${p.research_interests ? `<section><h2>Research interests</h2><div class="text">${SL.esc(p.research_interests)}</div></section>` : ''}
+        <section id="projSec" class="hidden">
+          <div class="section-head"><h2>Projects</h2><a class="btn btn-ghost btn-sm" href="/projects.html">All projects →</a></div>
+          <div id="projs"></div>
+        </section>
         <section>
           <div class="section-head"><h2>Publications</h2><a class="btn btn-ghost btn-sm" href="/publications.html?faculty=${p.id}">View all in library →</a></div>
           <div id="pubs"><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:55%"></div></div>
@@ -177,6 +181,21 @@ async function profile(slug) {
         ${p.role && !['Admin','IRB'].includes(p.role) ? `<div class="card"><div class="k">Role</div><div class="v">${SL.esc(p.role)}</div></div>` : ''}
       </aside>
     </div>`;
+
+  // Projects this person leads or co-leads (public portfolio only)
+  (async () => {
+    const ln = lastName(p.name), fn = p.name.replace(/,.*$/, '').trim().split(/\s+/)[0];
+    const { data: pj } = await SL.sb.from('public_projects').select('id,title,project_type,type_label,color,stage,stages,progress,metrics,metric_defs,pi,updated_at');
+    const mine = (pj || []).filter((x) => (x.pi || '').toLowerCase().includes(ln.toLowerCase()) && (x.pi || '').toLowerCase().includes(fn.toLowerCase().slice(0, 3)));
+    if (!mine.length) return;
+    SL.qs('#projSec').classList.remove('hidden');
+    SL.qs('#projs').innerHTML = mine.map((x) => {
+      const idx = (x.stages || []).findIndex((st) => st.key === x.stage); const cur = (x.stages || [])[idx];
+      const lead = (x.metric_defs || []).find((d) => d.target_key && x.metrics && x.metrics[d.key] != null);
+      return `<div class="pub"><div class="flex between wrap"><div><div class="pub-title">${SL.esc(x.title)}</div><div class="pub-meta"><span class="tag" style="border-color:${SL.esc(x.color)};color:${SL.esc(x.color)}">${SL.esc(x.type_label)}</span> ${cur ? '· ' + SL.esc(cur.label) : ''}</div></div>
+        <div style="min-width:160px;text-align:right"><div class="xs muted">${x.progress}%${lead ? ` · ${Number(x.metrics[lead.key]).toLocaleString()} / ${Number(x.metrics[lead.target_key] || 0).toLocaleString()} ${SL.esc(lead.label.toLowerCase())}` : ''}</div><div class="progress mt-1"><span style="width:${x.progress}%"></span></div></div></div></div>`;
+    }).join('');
+  })();
 
   const [{ data: links }, { data: people }] = await Promise.all([
     SL.sb.from('publication_authors').select('publication_id,publications(*)').eq('profile_id', p.id),
