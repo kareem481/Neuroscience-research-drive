@@ -99,7 +99,7 @@
 
     <aside>
       <div class="card side-card mb-3"><h4>Clinical registries</h4><p class="small muted" style="margin-bottom:10px">The BTR, TBI and FNR registries have their own importers with patient-level validation and audit trails.</p><a class="btn btn-outline btn-sm" href="/hub/registries/index.html">Open registries</a></div>
-      <div class="card side-card mb-3 hidden" id="syncCard"><h4>Sync controls</h4><p class="xs muted" style="margin-bottom:10px">Admin only. Each button queues the edge function through <span class="mono">call_edge</span>; results appear in the sync logs (Admin Panel → Monitoring).</p>
+      <div class="card side-card mb-3 hidden" id="syncCard"><h4>Sync controls</h4><p class="xs muted" style="margin-bottom:10px">Admin only. Each button queues the edge function through <span class="mono">admin_run_sync</span>; results appear in the sync logs (Admin Panel → Monitoring).</p>
         <div class="sync-btns"><button class="btn btn-outline btn-sm" data-fn="sync-pubmed" data-body="{}">PubMed publications <span class="xs muted">nightly</span></button><button class="btn btn-outline btn-sm" data-fn="sync-feed" data-body='{"days":7}'>Literature feed <span class="xs muted">7 days</span></button><button class="btn btn-outline btn-sm" data-fn="sync-opportunities" data-body="{}">Funding opportunities</button></div>
         <div class="sync-out" id="syncOut"></div></div>
       <div class="card side-card"><h4>Natural keys</h4><ul class="xs muted" style="margin:0;padding-left:16px;line-height:1.7"><li>resources: kind + url</li><li>opportunities: source + external_id (= url)</li><li>feed_sources: query</li><li>publications: doi, else pmid</li><li>grants, announcements: always inserted</li></ul></div>
@@ -367,7 +367,7 @@
     qsa('#syncCard [data-fn]').forEach((b) => b.onclick = async () => {
       const fn = b.dataset.fn; let body = {}; try { body = JSON.parse(b.dataset.body || '{}'); } catch (e) { /* default */ }
       b.disabled = true; const orig = b.innerHTML; b.innerHTML = '<span class="spin"></span> Queuing…';
-      const { data, error } = await sb.rpc('call_edge', { fn, body });
+      const { data, error } = await sb.rpc('admin_run_sync', { p_job: fn, p_body: body });
       b.disabled = false; b.innerHTML = orig;
       const out = qs('#syncOut');
       if (error) { out.textContent = `${fn}: ${error.message}`; return err(error, 'Could not queue the sync'); }

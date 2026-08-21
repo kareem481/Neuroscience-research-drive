@@ -449,7 +449,8 @@
   /** Bar chart. data [{label,value}] ; opts {height, horizontal, color, colorFor, format, yLabel, max} */
   REG.bar = function (el, data, opts) {
     if (!d3ok()) return; opts = opts || {};
-    if (!data || !data.length || !data.some((d) => d.value > 0)) { REG.chartEmpty(el, opts.empty); return; }
+    // opts.allowZero: rate charts (percentages) where an all-zero series is real data, not missing data.
+    if (!data || !data.length || (!opts.allowZero && !data.some((d) => d.value > 0))) { REG.chartEmpty(el, opts.empty); return; }
     const colorFor = opts.colorFor || (() => opts.color || REG.NAVY);
     const fmt = opts.format || ((v) => v);
     const W = Math.max(320, widthOf(el));

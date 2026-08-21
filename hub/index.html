@@ -158,7 +158,7 @@
 
   // ---- load everything in parallel ----
   const [projR, pubsR, pubCountR, grantsR, dlR, mtgR, annR, pendingR, svcR] = await Promise.all([
-    SL.sb.from('projects').select('id,title,status,progress,pi,co_investigators,irb_personnel,created_by,admin_approved,irb_approved,irb_decision,irb_consent,notes,created_at').order('created_at', { ascending: false }),
+    SL.sb.from('projects').select('id,title,status,progress,project_progress,project_type,stage,pi,co_investigators,irb_personnel,created_by,admin_approved,irb_approved,irb_decision,irb_consent,notes,created_at').order('created_at', { ascending: false }),
     SL.sb.from('publications').select('id,title,journal,journal_abbrev,year,pub_date,author_string,doi,pmid,url').eq('visible', true).order('pub_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(5),
     SL.sb.from('publications').select('id', { count: 'exact', head: true }).eq('visible', true),
     SL.sb.from('grants').select('id', { count: 'exact', head: true }).eq('status', 'Active'),
@@ -200,12 +200,15 @@
   SL.qs('#stats').innerHTML = tiles.map((t) => `<div class="card stat ${t.warn ? 'alert-tile' : ''}"><a href="${t.href}"><div class="n">${t.n}</div><div class="l">${t.l}</div></a></div>`).join('');
 
   // ---- my projects ----
+  // Progress comes from the stage pipeline (project_progress, computed server-side); the stored
+  // `progress` integer is only a fallback for projects created before typed pipelines existed.
+  const pct = (p) => Math.max(0, Math.min(100, Number(p.project_progress ?? p.progress ?? 0) || 0));
   const mine = projects.filter(mentionsMe).slice(0, 8);
   SL.qs('#myProjects').innerHTML = mine.length ? mine.map((p) => `
     <div class="proj-row" onclick="location.href='/hub/projects.html?id=${p.id}'">
       <div><div class="pt">${h(p.title || 'Untitled')}</div><div class="xs muted">${h(p.pi || 'No PI')}${p.irb_approved ? ' · IRB approved' : (p.irb_consent && p.irb_consent.na) ? ' · No IRB needed' : ' · IRB pending'}</div></div>
-      <div class="flex" style="gap:8px">${statusTag(p.status)}<span class="xs muted" style="min-width:32px;text-align:right">${p.progress || 0}%</span></div>
-      <div class="progress"><span style="width:${Math.min(100, p.progress || 0)}%"></span></div>
+      <div class="flex" style="gap:8px">${statusTag(p.status)}<span class="xs muted" style="min-width:32px;text-align:right">${pct(p)}%</span></div>
+      <div class="progress"><span style="width:${Math.min(100, pct(p))}%"></span></div>
     </div>`).join('')
     : `<div class="empty" style="padding:28px">${I.flask}<div>You are not listed on any projects yet.</div><a class="btn btn-primary btn-sm mt-2" href="/hub/projects.html?new=1">Start a project</a></div>`;
 

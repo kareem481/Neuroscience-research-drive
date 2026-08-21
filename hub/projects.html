@@ -183,7 +183,7 @@
     if (view === 'pipeline') {
       const cols = STATUSES.slice(); const other = rows.filter((p) => !STATUSES.includes(p.status)); if (other.length) cols.push('Other');
       box.innerHTML = `<div class="pipeline">${cols.map((s) => { const items = s === 'Other' ? other : rows.filter((p) => p.status === s); return `<div class="col"><h4><span>${h(s)}</span><span class="tag">${items.length}</span></h4>${items.map((p) => `
-        <div class="pcard ${canAccess(p) ? '' : 'locked'}" data-id="${p.id}"><div class="t">${h(p.title || 'Untitled')}</div><div class="m">${h(p.pi || 'No PI')}${p.pillar ? ' · ' + h(p.pillar) : ''}</div><div class="m" style="margin-top:4px">${irbBadge(p)}</div><div class="progress"><span style="width:${p.progress || 0}%"></span></div></div>`).join('') || '<div class="xs muted" style="padding:8px 4px">—</div>'}</div>`; }).join('')}</div>`;
+        <div class="pcard ${canAccess(p) ? '' : 'locked'}" data-id="${p.id}"><div class="t">${h(p.title || 'Untitled')}</div><div class="m">${h(p.pi || 'No PI')}${p.pillar ? ' · ' + h(p.pillar) : ''}</div><div class="m" style="margin-top:4px">${irbBadge(p)}</div><div class="progress"><span style="width:${progressOf(p)}%"></span></div></div>`).join('') || '<div class="xs muted" style="padding:8px 4px">—</div>'}</div>`; }).join('')}</div>`;
     } else if (view === 'grid') {
       box.innerHTML = `<div class="pgrid">${rows.map((p) => `<div class="card card-hover pcard-lg ${canAccess(p) ? '' : 'locked'}" data-id="${p.id}">
         <div class="flex between"><span class="tag tag-teal">${h(p.pillar || 'Unassigned')}</span>${statusTag(p.status)}</div>
@@ -191,15 +191,15 @@
         <div class="small muted">${h(p.pi || 'No PI')}${p.department ? ' · ' + h(p.department) : ''}</div>
         ${canAccess(p) && p.abstract ? `<div class="abs">${h(p.abstract)}</div>` : ''}
         <div class="tags">${p.disease_focus ? `<span class="tag tag-outline">${h(p.disease_focus)}</span>` : ''}${p.study_type ? `<span class="tag tag-outline">${h(p.study_type)}</span>` : ''}</div>
-        <div class="flex between xs muted" style="margin-top:auto">${irbBadge(p)}<span>${(p.project_members || []).length} members · ${p.progress || 0}%</span></div>
-        <div class="progress"><span style="width:${p.progress || 0}%"></span></div></div>`).join('')}</div>`;
+        <div class="flex between xs muted" style="margin-top:auto">${irbBadge(p)}<span>${(p.project_members || []).length} members · ${progressOf(p)}%</span></div>
+        <div class="progress"><span style="width:${progressOf(p)}%"></span></div></div>`).join('')}</div>`;
     } else {
-      box.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>Title</th><th>PI</th><th>Pillar</th><th>Type</th><th>Status</th><th>IRB</th><th class="num">Progress</th><th>Created</th></tr></thead><tbody>${rows.map((p) => `<tr data-id="${p.id}" style="cursor:pointer"><td><strong>${h(p.title || 'Untitled')}</strong>${p.disease_focus ? `<div class="xs muted">${h(p.disease_focus)}</div>` : ''}</td><td>${h(p.pi || '')}</td><td>${h(p.pillar || '')}</td><td>${h(p.study_type || '')}</td><td>${statusTag(p.status)}</td><td>${irbBadge(p)}</td><td class="num">${p.progress || 0}%</td><td class="xs muted">${SL.fmtDate(p.created_at)}</td></tr>`).join('')}</tbody></table></div>`;
+      box.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>Title</th><th>PI</th><th>Pillar</th><th>Type</th><th>Status</th><th>IRB</th><th class="num">Progress</th><th>Created</th></tr></thead><tbody>${rows.map((p) => `<tr data-id="${p.id}" style="cursor:pointer"><td><strong>${h(p.title || 'Untitled')}</strong>${p.disease_focus ? `<div class="xs muted">${h(p.disease_focus)}</div>` : ''}</td><td>${h(p.pi || '')}</td><td>${h(p.pillar || '')}</td><td>${h(p.study_type || '')}</td><td>${statusTag(p.status)}</td><td>${irbBadge(p)}</td><td class="num">${progressOf(p)}%</td><td class="xs muted">${SL.fmtDate(p.created_at)}</td></tr>`).join('')}</tbody></table></div>`;
     }
     SL.qsa('[data-id]', box).forEach((el) => el.onclick = () => openDetail(+el.dataset.id));
   }
   SL.qs('#exportBtn').onclick = () => {
-    const rows = filtered().map((p) => ({ id: p.id, title: p.title, pi: p.pi, co_investigators: p.co_investigators, pillar: p.pillar, study_type: p.study_type, department: p.department, disease_focus: p.disease_focus, status: p.status, progress: p.progress, irb_approved: p.irb_approved, irb_protocol_number: p.irb_protocol_number, admin_approved: p.admin_approved, created_at: p.created_at }));
+    const rows = filtered().map((p) => ({ id: p.id, title: p.title, pi: p.pi, co_investigators: p.co_investigators, pillar: p.pillar, study_type: p.study_type, department: p.department, disease_focus: p.disease_focus, status: p.status, progress: progressOf(p), irb_approved: p.irb_approved, irb_protocol_number: p.irb_protocol_number, admin_approved: p.admin_approved, created_at: p.created_at }));
     SL.download(`projects_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv(rows, Object.keys(rows[0] || { id: 1 })), 'text/csv');
   };
 

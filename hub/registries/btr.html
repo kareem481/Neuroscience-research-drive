@@ -295,7 +295,7 @@
     if (pts.length) REG.heatmap(el.querySelector('#gMatrix'), six.map((a) => six.map((b) => REG.count(pts, (p) => p[a.key] === a.pos && p[b.key] === b.pos))), six.map((m) => m.label)); else REG.chartEmpty(el.querySelector('#gMatrix'));
     const dxGroups = {}; pts.forEach((p) => (dxGroups[p.diagnosis || 'Unknown'] = dxGroups[p.diagnosis || 'Unknown'] || []).push(p));
     const top = Object.keys(dxGroups).sort((a, b) => dxGroups[b].length - dxGroups[a].length).slice(0, 6); const three = MARKERS.slice(0, 3);
-    REG.groupedBar(el.querySelector('#gByDx'), top.map((d) => ({ group: d.length > 28 ? d.slice(0, 26) + '…' : d, series: Object.fromEntries(three.map((m) => [m.label + '+', Math.round(REG.count(dxGroups[d], (p) => p[m.key] === m.pos) / dxGroups[d].length * 100)])) })), three.map((m) => m.label + '+'), { max: 100, format: (v) => v + '%', empty: 'No diagnoses', height: 300 });
+    REG.groupedBar(el.querySelector('#gByDx'), top.map((d) => ({ group: d.length > 28 ? d.slice(0, 26) + '…' : d, series: Object.fromEntries(three.map((m) => [m.label + '+', Math.round(REG.count(dxGroups[d], (p) => p[m.key] === m.pos) / dxGroups[d].length * 100)])) })), three.map((m) => m.label + '+'), { max: 100, allowZero: true, format: (v) => v + '%', empty: 'No diagnoses', height: 300 });
   }
 
   /* ---------- data quality ---------- */

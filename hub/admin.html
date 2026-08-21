@@ -231,7 +231,7 @@
   async function createAndApprove(r) {
     if (!r) return;
     const roleGuess = r.role || 'Faculty';
-    if (!await SL.confirm(`Create a Research Hub account for ${r.name || r.email} (${roleGuess}) and approve access? A temporary password (SLNeuro_<LastName>1!) is set; they must change it at first login.`, 'Create & approve')) return;
+    if (!await SL.confirm(`Create a Research Hub account for ${r.name || r.email} (${roleGuess}) and approve access? A random one-time password is generated and shown to you once; they must change it at first login.`, 'Create & approve')) return;
     const { data, error } = await sb.functions.invoke('admin-provision', { body: { users: [{ email: r.email, name: r.name || r.email, role: roleGuess, title: r.title || null }] } });
     if (error) return err(error, 'Account creation failed');
     const u = (data && data.users && data.users[0]) || {};

@@ -1,7 +1,10 @@
 // admin-provision — administrative bulk operations (service role).
 // Auth: header x-sync-secret = vault secret `pubmed_sync_secret`, or an Admin user JWT.
 // Body: { users?: [{email,name,role,title,credential}], profiles?: [{first,last,department,specialties,education,clinical_focus,bio,role_titles,photo_url,source_url}] }
-//  - users: creates auth user (temp password SLNeuro_<Last>1!, email confirmed, needs_profile_setup) + profiles + faculty_profiles rows; skips existing emails.
+//  - users: creates auth user (random one-time password, returned in the response; email confirmed,
+//    needs_profile_setup) + profiles + faculty_profiles rows; skips existing emails.
+//  - rotate_unused: re-randomises the password of every account that has never signed in
+//    (optionally emailing each person their new one-time password).
 //  - profiles: matched to profiles by last name (+ first initial); fills faculty_profiles fields only where empty,
 //    imports the headshot into storage bucket public-assets/photos/<slug>.jpg and sets photo_url.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -11,6 +14,14 @@ const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-sync-secret" } });
 const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z]/g, "");
 const slug = (s: string) => s.toLowerCase().replace(/,.*$/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// One-time password: random, not derivable from the person's name.
+function tempPassword() {
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ", a = "abcdefghijkmnopqrstuvwxyz", d = "23456789", s = "!@#$%&*?";
+  const pick = (set: string, n: number) => Array.from(crypto.getRandomValues(new Uint32Array(n))).map((v) => set[v % set.length]).join("");
+  const raw = (pick(A, 2) + pick(a, 6) + pick(d, 3) + pick(s, 1)).split("");
+  const order = crypto.getRandomValues(new Uint32Array(raw.length));
+  return raw.map((c, i) => [order[i], c] as const).sort((x, y) => x[0] - y[0]).map((p) => p[1]).join("");
+}
 
 async function authorized(req: Request) {
   const secret = req.headers.get("x-sync-secret");
@@ -33,8 +44,7 @@ Deno.serve(async (req) => {
     const email = String(u.email || "").toLowerCase().trim(); if (!email) continue;
     const { data: existing } = await admin.from("profiles").select("id").ilike("email", email).maybeSingle();
     if (existing) { out.users.push({ email, status: "exists" }); continue; }
-    const last = (u.name || "").replace(/,.*$/, "").trim().split(/\s+/).pop() || "User";
-    const password = `SLNeuro_${last.replace(/[^A-Za-z]/g, "")}1!`;
+    const password = tempPassword();
     const { data: created, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name: u.name } });
     if (error) { out.users.push({ email, status: "error", error: error.message }); continue; }
     const id = created.user.id;
@@ -46,6 +56,43 @@ Deno.serve(async (req) => {
       await admin.from("faculty_profiles").upsert({ user_id: id, slug: slug(u.name), show_on_site: ["Faculty", "Admin", "Resident", "Research Fellow"].includes(u.role), pubmed_enabled: ["Faculty", "Admin"].includes(u.role) }, { onConflict: "user_id" });
     }
     out.users.push({ email, status: "created", temp_password: password });
+  }
+
+  // ---------- 1b. rotate passwords of accounts that have never signed in ----------
+  // Body: { rotate_unused: true, notify?: boolean, limit?: number }
+  // Old accounts were created with a name-derived password; this replaces those with random ones.
+  if (body.rotate_unused) {
+    out.rotated = [];
+    const perPage = 200; let page = 1; const targets: { id: string; email: string }[] = [];
+    for (;;) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+      if (error) { out.rotate_error = error.message; break; }
+      for (const u of data.users) if (!u.last_sign_in_at && u.email) targets.push({ id: u.id, email: u.email });
+      if (data.users.length < perPage) break; page++;
+    }
+    const list = typeof body.limit === "number" ? targets.slice(0, body.limit) : targets;
+    for (const t of list) {
+      const password = tempPassword();
+      const { error } = await admin.auth.admin.updateUserById(t.id, { password });
+      if (error) { out.rotated.push({ email: t.email, status: "error", error: error.message }); continue; }
+      await admin.from("profiles").update({ needs_profile_setup: true }).eq("id", t.id);
+      let mailed = false;
+      if (body.notify) {
+        const { data: prof } = await admin.from("profiles").select("name").eq("id", t.id).maybeSingle();
+        const first = (prof?.name || "").replace(/,.*$/, "").trim().split(/\s+/)[0] || "there";
+        const html = `<p>Hi ${first},</p><p>Your Saint Luke's Neuroscience Research Hub account is ready at <a href="https://slresearchhub.com/login">slresearchhub.com</a>.</p>
+<p><b>Username:</b> ${t.email}<br><b>One-time password:</b> <code style="font-size:16px">${password}</code></p>
+<p>You'll be asked to choose your own password the first time you sign in. If you didn't expect this email, you can ignore it — the one-time password only works once.</p>
+<p>— Saint Luke's Neuroscience Research Office</p>`;
+        const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+          body: JSON.stringify({ to: t.email, subject: "Your Research Hub sign-in details", html, type: "account_credentials", from_name: "Saint Luke's Neuroscience Research Office" }),
+        }).catch(() => null);
+        mailed = !!r?.ok;
+      }
+      out.rotated.push({ email: t.email, status: "rotated", emailed: mailed, ...(body.notify ? {} : { temp_password: password }) });
+    }
   }
 
   // ---------- 2. enrich faculty profiles ----------

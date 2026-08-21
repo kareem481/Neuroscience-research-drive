@@ -84,7 +84,7 @@ If you have VS Code with the Live Server extension, right-click `index.html` and
 
 **IRB Reviewer:** LaShanda Rose (ldrose@saint-lukes.org)
 
-> Admin accounts without a pre-set password will save whatever password is entered on first login. User accounts have temporary passwords following the pattern `SLNeuro_LastName1!` and must be changed on first login.
+> Admin accounts without a pre-set password will save whatever password is entered on first login. User accounts are created with a random one-time password that the research office passes on privately; it must be changed at first login.
 
 ---
 
