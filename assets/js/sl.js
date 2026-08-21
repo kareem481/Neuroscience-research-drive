@@ -143,8 +143,10 @@
     { href: 'projects.html', label: 'Projects', key: 'projects' },
     { href: 'publications.html', label: 'Publications', key: 'publications' },
     { href: 'people.html', label: 'People', key: 'people' },
+    { href: 'resources.html', label: 'Resources', key: 'resources' },
+    { href: 'opportunities.html', label: 'Funding & Calls', key: 'opportunities' },
     { href: 'services.html', label: 'Services', key: 'services' },
-    { href: 'docs.html', label: 'Documentation', key: 'docs' },
+    { href: 'docs.html', label: 'Docs', key: 'docs' },
     { href: 'news.html', label: 'News', key: 'news' },
     { href: 'about.html', label: 'About', key: 'about' },
   ];
@@ -160,6 +162,7 @@
         <nav class="nav">${NAV.map((n) => `<a href="${ROOT}${n.href}" class="${n.key === active ? 'active' : ''}">${n.label}</a>`).join('')}<a id="slHubLink" class="btn btn-primary btn-sm" href="${ROOT}hub/index.html">Research Hub</a></nav>
       </div></div>`;
     document.body.prepend(header);
+    if (opts.ticker !== false) SL.ticker(header);
     if (opts.footer !== false) {
       const f = document.createElement('footer'); f.className = 'footer';
       f.innerHTML = `<div class="container">
@@ -176,6 +179,40 @@
     sb.auth.getSession().then(({ data }) => { if (data.session) { const l = SL.qs('#slHubLink'); if (l) l.textContent = 'Open Hub'; } });
   };
 
+  // ---------- journal ticker: newest papers, rotating like a journal homepage ----------
+  SL.ticker = async function (after) {
+    if (!SL.qs('style[data-sl-ticker]')) { const st = document.createElement('style'); st.dataset.slTicker = '1'; st.textContent = `
+      .ticker{background:linear-gradient(90deg,rgba(34,211,238,.10),rgba(139,92,246,.10));border-bottom:1px solid var(--line);font-size:.84rem;overflow:hidden}
+      .ticker .container{display:flex;align-items:center;gap:14px;height:40px}
+      .ticker-label{flex:none;display:inline-flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:.68rem;color:var(--teal-600)}
+      .ticker-label .dot{background:var(--teal);color:var(--teal);animation:pulseGlow 2s infinite;margin:0}
+      .ticker-view{flex:1;position:relative;height:100%;overflow:hidden}
+      .ticker-item{position:absolute;inset:0;display:flex;align-items:center;gap:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink);opacity:0;transform:translateY(12px);transition:opacity .45s ease,transform .45s ease;text-decoration:none}
+      .ticker-item.on{opacity:1;transform:none} .ticker-item.out{opacity:0;transform:translateY(-12px)}
+      .ticker-item:hover{text-decoration:none;color:#fff}
+      .ticker-item b{font-weight:600} .ticker-item em{font-style:normal;color:var(--teal-600)} .ticker-item span{color:var(--muted)}
+      .ticker-nav{flex:none;display:flex;gap:4px} .ticker-nav button{background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink-2);border-radius:6px;width:26px;height:26px;cursor:pointer;display:grid;place-items:center} .ticker-nav button svg{width:14px;height:14px}
+      @media(max-width:640px){.ticker-label span.t{display:none}.ticker-item span.au{display:none}}`; document.head.appendChild(st); }
+    let data = [];
+    try { const r = await sb.from('literature_feed').select('pmid,title,journal_abbrev,journal,authors,field,url,pub_date').order('featured', { ascending: false }).order('pub_date', { ascending: false, nullsFirst: false }).order('fetched_at', { ascending: false }).limit(40); data = r.data || []; } catch (e) { /* offline */ }
+    if (!data.length) return;
+    const bar = document.createElement('div'); bar.className = 'ticker'; bar.setAttribute('role', 'region'); bar.setAttribute('aria-label', 'Latest journal articles');
+    bar.innerHTML = `<div class="container"><div class="ticker-label"><span class="dot"></span><span class="t">Journal watch</span></div><div class="ticker-view" id="slTickerView"></div><div class="ticker-nav"><button aria-label="Previous" data-d="-1">${SL.icons.close.replace('M6 6l12 12M18 6 6 18', 'm14 6-6 6 6 6')}</button><button aria-label="Pause" data-d="0">${SL.icons.close.replace('M6 6l12 12M18 6 6 18', 'M9 6v12M15 6v12')}</button><button aria-label="Next" data-d="1">${SL.icons.close.replace('M6 6l12 12M18 6 6 18', 'm10 6 6 6-6 6')}</button></div></div>`;
+    after.appendChild(bar);
+    const view = SL.qs('#slTickerView'); let i = 0, paused = false, timer;
+    const show = (n) => {
+      const cur = view.querySelector('.ticker-item.on'); if (cur) { cur.classList.remove('on'); cur.classList.add('out'); setTimeout(() => cur.remove(), 450); }
+      i = (n + data.length) % data.length; const a = data[i];
+      const el = document.createElement('a'); el.className = 'ticker-item'; el.href = a.url || `https://pubmed.ncbi.nlm.nih.gov/${a.pmid}/`; el.target = '_blank'; el.rel = 'noopener';
+      el.innerHTML = `<em>${SL.esc(a.journal_abbrev || a.journal || '')}</em><b>${SL.esc(a.title)}</b>${a.authors ? `<span class="au">— ${SL.esc(a.authors)}</span>` : ''}`;
+      view.appendChild(el); requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('on')));
+    };
+    const start = () => { clearInterval(timer); timer = setInterval(() => { if (!paused && !document.hidden) show(i + 1); }, 6000); };
+    show(0); start();
+    SL.qsa('.ticker-nav button', bar).forEach((b) => b.onclick = () => { const d = +b.dataset.d; if (d === 0) { paused = !paused; b.style.opacity = paused ? .5 : 1; } else { show(i + d); start(); } });
+    bar.onmouseenter = () => { paused = true; }; bar.onmouseleave = () => { paused = SL.qs('.ticker-nav button[data-d="0"]', bar).style.opacity === '0.5'; };
+  };
+
   // ---------- hub shell (internal, login-gated) ----------
   const HUB_NAV = [
     { group: 'Overview' },
@@ -188,8 +225,10 @@
     { href: 'hub/tools.html', label: 'Research Tools', key: 'tools', icon: 'chart' },
     { href: 'hub/publications.html', label: 'Publications', key: 'publications', icon: 'book' },
     { href: 'hub/report.html', label: 'Research Report', key: 'report', icon: 'award' },
+    { href: 'hub/data.html', label: 'Data Management', key: 'data', icon: 'upload' },
     { group: 'People' },
     { href: 'hub/directory.html', label: 'Directory', key: 'directory', icon: 'users' },
+    { href: 'hub/cv.html', label: 'Academic CV', key: 'cv', icon: 'doc' },
     { href: 'hub/education.html', label: 'Training & Students', key: 'education', icon: 'graduation' },
     { href: 'hub/forum.html', label: 'Forum & Requests', key: 'forum', icon: 'chat' },
     { href: 'hub/services.html', label: 'Research Services', key: 'services', icon: 'shield' },

@@ -66,3 +66,10 @@ Registries: `btr_patients` (+ btr_progressions, btr_surgeries, btr_radiation_tre
 - Emails: every `notifications` insert fires the `notify_email_trigger` → `send-notification-email` (Resend). Do NOT also call SL.sendEmail for the same event. Needs the `RESEND_API_KEY` secret on the edge function.
 - Enums: `login_approval_status` (pending|approved|denied), `project_status` now includes Admin Review, Publication, Archived, Enrolling. Cast text → enum inside SQL functions.
 - Admin panel: "Create account & approve" calls `admin-provision` with the Admin JWT, then `approve_login_request`.
+
+## v4 additions (Aug 2026)
+- `resources` (kind dataset|working_group|ai_model|tool; field[]/modality[]/access/contact/featured) → public resources.html (tabs ?tab=datasets|ai|groups); editors maintain via hub/data.html.
+- `opportunities` (kind grant|call_for_papers|abstract|fellowship|award|training; source manual|grants.gov|nih; deadline) → public opportunities.html; edge fn `sync-opportunities` weekly (Mon 11:00 UTC) pulls Grants.gov search2 + NIH Guide RSS; expired synced items auto-unpublished.
+- `cv_entries` (per-user academic CV sections) → hub/cv.html (self or admin via ?user=); public profile may show public entries later.
+- hub/data.html: CSV importer/browser for resources, opportunities, publications(manual), grants, feed_sources, announcements + sync controls (`rpc('call_edge',{fn,body})`). hub/admin.html Monitoring tab.
+- `SL.ticker()` rotating journal-watch bar under the public topbar (from literature_feed); `SL.renderShell({ticker:false})` to suppress.

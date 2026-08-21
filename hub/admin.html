@@ -32,6 +32,22 @@
 .sync-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:20px;align-items:start}
 @media(max-width:960px){.sync-grid{grid-template-columns:minmax(0,1fr)}}
 .sync-grid>.card{min-width:0}
+.mon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start}
+.mon-grid>.card{min-width:0;margin:0}
+.mon-grid .card h3{font-size:1rem;margin:0}
+.mon-row{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);font-size:.86rem}
+.mon-row:last-child{border-bottom:0}
+.mon-row .dot{margin-top:6px;flex:none}
+.mon-row .grow{min-width:0}
+.mon-row .err{font-size:.76rem;color:var(--danger);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.queue{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px}
+.queue .stat{padding:12px 10px;min-width:0}.queue .stat .n{font-size:1.5rem}.queue .stat .l{font-size:.7rem;overflow-wrap:anywhere}
+.mon-table td{font-size:.84rem}
+.switch{position:relative;display:inline-block;width:34px;height:18px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;border-radius:999px;background:rgba(255,255,255,.12);transition:.2s;cursor:pointer}
+.switch span::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:.2s}
+.switch input:checked+span{background:rgba(34,211,238,.35)}.switch input:checked+span::after{transform:translateX(16px);background:var(--teal)}
 </style>
 </head><body>
 <main id="main">
@@ -47,6 +63,7 @@
     <button data-tab="pubmed">PubMed sync</button>
     <button data-tab="roles">Roles &amp; permissions</button>
     <button data-tab="system">System</button>
+    <button data-tab="monitoring">Monitoring</button>
   </div>
 
   <section class="tab-panel active" id="tab-approvals">
@@ -125,6 +142,19 @@
       <a class="btn btn-outline btn-sm" href="https://supabase.com/dashboard/project/noxyrovuuprygxuyhgik/storage/buckets" target="_blank" rel="noopener">Storage buckets</a>
     </div>
   </section>
+  <section class="tab-panel" id="tab-monitoring">
+    <div class="section-head"><h2 style="font-size:1.2rem">Monitoring</h2><div class="flex wrap"><span class="xs muted" id="monStamp"></span><button class="btn btn-outline btn-sm" id="btnMonRefresh">Refresh</button></div></div>
+    <div class="mon-grid mb-3">
+      <div class="card"><div class="flex between mb-2"><h3>Sync health</h3><a class="xs" href="/hub/data.html">Run a sync</a></div><div id="monSync"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+      <div class="card"><div class="flex between mb-2"><h3>Queues</h3></div><div class="queue" id="monQueues"><div class="skeleton"></div></div></div>
+      <div class="card"><div class="flex between mb-2"><h3>Publications needing review</h3><a class="xs" href="/hub/publications.html">Review</a></div><div id="monPubs"><div class="skeleton"></div></div></div>
+    </div>
+    <div class="mon-grid mb-3">
+      <div class="card"><div class="flex between mb-2"><h3>Stale projects <span class="muted xs" style="font-family:var(--font-body);font-weight:400">no update in 60+ days, not published</span></h3><a class="xs" href="/hub/projects.html">Projects</a></div><div id="monStale"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+      <div class="card"><div class="flex between mb-2"><h3>Feed sources</h3><a class="xs" href="/hub/data.html?table=feed_sources#browse">Edit</a></div><div id="monFeed"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+    </div>
+    <div class="card"><div class="flex between mb-2"><h3 style="font-size:1rem;margin:0">Recent audit activity <span class="muted xs" style="font-family:var(--font-body);font-weight:400">last 30</span></h3><a class="xs" href="#audit">Full log</a></div><div id="monAudit"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+  </section>
 </main>
 
 <script>
@@ -143,7 +173,7 @@
 
   // ---------- tabs ----------
   const loaded = {};
-  const loaders = { approvals: loadApprovals, users: loadUsers, announcements: loadAnn, audit: () => loadAudit(true), pubmed: loadSync, roles: renderRoles, system: runSystem };
+  const loaders = { approvals: loadApprovals, users: loadUsers, announcements: loadAnn, audit: () => loadAudit(true), pubmed: loadSync, roles: renderRoles, system: runSystem, monitoring: loadMonitoring };
   function showTab(k) {
     qsa('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === k));
     qsa('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + k));
@@ -527,6 +557,67 @@
     c.innerHTML = counts.map((r) => `<div class="card stat"><div class="n" style="font-size:1.6rem">${r.error ? '—' : (r.count == null ? '?' : r.count.toLocaleString())}</div><div class="l mono">${esc(r.t)}</div><div class="xs ${r.error ? 'health-bad' : 'muted'}">${r.error ? esc(r.error.message) : r.ms + ' ms'}</div></div>`).join('');
   }
   qs('#btnSysRun').onclick = runSystem;
+
+  // ============ MONITORING ============
+  async function loadMonitoring() {
+    qs('#monStamp').textContent = 'Loading…';
+    const dash = '<span class="muted">—</span>';
+    const safe = async (p) => { try { const r = await p; return r.error ? { error: r.error } : r; } catch (e) { return { error: e }; } };
+    const dot = (st, age) => { const s = String(st || '').toLowerCase(); if (s === 'error' || s === 'failed') return 'dot-danger'; if (s === 'running' || s === 'pending' || (age != null && age > 2)) return 'dot-warn'; if (s === 'ok' || s === 'success' || s === 'done') return 'dot-ok'; return ''; };
+    const days = (d) => d ? (Date.now() - new Date(d)) / 864e5 : null;
+    const ago = (d) => { const n = days(d); if (n == null) return '—'; if (n < 1 / 24) return Math.max(1, Math.round(n * 1440)) + ' min ago'; if (n < 1) return Math.round(n * 24) + ' h ago'; return Math.round(n) + ' d ago'; };
+    const since = new Date(Date.now() - 60 * 864e5).toISOString();
+    const [pm, fd, op, pend, svc, notif, pubsRev, stale, feeds, audit] = await Promise.all([
+      safe(sb.from('pubmed_sync_log').select('status,started_at,finished_at,found,inserted,updated,error').order('started_at', { ascending: false }).limit(1)),
+      safe(sb.from('feed_sync_log').select('status,started_at,finished_at,found,inserted,error').order('id', { ascending: false }).limit(1)),
+      safe(sb.from('opportunity_sync_log').select('status,started_at,finished_at,found,inserted,error').order('id', { ascending: false }).limit(1)),
+      safe(sb.from('pending_login_approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending')),
+      safe(sb.from('service_requests').select('id', { count: 'exact', head: true }).in('status', ['new', 'triaged'])),
+      safe(sb.from('notifications').select('id', { count: 'exact', head: true }).eq('read', false)),
+      safe(sb.from('publications').select('id', { count: 'exact', head: true }).eq('visible', false).ilike('notes', 'Unverified%')),
+      safe(sb.from('projects').select('id,title,pi,stage,status,updated_at').lt('updated_at', since).neq('stage', 'published').order('updated_at', { ascending: true }).limit(25)),
+      safe(sb.from('feed_sources').select('*').order('sort_order', { ascending: true })),
+      safe(sb.from('audit_log').select('created_at,action,entity_type,entity_id,details,user_name').order('created_at', { ascending: false }).limit(30)),
+    ]);
+    // (a) sync health
+    const syncs = [['PubMed publications', pm, '07:15 UTC nightly'], ['Literature feed', fd, '06:10 UTC daily'], ['Funding opportunities', op, 'scheduled']];
+    qs('#monSync').innerHTML = syncs.map(([label, r, sched]) => {
+      if (r.error) return `<div class="mon-row"><span class="dot"></span><div class="grow"><strong>${label}</strong><div class="xs muted">${dash} <span title="${esc(r.error.message || '')}">log unavailable</span></div></div></div>`;
+      const l = (r.data || [])[0]; if (!l) return `<div class="mon-row"><span class="dot"></span><div class="grow"><strong>${label}</strong><div class="xs muted">never run · ${sched}</div></div></div>`;
+      const fin = l.finished_at || l.started_at; const age = days(fin);
+      return `<div class="mon-row"><span class="dot ${dot(l.status, age)}"></span><div class="grow"><div class="flex between"><strong>${label}</strong><span class="xs muted">${ago(fin)}</span></div><div class="xs muted">${esc(l.status || 'running')} · ${l.finished_at ? SL.fmtDateTime(l.finished_at) : 'started ' + SL.fmtDateTime(l.started_at)} · found ${l.found ?? '—'} · inserted ${l.inserted ?? '—'}${l.updated != null ? ' · updated ' + l.updated : ''}</div>${l.error ? `<div class="err" title="${esc(l.error)}">${esc(l.error)}</div>` : ''}</div></div>`;
+    }).join('');
+    // (b) queues
+    const cnt = (r) => r.error || r.count == null ? dash : r.count.toLocaleString();
+    const tone = (r, warnAt) => r.error || r.count == null ? '' : r.count >= warnAt ? 'color:var(--warn);-webkit-text-fill-color:var(--warn);background:none' : '';
+    qs('#monQueues').innerHTML = [['Login approvals', pend, 'pending', '/hub/admin.html#approvals', 1], ['Service requests', svc, 'new / triaged', '/hub/services.html#triage', 5], ['Notifications', notif, 'unread (all users)', null, 1e9]].map(([l, r, sub, href, w]) => `<div class="card stat" style="margin:0"><div class="n" style="${tone(r, w)}">${cnt(r)}</div><div class="l">${href ? `<a href="${href}">${l}</a>` : l}</div><div class="xs muted">${sub}</div></div>`).join('');
+    // (d) pubs needing review
+    qs('#monPubs').innerHTML = `<div><div style="font-family:var(--font-head);font-size:1.8rem;line-height:1;font-variant-numeric:tabular-nums;${pubsRev.error || !pubsRev.count ? 'color:var(--ink)' : 'color:var(--warn)'}">${cnt(pubsRev)}</div><div class="xs muted" style="text-transform:uppercase;letter-spacing:.04em;margin-top:4px">hidden, unverified author match</div></div><p class="xs muted mt-1 mb-0">Records PubMed matched by name only (no Saint Luke's affiliation). Confirm or dismiss them under <a href="/hub/publications.html">Publications</a>.</p>`;
+    // (c) stale projects
+    const st = qs('#monStale');
+    if (stale.error) st.innerHTML = `<div class="mon-row"><span class="dot"></span><div class="xs muted">${dash} unavailable (${esc(stale.error.message || '')})</div></div>`;
+    else if (!(stale.data || []).length) st.innerHTML = empty('No stale projects — everything has been touched in the last 60 days.');
+    else st.innerHTML = `<div class="table-wrap"><table class="table mon-table"><thead><tr><th>Project</th><th>PI</th><th>Stage</th><th class="num">Days stale</th></tr></thead><tbody>${stale.data.map((p) => `<tr><td><a href="/hub/projects.html?id=${p.id}" class="row-link" style="display:block;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(p.title)}">${esc(p.title)}</a></td><td class="small">${esc(p.pi || '')}</td><td class="xs muted">${esc(p.stage || p.status || '')}</td><td class="num" style="color:${days(p.updated_at) > 180 ? 'var(--danger)' : 'var(--warn)'}">${Math.round(days(p.updated_at))}</td></tr>`).join('')}</tbody></table></div>`;
+    // (e) feed sources
+    const fs = qs('#monFeed');
+    if (feeds.error) fs.innerHTML = `<div class="mon-row"><span class="dot"></span><div class="xs muted">${dash} unavailable (${esc(feeds.error.message || '')})</div></div>`;
+    else if (!(feeds.data || []).length) fs.innerHTML = empty('No feed sources configured.');
+    else {
+      fs.innerHTML = `<div class="table-wrap"><table class="table mon-table"><thead><tr><th>On</th><th>Name</th><th>Field</th><th>Query</th></tr></thead><tbody>${feeds.data.map((f) => `<tr><td><label class="switch"><input type="checkbox" data-feed="${f.id}" ${f.enabled ? 'checked' : ''}><span></span></label></td><td style="font-weight:600">${esc(f.name || '')}</td><td class="xs">${esc(f.field || '')}</td><td class="xs mono muted" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(f.query || '')}">${esc(f.query || '')}</td></tr>`).join('')}</tbody></table></div><div class="xs muted mt-1">${feeds.data.filter((f) => f.enabled).length} of ${feeds.data.length} enabled.</div>`;
+      qsa('[data-feed]', fs).forEach((cb) => cb.onchange = async () => {
+        const { error } = await sb.from('feed_sources').update({ enabled: cb.checked }).eq('id', cb.dataset.feed);
+        if (error) { cb.checked = !cb.checked; return err(error, 'Could not update the feed source'); }
+        const f = feeds.data.find((x) => String(x.id) === cb.dataset.feed); SL.audit('updated', 'feed_source', cb.dataset.feed, { enabled: cb.checked, name: f && f.name }); SL.toast(`${f ? f.name : 'Source'} ${cb.checked ? 'enabled' : 'disabled'}`, 'ok');
+      });
+    }
+    // (f) recent audit
+    const au = qs('#monAudit');
+    const acol = (a) => ({ created: 'tag-ok', approved: 'tag-teal', deleted: 'tag-danger', denied: 'tag-danger', updated: 'tag-warn', imported: 'tag-info' }[a] || '');
+    if (audit.error) au.innerHTML = `<div class="xs muted">${dash} unavailable (${esc(audit.error.message || '')})</div>`;
+    else au.innerHTML = (audit.data || []).length ? `<div class="table-wrap"><table class="table mon-table"><thead><tr><th>When</th><th>Action</th><th>Entity</th><th>Details</th><th>User</th></tr></thead><tbody>${audit.data.map((l) => { const d = typeof l.details === 'string' ? l.details : (l.details ? JSON.stringify(l.details) : ''); return `<tr><td class="xs muted" style="white-space:nowrap">${SL.fmtDateTime(l.created_at)}</td><td><span class="tag ${acol(l.action)}">${esc(l.action)}</span></td><td class="small">${esc(l.entity_type || '')}<div class="xs mono muted">${esc(String(l.entity_id || '').slice(0, 12))}</div></td><td class="small truncate" title="${esc(d)}">${esc(d)}</td><td class="small">${esc(l.user_name || '')}</td></tr>`; }).join('')}</tbody></table></div>` : empty('No audit entries yet.');
+    qs('#monStamp').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  }
+  qs('#btnMonRefresh').onclick = loadMonitoring;
 
   const initial = (location.hash || '#approvals').slice(1);
   showTab(initial in loaders ? initial : 'approvals');

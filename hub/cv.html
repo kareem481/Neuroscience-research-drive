@@ -1,0 +1,372 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Academic CV | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Maintain an academic CV: education, appointments, awards, grants, publications, presentations, teaching and service.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+.cv-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media(max-width:1000px){.cv-layout{grid-template-columns:1fr}.cv-side{order:-1}}
+.cv-layout>*{min-width:0}
+.cv-head{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.cv-head .avatar-lg{width:72px;height:72px;font-size:1.5rem;flex:none}
+.cv-head h2{margin:0;font-size:1.5rem}
+.cv-head .sub{color:var(--ink-2)}
+.cv-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.cv-sec{margin-bottom:18px}
+.cv-sec .section-head{margin-bottom:8px}
+.cv-sec .section-head h3{margin:0;font-size:1.05rem}
+.cv-sec .cnt{color:var(--muted);font-weight:400;font-size:.85rem;margin-left:6px}
+.cv-row{display:grid;grid-template-columns:118px minmax(0,1fr) auto;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);align-items:start}
+.cv-row:last-child{border-bottom:0}
+.cv-row .dates{font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:2px}
+.cv-row .t{font-weight:600;color:var(--ink)}
+.cv-row .o{font-size:.88rem;color:var(--ink-2)}
+.cv-row .d{font-size:.84rem;color:var(--muted);white-space:pre-wrap;margin-top:3px}
+.cv-row .acts{display:flex;gap:2px;opacity:.55;transition:.2s}
+.cv-row:hover .acts{opacity:1}
+.cv-row .acts .btn{padding:4px}
+.cv-row .priv{font-size:.68rem;margin-left:6px;vertical-align:middle}
+.pubnum{display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:.88rem}
+.pubnum:last-child{border-bottom:0}
+.pubnum .n{color:var(--muted);font-variant-numeric:tabular-nums}
+.pubnum .j{color:var(--ink-2);font-style:italic}
+@media(max-width:600px){.cv-row{grid-template-columns:1fr;gap:4px}.cv-row .acts{opacity:1}}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;font-size:.86rem;margin:0}.kv dt{color:var(--muted)}.kv dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.cv-side .mono{overflow-wrap:anywhere}
+.cv-toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.print-banner{display:none}
+@media print{
+  @page{margin:2cm}
+  .sidebar,.topbar,.no-print,#slNeural,.acts,.cv-side,.breadcrumb,.page-head .flex,.toasts{display:none!important}
+  body{background:#fff;color:#111;font-family:Georgia,"Times New Roman",serif}
+  body::before{display:none}
+  .shell{display:block}.main{padding:0;max-width:none}
+  .card{background:#fff;border:0;backdrop-filter:none;box-shadow:none;padding:0;margin:0}
+  .card::before,.card::after{display:none}
+  .cv-layout{display:block}
+  h1,h2,h3,h4,.cv-row .t,.grad-text{color:#111;-webkit-text-fill-color:#111;background:none;font-family:Georgia,"Times New Roman",serif}
+  .cv-head{border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:16px}
+  .cv-head .avatar-lg{display:none}
+  .cv-head .sub,.cv-row .o{color:#333}
+  .cv-row .dates,.cv-row .d,.pubnum .n,.muted,.cv-sec .cnt{color:#555}
+  .cv-row,.pubnum{border-color:#ddd;break-inside:avoid}
+  .cv-sec{break-before:page;margin-bottom:0}
+  .cv-sec:first-of-type{break-before:auto}
+  .cv-sec .section-head{border-bottom:1px solid #999;padding-bottom:4px;margin-bottom:8px}
+  .cv-sec .section-head h3{font-size:1.15rem;text-transform:uppercase;letter-spacing:.06em}
+  .cv-row .priv,.tag{display:none}
+  a{color:#111;text-decoration:none}
+  .print-banner{display:block;font-size:.8rem;color:#555;margin-bottom:6px}
+  .empty{display:none}
+}
+</style>
+</head><body>
+<main id="main">
+  <div class="breadcrumb"><a href="/hub/index.html">Dashboard</a> › Academic CV</div>
+  <div class="page-head">
+    <div><h1>Academic CV</h1><div class="sub">Curriculum vitae in standard academic order — publications are pulled automatically from the Hub</div></div>
+    <div class="flex wrap no-print">
+      <select class="input hidden" id="personPick" style="min-width:220px" title="Admin: choose a person"></select>
+      <button class="btn btn-outline btn-sm" id="btnPrint">Print / PDF</button>
+      <button class="btn btn-outline btn-sm" id="btnCsv">Export CSV</button>
+      <button class="btn btn-outline btn-sm" id="btnImport">Import from CSV</button>
+      <button class="btn btn-primary btn-sm" id="btnBio">NIH Biosketch text</button>
+    </div>
+  </div>
+  <div class="cv-layout">
+    <div>
+      <div class="card mb-3" id="cvHeader"><div class="skeleton" style="width:50%"></div><div class="skeleton" style="width:30%"></div></div>
+      <div class="card" id="cvBody"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div></div>
+    </div>
+    <aside class="cv-side no-print">
+      <div class="card mb-3" id="profileCard"><div class="skeleton"></div><div class="skeleton" style="width:60%"></div></div>
+      <div class="card"><h4 style="font-size:.95rem;margin-bottom:8px">Tips</h4><ul class="small muted" style="margin:0;padding-left:18px;line-height:1.6"><li>Publications come from the Hub's PubMed-linked list; add missing papers under <a href="/hub/publications.html">Publications</a>.</li><li>Use the arrows to reorder entries inside a section.</li><li>Entries marked private are kept out of the public profile but still print.</li><li>CSV import accepts <span class="mono xs">kind,title,organization,location,start_date,end_date,details,url</span>.</li></ul></div>
+    </aside>
+  </div>
+  <input type="file" id="csvFile" accept=".csv,text/csv" hidden>
+</main>
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'cv' });
+  const sb = SL.sb, esc = SL.esc, qs = SL.qs, qsa = SL.qsa, I = SL.icons;
+  const skel = (n) => Array.from({ length: n || 3 }, () => '<div class="skeleton"></div>').join('');
+  const err = (e, fb) => SL.toast((e && e.message) || fb || 'Something went wrong', 'err');
+  const isUuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || '');
+
+  // ---------- kinds & sections (standard academic CV order) ----------
+  const KINDS = {
+    education:     { label: 'Education',     titleLabel: 'Degree / program',  orgLabel: 'Institution' },
+    training:      { label: 'Training',      titleLabel: 'Residency / fellowship / internship', orgLabel: 'Institution' },
+    appointment:   { label: 'Appointment',   titleLabel: 'Position / rank',   orgLabel: 'Institution / department' },
+    certification: { label: 'Certification', titleLabel: 'Certification / license', orgLabel: 'Issuing board' },
+    award:         { label: 'Honor / award', titleLabel: 'Award',             orgLabel: 'Awarding body' },
+    grant:         { label: 'Grant',         titleLabel: 'Project title',     orgLabel: 'Funder / mechanism' },
+    presentation:  { label: 'Presentation',  titleLabel: 'Title',             orgLabel: 'Meeting / venue' },
+    abstract:      { label: 'Abstract',      titleLabel: 'Title',             orgLabel: 'Meeting / venue' },
+    book_chapter:  { label: 'Book chapter',  titleLabel: 'Chapter title',     orgLabel: 'Book / publisher' },
+    teaching:      { label: 'Teaching',      titleLabel: 'Course / activity', orgLabel: 'Institution' },
+    service:       { label: 'Service',       titleLabel: 'Role',              orgLabel: 'Committee / organization' },
+    membership:    { label: 'Membership',    titleLabel: 'Society',           orgLabel: 'Role / status' },
+    patent:        { label: 'Patent',        titleLabel: 'Title',             orgLabel: 'Patent number / office' },
+    media:         { label: 'Media',         titleLabel: 'Title',             orgLabel: 'Outlet' },
+    other:         { label: 'Other',         titleLabel: 'Title',             orgLabel: 'Organization' },
+  };
+  const SECTIONS = [
+    { key: 'edu', title: 'Education & Training', kinds: ['education', 'training'] },
+    { key: 'appt', title: 'Appointments', kinds: ['appointment'] },
+    { key: 'cert', title: 'Certifications & Licensure', kinds: ['certification'] },
+    { key: 'award', title: 'Honors & Awards', kinds: ['award'] },
+    { key: 'grant', title: 'Grants & Funding', kinds: ['grant'] },
+    { key: 'pubs', title: 'Publications', pubs: true },
+    { key: 'pres', title: 'Abstracts & Presentations', kinds: ['presentation', 'abstract'] },
+    { key: 'chap', title: 'Book Chapters', kinds: ['book_chapter'] },
+    { key: 'teach', title: 'Teaching', kinds: ['teaching'] },
+    { key: 'serv', title: 'Service & Committees', kinds: ['service'] },
+    { key: 'memb', title: 'Memberships', kinds: ['membership'] },
+    { key: 'pat', title: 'Patents', kinds: ['patent'] },
+    { key: 'media', title: 'Media', kinds: ['media', 'other'] },
+  ];
+
+  // ---------- whose CV ----------
+  let uid = me.id;
+  const want = SL.param('user');
+  if (want && isUuid(want) && want !== me.id) { if (SL.isAdmin()) uid = want; else SL.toast('Only administrators can edit other CVs — showing yours', 'warn'); }
+  const canEdit = () => uid === me.id || SL.isAdmin();
+  let person = null, fac = null, entries = [], pubs = [];
+
+  if (SL.isAdmin()) {
+    const { data } = await sb.from('profiles').select('id,name,role').order('name');
+    const sel = qs('#personPick'); sel.classList.remove('hidden');
+    sel.innerHTML = (data || []).map((p) => `<option value="${esc(p.id)}" ${p.id === uid ? 'selected' : ''}>${esc(p.name || p.id)}${p.role ? ' · ' + esc(p.role) : ''}</option>`).join('');
+    sel.onchange = () => { const u = new URL(location.href); if (sel.value === me.id) u.searchParams.delete('user'); else u.searchParams.set('user', sel.value); location.href = u.toString(); };
+  }
+
+  // ---------- load ----------
+  async function loadAll() {
+    const [pR, fR, eR, aR] = await Promise.all([
+      sb.from('profiles').select('id,name,initials,title,credential,department,role,email').eq('id', uid).maybeSingle(),
+      sb.from('faculty_profiles').select('*').eq('user_id', uid).maybeSingle(),
+      sb.from('cv_entries').select('*').eq('user_id', uid).order('sort_order', { ascending: true }).order('start_date', { ascending: false, nullsFirst: false }),
+      sb.from('publication_authors').select('publication_id, publications(id,title,author_string,journal,journal_abbrev,volume,issue,pages,year,pub_date,doi,pmid,pub_type,visible)').eq('profile_id', uid),
+    ]);
+    person = pR.data || { id: uid, name: 'Unknown' };
+    fac = fR.data || null;
+    if (eR.error) { qs('#cvBody').innerHTML = `<div class="alert alert-danger mb-0">${esc(eR.error.message)}${/cv_entries/.test(eR.error.message) ? ' — the cv_entries table is not available yet.' : ''}</div>`; entries = []; }
+    else entries = eR.data || [];
+    pubs = (aR.data || []).map((r) => r.publications).filter(Boolean);
+    pubs.sort((a, b) => ((b.pub_date || (b.year ? b.year + '-01-01' : '')) > (a.pub_date || (a.year ? a.year + '-01-01' : ''))) ? 1 : -1);
+    renderHeader(); renderProfileCard(); if (!eR.error) renderBody();
+  }
+
+  // ---------- header ----------
+  function renderHeader() {
+    const p = person, f = fac || {};
+    const links = [f.orcid ? `<a class="tag tag-teal" href="https://orcid.org/${esc(f.orcid)}" target="_blank" rel="noopener">ORCID ${esc(f.orcid)}</a>` : '', f.google_scholar ? `<a class="tag tag-outline" href="${esc(f.google_scholar)}" target="_blank" rel="noopener">Google Scholar</a>` : '', f.lab_website ? `<a class="tag tag-outline" href="${esc(f.lab_website)}" target="_blank" rel="noopener">Lab website</a>` : ''].filter(Boolean).join('');
+    qs('#cvHeader').innerHTML = `<div class="print-banner">Curriculum Vitae · ${esc(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }))}</div>
+      <div class="cv-head"><span class="avatar avatar-lg">${esc(p.initials || SL.initials(p.name))}</span>
+      <div style="min-width:0"><h2>${esc(p.name || '')}${p.credential ? `<span class="muted" style="font-weight:400;font-size:1rem">, ${esc(p.credential)}</span>` : ''}</h2>
+      <div class="sub">${esc([p.title, p.department].filter(Boolean).join(' · ') || p.role || '')}</div>
+      ${p.email ? `<div class="xs muted">${esc(p.email)}</div>` : ''}
+      ${links ? `<div class="cv-links">${links}</div>` : ''}</div></div>
+      ${f.research_interests ? `<p class="small mt-2 mb-0" style="color:var(--ink-2)"><strong>Research interests.</strong> ${esc(f.research_interests)}</p>` : ''}`;
+  }
+
+  // ---------- profile fields card ----------
+  const FP = ['bio', 'research_interests', 'education', 'clinical_focus', 'orcid', 'google_scholar', 'lab_website'];
+  function renderProfileCard() {
+    const f = fac || {};
+    const filled = FP.filter((k) => f[k]).length + ((f.specialties || []).length ? 1 : 0);
+    qs('#profileCard').innerHTML = `<div class="flex between mb-2"><h4 style="margin:0;font-size:.95rem">Profile fields</h4>${canEdit() ? `<button class="btn btn-ghost btn-sm" id="btnProf">${I.edit} Edit</button>` : ''}</div>
+      <dl class="kv"><dt>ORCID</dt><dd>${esc(f.orcid || '—')}</dd><dt>Scholar</dt><dd>${f.google_scholar ? `<a href="${esc(f.google_scholar)}" target="_blank" rel="noopener">link</a>` : '—'}</dd><dt>Lab site</dt><dd>${f.lab_website ? `<a href="${esc(f.lab_website)}" target="_blank" rel="noopener">link</a>` : '—'}</dd><dt>Clinical focus</dt><dd>${esc(f.clinical_focus || '—')}</dd><dt>Specialties</dt><dd>${(f.specialties || []).length ? f.specialties.map((s) => `<span class="tag tag-outline" style="margin:0 4px 4px 0">${esc(s)}</span>`).join('') : '—'}</dd></dl>
+      <div class="xs muted mt-2">${filled} of ${FP.length + 1} fields filled · shown on the public People page.</div>`;
+    const b = qs('#btnProf'); if (b) b.onclick = profileModal;
+  }
+  function profileModal() {
+    const f = fac || {};
+    const ta = (n, l, v, r) => `<div class="field"><label>${l}</label><textarea class="input" name="${n}" rows="${r || 3}">${esc(v || '')}</textarea></div>`;
+    const inp = (n, l, v, t, ph) => `<div class="field"><label>${l}</label><input class="input" name="${n}" type="${t || 'text'}" value="${esc(v || '')}" placeholder="${esc(ph || '')}"></div>`;
+    SL.modal(`<div class="modal-head"><h3>Profile fields</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
+    <form id="pfForm"><div class="modal-body">
+      ${ta('bio', 'Biography', f.bio, 4)}${ta('research_interests', 'Research interests', f.research_interests, 2)}${ta('education', 'Education (summary)', f.education, 2)}
+      ${inp('clinical_focus', 'Clinical focus', f.clinical_focus)}
+      <div class="form-row">${inp('orcid', 'ORCID', f.orcid, 'text', '0000-0000-0000-0000')}${inp('google_scholar', 'Google Scholar URL', f.google_scholar, 'url', 'https://scholar.google.com/…')}</div>
+      <div class="form-row">${inp('lab_website', 'Lab website', f.lab_website, 'url', 'https://')}${inp('specialties', 'Specialties (comma separated)', (f.specialties || []).join(', '))}</div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="pfSave">Save</button></div></form>`, { size: 'lg' });
+    qs('#pfForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const btn = qs('#pfSave'); btn.disabled = true;
+      const row = { user_id: uid, specialties: String(fd.get('specialties') || '').split(',').map((s) => s.trim()).filter(Boolean) };
+      FP.forEach((k) => row[k] = String(fd.get(k) || '').trim() || null);
+      if (row.orcid && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(row.orcid)) { btn.disabled = false; return SL.toast('ORCID should look like 0000-0000-0000-0000', 'err'); }
+      const { error } = await sb.from('faculty_profiles').upsert(row, { onConflict: 'user_id' });
+      if (error) { btn.disabled = false; return err(error, 'Save failed'); }
+      SL.audit('updated', 'faculty_profile', uid, { via: 'cv', fields: Object.keys(row) });
+      SL.toast('Profile saved', 'ok'); SL.closeModal(); loadAll();
+    };
+  }
+
+  // ---------- body ----------
+  const fmtRange = (e) => { const y = (d) => d ? SL.fmtDate(d, { year: 'numeric', month: 'short' }) : ''; const s = y(e.start_date), en = e.is_current ? 'Present' : y(e.end_date); return s && en ? `${s} – ${en}` : (s || en || ''); };
+  const byKinds = (kinds) => entries.filter((e) => kinds.includes(e.kind));
+  function renderBody() {
+    const edit = canEdit();
+    qs('#cvBody').innerHTML = SECTIONS.map((s) => {
+      if (s.pubs) {
+        return `<section class="cv-sec" id="sec-${s.key}"><div class="section-head"><h3>${s.title}<span class="cnt">${pubs.length}</span></h3><a class="btn btn-ghost btn-sm no-print" href="/hub/publications.html">Manage ${I.external}</a></div>
+          ${pubs.length ? pubs.map((p, i) => `<div class="pubnum"><span class="n">${i + 1}.</span><div>${esc(SL.pubCitation(p))}${p.pmid ? ` <a class="xs no-print" href="https://pubmed.ncbi.nlm.nih.gov/${esc(p.pmid)}/" target="_blank" rel="noopener">PMID ${esc(p.pmid)}</a>` : ''}${p.visible === false ? ' <span class="tag tag-warn priv">hidden</span>' : ''}</div></div>`).join('') : `<div class="empty" style="padding:16px">${I.book}<div>No publications linked to this profile yet.</div></div>`}</section>`;
+      }
+      const rows = byKinds(s.kinds);
+      return `<section class="cv-sec" id="sec-${s.key}"><div class="section-head"><h3>${s.title}<span class="cnt">${rows.length}</span></h3>${edit ? `<button class="btn btn-ghost btn-sm no-print" data-add="${s.kinds[0]}" data-sec="${s.key}">${I.plus} Add</button>` : ''}</div>
+        ${rows.length ? rows.map((e, i) => `<div class="cv-row" data-id="${e.id}">
+          <div class="dates">${esc(fmtRange(e))}</div>
+          <div><div class="t">${esc(e.title)}${s.kinds.length > 1 ? ` <span class="tag tag-outline priv">${esc(KINDS[e.kind] ? KINDS[e.kind].label : e.kind)}</span>` : ''}${e.is_public === false ? '<span class="tag tag-warn priv">private</span>' : ''}</div>
+            ${e.organization || e.location ? `<div class="o">${esc([e.organization, e.location].filter(Boolean).join(' · '))}</div>` : ''}
+            ${e.details ? `<div class="d">${esc(e.details)}</div>` : ''}${e.url ? `<a class="xs no-print" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.url)}</a>` : ''}</div>
+          ${edit ? `<div class="acts no-print"><button class="btn btn-ghost btn-sm btn-icon" data-up="${e.id}" title="Move up" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn btn-ghost btn-sm btn-icon" data-down="${e.id}" title="Move down" ${i === rows.length - 1 ? 'disabled' : ''}>▼</button><button class="btn btn-ghost btn-sm btn-icon" data-edit="${e.id}" title="Edit">${I.edit}</button><button class="btn btn-ghost btn-sm btn-icon" data-del="${e.id}" title="Delete">${I.trash}</button></div>` : '<div></div>'}
+        </div>`).join('') : `<div class="empty" style="padding:14px"><div class="small">Nothing here yet.</div></div>`}</section>`;
+    }).join('');
+    const body = qs('#cvBody');
+    qsa('[data-add]', body).forEach((b) => b.onclick = () => entryModal(null, b.dataset.add, SECTIONS.find((s) => s.key === b.dataset.sec)));
+    qsa('[data-edit]', body).forEach((b) => b.onclick = () => { const e = entries.find((x) => String(x.id) === b.dataset.edit); entryModal(e, e.kind, SECTIONS.find((s) => s.kinds && s.kinds.includes(e.kind))); });
+    qsa('[data-del]', body).forEach((b) => b.onclick = () => delEntry(entries.find((x) => String(x.id) === b.dataset.del)));
+    qsa('[data-up],[data-down]', body).forEach((b) => b.onclick = () => move(b.dataset.up || b.dataset.down, b.dataset.up ? -1 : 1));
+  }
+
+  // ---------- entry modal ----------
+  function entryModal(e, kind, sec) {
+    e = e || {}; kind = kind || 'other'; const kinds = (sec && sec.kinds) || [kind];
+    const k = KINDS[kind] || KINDS.other;
+    SL.modal(`<div class="modal-head"><h3>${e.id ? 'Edit' : 'Add'} — ${esc(sec ? sec.title : k.label)}</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
+    <form id="enForm"><div class="modal-body">
+      ${kinds.length > 1 ? `<div class="field"><label>Type</label><select class="input" name="kind" id="enKind">${kinds.map((x) => `<option value="${x}" ${x === kind ? 'selected' : ''}>${esc(KINDS[x].label)}</option>`).join('')}</select></div>` : `<input type="hidden" name="kind" value="${esc(kind)}">`}
+      <div class="field"><label id="lblTitle">${esc(k.titleLabel)} *</label><input class="input" name="title" required value="${esc(e.title || '')}"></div>
+      <div class="form-row"><div class="field"><label id="lblOrg">${esc(k.orgLabel)}</label><input class="input" name="organization" value="${esc(e.organization || '')}"></div><div class="field"><label>Location</label><input class="input" name="location" value="${esc(e.location || '')}" placeholder="City, State"></div></div>
+      <div class="form-row"><div class="field"><label>Start date</label><input class="input" type="date" name="start_date" value="${esc(e.start_date || '')}"></div><div class="field"><label>End date</label><input class="input" type="date" name="end_date" value="${esc(e.end_date || '')}" ${e.is_current ? 'disabled' : ''}></div></div>
+      <div class="flex wrap mb-2"><label class="check"><input type="checkbox" name="is_current" id="enCur" ${e.is_current ? 'checked' : ''}> Current / ongoing</label><label class="check"><input type="checkbox" name="is_public" ${e.is_public === false ? '' : 'checked'}> Show on public profile</label></div>
+      <div class="field"><label>Details</label><textarea class="input" name="details" rows="3" placeholder="${kind === 'grant' ? 'Role (PI / Co-I), amount, grant number' : kind === 'presentation' || kind === 'abstract' ? 'Authors, oral vs poster' : 'Optional notes'}">${esc(e.details || '')}</textarea></div>
+      <div class="field"><label>URL</label><input class="input" type="url" name="url" value="${esc(e.url || '')}" placeholder="https://"></div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="enSave">${e.id ? 'Save' : 'Add'}</button></div></form>`, { size: 'lg' });
+    qs('#enCur').onchange = (ev) => { const en = qs('#enForm [name=end_date]'); en.disabled = ev.target.checked; if (ev.target.checked) en.value = ''; };
+    const ks = qs('#enKind'); if (ks) ks.onchange = () => { const kk = KINDS[ks.value]; qs('#lblTitle').textContent = kk.titleLabel + ' *'; qs('#lblOrg').textContent = kk.orgLabel; };
+    qs('#enForm').onsubmit = async (ev) => {
+      ev.preventDefault(); const fd = new FormData(ev.target); const btn = qs('#enSave'); btn.disabled = true;
+      const v = (n) => String(fd.get(n) || '').trim() || null;
+      const row = { user_id: uid, kind: fd.get('kind'), title: v('title'), organization: v('organization'), location: v('location'), start_date: v('start_date'), end_date: fd.get('is_current') === 'on' ? null : v('end_date'), is_current: fd.get('is_current') === 'on', details: v('details'), url: v('url'), is_public: fd.get('is_public') === 'on' };
+      if (row.start_date && row.end_date && row.end_date < row.start_date) { btn.disabled = false; return SL.toast('End date is before the start date', 'err'); }
+      if (!e.id) row.sort_order = Math.max(0, ...entries.filter((x) => x.kind === row.kind).map((x) => x.sort_order || 0)) + 1;
+      const r = e.id ? await sb.from('cv_entries').update(row).eq('id', e.id) : await sb.from('cv_entries').insert(row);
+      if (r.error) { btn.disabled = false; return err(r.error, 'Save failed'); }
+      SL.audit(e.id ? 'updated' : 'created', 'cv_entry', e.id || '', { user_id: uid, kind: row.kind, title: row.title });
+      SL.toast(e.id ? 'Entry updated' : 'Entry added', 'ok'); SL.closeModal(); loadAll();
+    };
+  }
+  async function delEntry(e) {
+    if (!e) return;
+    if (!await SL.confirm(`Delete "${e.title}"?`, 'Delete')) return;
+    const { error } = await sb.from('cv_entries').delete().eq('id', e.id); if (error) return err(error);
+    SL.audit('deleted', 'cv_entry', e.id, { user_id: uid, kind: e.kind, title: e.title }); SL.toast('Deleted', 'ok'); loadAll();
+  }
+  async function move(id, dir) {
+    const e = entries.find((x) => String(x.id) === String(id)); if (!e) return;
+    const sec = SECTIONS.find((s) => s.kinds && s.kinds.includes(e.kind)); const rows = byKinds(sec.kinds);
+    const i = rows.indexOf(e), j = i + dir; if (j < 0 || j >= rows.length) return;
+    // renumber the whole section so swaps are stable even when sort_order values collide
+    const order = rows.slice(); order.splice(i, 1); order.splice(j, 0, e);
+    const updates = order.map((x, n) => ({ id: x.id, sort_order: n + 1 })).filter((u) => { const cur = entries.find((x) => x.id === u.id); return cur.sort_order !== u.sort_order; });
+    const res = await Promise.all(updates.map((u) => sb.from('cv_entries').update({ sort_order: u.sort_order }).eq('id', u.id)));
+    const bad = res.find((r) => r.error); if (bad) return err(bad.error, 'Reorder failed');
+    updates.forEach((u) => { entries.find((x) => x.id === u.id).sort_order = u.sort_order; });
+    entries.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || String(b.start_date || '').localeCompare(String(a.start_date || '')));
+    renderBody();
+  }
+
+  // ---------- toolbar: print, CSV export/import, biosketch ----------
+  qs('#btnPrint').onclick = () => window.print();
+  const CSV_COLS = ['kind', 'title', 'organization', 'location', 'start_date', 'end_date', 'is_current', 'details', 'url', 'is_public', 'sort_order'];
+  qs('#btnCsv').onclick = () => SL.download(`cv_${(person && person.name || 'user').replace(/[^a-z0-9]+/gi, '_')}_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv(entries, CSV_COLS), 'text/csv');
+
+  // minimal RFC-4180 parser (quotes, escaped quotes, newlines inside quotes)
+  function parseCsv(text) {
+    const rows = []; let row = [], cell = '', q = false; text = String(text || '').replace(/^﻿/, '');
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+      else if (c === '"') q = true;
+      else if (c === ',') { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += c;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    const nonEmpty = rows.filter((r) => r.some((x) => String(x).trim() !== ''));
+    if (!nonEmpty.length) return [];
+    const head = nonEmpty[0].map((h) => String(h).trim().toLowerCase().replace(/\s+/g, '_'));
+    return nonEmpty.slice(1).map((r) => { const o = {}; head.forEach((h, i) => o[h] = r[i] == null ? '' : String(r[i]).trim()); return o; });
+  }
+  const normDate = (s) => { if (!s) return null; if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; if (/^\d{4}$/.test(s)) return s + '-01-01'; if (/^\d{4}-\d{2}$/.test(s)) return s + '-01'; const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (m) return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`; const d = new Date(s); return isNaN(d) ? undefined : d.toISOString().slice(0, 10); };
+  qs('#btnImport').onclick = () => {
+    if (!canEdit()) return;
+    SL.modal(`<div class="modal-head"><h3>Import CV entries from CSV</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div><div class="modal-body">
+      <p class="small">Columns: <span class="mono xs">kind,title,organization,location,start_date,end_date,details,url</span> (optional <span class="mono xs">is_current,is_public</span>). Dates as <span class="mono xs">YYYY-MM-DD</span> or a year. Kinds: ${Object.keys(KINDS).map((k) => `<span class="mono xs">${k}</span>`).join(', ')}.</p>
+      <div class="flex wrap"><button class="btn btn-outline btn-sm" id="imTpl">${I.download} Template</button><label class="btn btn-primary btn-sm">${I.upload} Choose file<input type="file" id="imFile" accept=".csv,text/csv" hidden></label></div>
+      <div id="imPrev" class="mt-3"></div></div><div class="modal-foot"><button class="btn btn-outline" data-close>Close</button><button class="btn btn-primary hidden" id="imGo">Import</button></div>`, { size: 'lg' });
+    qs('#imTpl').onclick = () => SL.download('cv_template.csv', 'kind,title,organization,location,start_date,end_date,details,url\neducation,MD,University of Missouri–Kansas City School of Medicine,"Kansas City, MO",2010-08-01,2014-05-15,,\naward,Resident Research Award,Saint Luke\'s Hospital,"Kansas City, MO",2018-06-01,,Best oral presentation,', 'text/csv');
+    qs('#imFile').onchange = (ev) => {
+      const f = ev.target.files[0]; if (!f) return;
+      const rd = new FileReader(); rd.onload = () => {
+        const raw = parseCsv(rd.result); const good = [], bad = [];
+        raw.forEach((r, i) => {
+          const kind = (r.kind || '').toLowerCase().replace(/[\s-]+/g, '_'); const probs = [];
+          if (!KINDS[kind]) probs.push('unknown kind "' + (r.kind || '') + '"'); if (!r.title) probs.push('title required');
+          const sd = normDate(r.start_date), ed = normDate(r.end_date); if (sd === undefined) probs.push('bad start_date'); if (ed === undefined) probs.push('bad end_date');
+          if (probs.length) bad.push({ n: i + 2, probs }); else good.push({ user_id: uid, kind, title: r.title, organization: r.organization || null, location: r.location || null, start_date: sd, end_date: ed, is_current: /^(true|yes|1)$/i.test(r.is_current || ''), details: r.details || null, url: r.url || null, is_public: !/^(false|no|0)$/i.test(r.is_public || ''), sort_order: i + 1 });
+        });
+        qs('#imPrev').innerHTML = `<div class="alert ${bad.length ? 'alert-warn' : 'alert-ok'} mb-2">${good.length} row${good.length === 1 ? '' : 's'} ready${bad.length ? ` · ${bad.length} skipped` : ''}.</div>${bad.length ? `<ul class="xs" style="margin:0 0 10px;padding-left:18px;color:var(--warn)">${bad.slice(0, 15).map((b) => `<li>Row ${b.n}: ${esc(b.probs.join(', '))}</li>`).join('')}${bad.length > 15 ? '<li>…</li>' : ''}</ul>` : ''}${good.length ? `<div class="table-wrap" style="max-height:240px;overflow:auto"><table class="table"><thead><tr><th>Kind</th><th>Title</th><th>Organization</th><th>Dates</th></tr></thead><tbody>${good.slice(0, 50).map((g) => `<tr><td class="xs">${esc(g.kind)}</td><td class="small">${esc(g.title)}</td><td class="small">${esc(g.organization || '')}</td><td class="xs muted">${esc([g.start_date, g.end_date].filter(Boolean).join(' – '))}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+        const go = qs('#imGo'); go.classList.toggle('hidden', !good.length); go.textContent = `Import ${good.length} row${good.length === 1 ? '' : 's'}`;
+        go.onclick = async () => {
+          go.disabled = true; const { error } = await sb.from('cv_entries').insert(good);
+          if (error) { go.disabled = false; return err(error, 'Import failed'); }
+          SL.audit('imported', 'cv_entry', uid, { rows: good.length, skipped: bad.length }); SL.toast(`Imported ${good.length} entries`, 'ok'); SL.closeModal(); loadAll();
+        };
+      }; rd.readAsText(f);
+    };
+  };
+
+  qs('#btnBio').onclick = () => {
+    const p = person || {}, f = fac || {};
+    const L = [], line = (s) => L.push(s || '');
+    const block = (title, rows, fmt) => { line(title.toUpperCase()); line('-'.repeat(title.length)); if (!rows.length) line('  (none)'); else rows.forEach((r) => line('  ' + fmt(r))); line(''); };
+    const range = (e) => { const y = (d) => d ? String(d).slice(0, 4) : ''; const s = y(e.start_date), en = e.is_current ? 'present' : y(e.end_date); return s && en ? `${s}-${en}` : (s || en || ''); };
+    const std = (e) => `${range(e).padEnd(12)}${e.title}${e.organization ? ' — ' + e.organization : ''}${e.location ? ', ' + e.location : ''}${e.details ? '. ' + e.details.replace(/\s+/g, ' ') : ''}`;
+    line('BIOGRAPHICAL SKETCH (NIH-style)'); line('');
+    line(`NAME: ${p.name || ''}${p.credential ? ', ' + p.credential : ''}`); line(`POSITION TITLE: ${[p.title, p.department].filter(Boolean).join(', ')}`);
+    if (f.orcid) line(`ORCID: https://orcid.org/${f.orcid}`); line('');
+    block('A. Education/Training', byKinds(['education', 'training']), (e) => `${(e.organization || '').padEnd(40)} ${(e.title || '').padEnd(28)} ${range(e)}${e.details ? '  ' + e.details.replace(/\s+/g, ' ') : ''}`);
+    line('B. PERSONAL STATEMENT'); line('---------------------'); line(f.bio ? '  ' + f.bio.replace(/\s+/g, ' ') : '  (add a biography under Profile fields)'); if (f.research_interests) { line(''); line('  Research interests: ' + f.research_interests.replace(/\s+/g, ' ')); } line('');
+    line('C. POSITIONS, SCIENTIFIC APPOINTMENTS, AND HONORS'); line('------------------------------------------------');
+    line('  Positions and Scientific Appointments'); byKinds(['appointment']).forEach((e) => line('    ' + std(e))); if (!byKinds(['appointment']).length) line('    (none)');
+    line('  Certifications and Licensure'); byKinds(['certification']).forEach((e) => line('    ' + std(e))); if (!byKinds(['certification']).length) line('    (none)');
+    line('  Honors'); byKinds(['award']).forEach((e) => line('    ' + std(e))); if (!byKinds(['award']).length) line('    (none)');
+    line('  Memberships and Service'); byKinds(['membership', 'service']).forEach((e) => line('    ' + std(e))); if (!byKinds(['membership', 'service']).length) line('    (none)'); line('');
+    line('D. CONTRIBUTIONS TO SCIENCE / PUBLICATIONS'); line('------------------------------------------');
+    if (!pubs.length) line('  (no linked publications)'); pubs.forEach((pb, i) => line(`  ${i + 1}. ${SL.pubCitation(pb)}${pb.pmid ? ' PMID: ' + pb.pmid : ''}`)); line('');
+    block('E. Research Support', byKinds(['grant']), std);
+    block('F. Presentations and Abstracts', byKinds(['presentation', 'abstract']), std);
+    block('G. Book Chapters', byKinds(['book_chapter']), std);
+    block('H. Teaching', byKinds(['teaching']), std);
+    block('I. Patents', byKinds(['patent']), std);
+    line(`Generated ${new Date().toLocaleDateString()} from the Saint Luke's Neuroscience Research Hub.`);
+    SL.download(`biosketch_${(p.name || 'user').replace(/[^a-z0-9]+/gi, '_')}.txt`, L.join('\n'), 'text/plain');
+    SL.audit('exported', 'cv', uid, { format: 'biosketch_txt' });
+  };
+
+  await loadAll();
+  if (!canEdit()) { qs('#btnImport').classList.add('hidden'); }
+})();
+</script>
+</body></html>

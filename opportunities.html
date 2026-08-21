@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Funding &amp; Calls | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Neuroscience-relevant grants, fellowships, awards, training opportunities, calls for papers and abstract deadlines, monitored weekly from Grants.gov and the NIH Guide and curated by the Saint Luke's Neuroscience Research Department.">
+<link rel="canonical" href="https://slresearchhub.com/opportunities.html">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .summary-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px}
+  @media(max-width:900px){.summary-tiles{grid-template-columns:repeat(2,1fr)}}
+  .hero-note{font-size:.9rem;color:var(--muted);margin-top:18px;max-width:62ch}
+  .tabs{margin-bottom:20px}
+  .tabs button .cnt{display:inline-block;margin-left:6px;font-size:.72rem;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--muted)}
+  .tabs button.active .cnt{background:var(--teal-100);color:var(--teal-600)}
+  .filters .search{max-width:380px}
+  .toggle{display:inline-flex;align-items:center;gap:8px;font-size:.86rem;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+  .count{font-size:.85rem;color:var(--muted);margin:0 0 14px}
+  .opps{display:grid;gap:14px}
+  .opp{padding:20px 22px;display:grid;grid-template-columns:1fr auto;gap:18px;align-items:start}
+  @media(max-width:760px){.opp{grid-template-columns:1fr}}
+  .opp.featured{border-color:rgba(245,196,81,.35)}
+  .opp h3{margin:0 0 4px;font-size:1.08rem;line-height:1.35}
+  .opp h3 a{color:#fff;display:inline-flex;align-items:flex-start;gap:6px}
+  .opp h3 a:hover{color:var(--teal-600);text-decoration:none}
+  .opp h3 a svg{width:15px;height:15px;flex:none;margin-top:4px;opacity:.6}
+  .opp .sponsor{font-size:.86rem;color:var(--muted);margin-bottom:10px}
+  .opp .summary{font-size:.9rem;color:var(--ink-2);margin:10px 0 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .opp .elig{font-size:.8rem;color:var(--muted);margin-top:8px}
+  .opp .elig b{color:var(--ink-2);font-weight:600}
+  .opp .side{display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:170px}
+  @media(max-width:760px){.opp .side{align-items:flex-start;flex-direction:row;flex-wrap:wrap}}
+  .opp .deadline{font-size:.8rem;color:var(--muted);text-align:right}
+  .opp .deadline .tag{font-size:.78rem}
+  .opp .amount{font-family:var(--font-head);font-size:1.05rem;color:#fff}
+  .opp .src{font-size:.72rem;color:var(--faint);letter-spacing:.03em;text-transform:uppercase;font-weight:600}
+  .sync-note{font-size:.8rem;color:var(--muted);margin-top:24px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<main>
+  <section class="hero"><div class="container" style="grid-template-columns:1fr">
+    <div>
+      <div class="eyebrow">Funding &amp; calls</div>
+      <h1>Grants, fellowships <span class="grad-text">&amp; deadlines</span></h1>
+      <p class="lead">The research office monitors Grants.gov and the NIH Guide every week for neuroscience-relevant funding — grants, fellowships, career awards and training programs — and curates abstract and call-for-papers deadlines from the major neurosurgery, neurology and neuroscience societies. Everything with an upcoming deadline is listed below.</p>
+      <p class="hero-note">Research Hub editors can add or edit items under <a href="/hub/data.html">Data Management</a>. Need help preparing an application? See <a href="/services.html#grants">Grant Development</a> in Research Services.</p>
+      <div class="summary-tiles" id="tiles">
+        <div class="card stat"><div class="n">—</div><div class="l">Open grants</div></div>
+        <div class="card stat"><div class="n">—</div><div class="l">Closing in 30 days</div></div>
+        <div class="card stat"><div class="n">—</div><div class="l">Calls for papers</div></div>
+        <div class="card stat"><div class="n">—</div><div class="l">Abstract deadlines</div></div>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="section"><div class="container">
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div class="filters">
+      <div class="search grow"><input class="input" id="q" placeholder="Search title, sponsor or summary…"></div>
+      <select class="input" id="fSort"><option value="deadline">Soonest deadline first</option><option value="latest">Latest deadline first</option><option value="title">Title A–Z</option></select>
+      <label class="toggle"><input type="checkbox" id="showPast"> Show past deadlines</label>
+    </div>
+    <div class="chips" id="fieldChips" style="margin-bottom:18px"></div>
+    <p class="count" id="count"></p>
+    <div id="list"><div class="skeleton" style="height:110px"></div><div class="skeleton" style="height:110px"></div><div class="skeleton" style="height:110px"></div></div>
+    <p class="sync-note" id="sync"></p>
+    <p class="xs muted mt-2">Deadlines are shown as published by each sponsor and may change; always confirm on the sponsor's page before submitting. Federal listings are mirrored from public Grants.gov and NIH Guide feeds.</p>
+  </div></section>
+</main>
+<script>
+(async () => {
+  SL.renderShell({ active: 'opportunities' });
+  const h = SL.esc;
+  const KINDS = [
+    { key: 'grant', label: 'Grants', tag: 'tag-teal' },
+    { key: 'call_for_papers', label: 'Calls for papers', tag: 'tag-info' },
+    { key: 'abstract', label: 'Abstract deadlines', tag: 'tag-gold' },
+    { key: 'fellowship', label: 'Fellowships & awards', tag: 'tag-ok', also: ['award'] },
+    { key: 'training', label: 'Training', tag: '' },
+  ];
+  const kindDef = (k) => KINDS.find((d) => d.key === k || (d.also || []).includes(k)) || { label: k, tag: '' };
+  const KIND_LABEL = { grant: 'Grant', call_for_papers: 'Call for papers', abstract: 'Abstract deadline', fellowship: 'Fellowship', award: 'Award', training: 'Training' };
+  const SOURCE = { 'grants.gov': 'Grants.gov', nih: 'NIH Guide', manual: 'Added by department' };
+  const FIELDS = ['Neurosurgery', 'Neurology', 'Neuroscience', 'General'];
+  SL.qs('.search').insertAdjacentHTML('afterbegin', SL.icons.search);
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const DAY = 864e5;
+  const dl = (o) => o.deadline ? new Date(o.deadline + 'T12:00:00') : null;
+  const daysLeft = (o) => { const d = dl(o); return d ? Math.ceil((d - today) / DAY) : null; };
+  const isPast = (o) => { const n = daysLeft(o); return n != null && n < 0; };
+
+  let all = [];
+  try {
+    const { data, error } = await SL.sb.from('opportunities').select('*').eq('published', true).order('deadline', { ascending: true, nullsFirst: false }).order('featured', { ascending: false });
+    if (error) throw error; all = data || [];
+  } catch (e) { console.warn('opportunities load failed', e); }
+
+  // tiles
+  const open = all.filter((o) => !isPast(o));
+  const tiles = SL.qs('#tiles').children;
+  tiles[0].querySelector('.n').textContent = open.filter((o) => o.kind === 'grant').length;
+  tiles[1].querySelector('.n').textContent = open.filter((o) => { const n = daysLeft(o); return n != null && n <= 30; }).length;
+  tiles[2].querySelector('.n').textContent = open.filter((o) => o.kind === 'call_for_papers').length;
+  tiles[3].querySelector('.n').textContent = open.filter((o) => o.kind === 'abstract').length;
+
+  // state
+  let kind = KINDS.find((k) => k.key === SL.param('kind')) ? SL.param('kind') : '';
+  let field = '';
+  const F = { q: SL.qs('#q'), sort: SL.qs('#fSort'), past: SL.qs('#showPast') };
+  F.q.addEventListener('input', SL.debounce(render, 120)); F.sort.addEventListener('change', render); F.past.addEventListener('change', render);
+
+  function renderTabs() {
+    const cnt = (k) => open.filter((o) => !k || kindDef(o.kind).key === k).length;
+    SL.qs('#tabs').innerHTML = [{ key: '', label: 'All' }].concat(KINDS).map((k) => `<button role="tab" aria-selected="${kind === k.key}" class="${kind === k.key ? 'active' : ''}" data-k="${k.key}">${h(k.label)}<span class="cnt">${cnt(k.key)}</span></button>`).join('');
+    SL.qsa('#tabs button').forEach((b) => b.onclick = () => { kind = b.dataset.k; history.replaceState(null, '', kind ? '?kind=' + kind : location.pathname); renderTabs(); render(); });
+  }
+  function renderChips() {
+    SL.qs('#fieldChips').innerHTML = [''].concat(FIELDS).map((f) => `<button class="chip ${field === f ? 'active' : ''}" data-f="${h(f)}">${f || 'All fields'}</button>`).join('');
+    SL.qsa('#fieldChips .chip').forEach((c) => c.onclick = () => { field = c.dataset.f; renderChips(); render(); });
+  }
+  function deadlineTag(o) {
+    const n = daysLeft(o);
+    if (n == null) return '<span class="tag tag-outline">Rolling</span>';
+    if (n < 0) return `<span class="tag">Closed ${SL.fmtDate(o.deadline)}</span>`;
+    const cls = n <= 14 ? 'tag-danger' : n <= 45 ? 'tag-warn' : 'tag-info';
+    const rel = n === 0 ? 'Due today' : n === 1 ? 'Due tomorrow' : `${n} days left`;
+    return `<span class="tag ${cls}">${rel}</span><div style="margin-top:4px">Deadline ${SL.fmtDate(o.deadline)}</div>`;
+  }
+  // ---- local helper: build + download an .ics for one opportunity (DTSTART = deadline, all-day) ----
+  const icsEsc = (s) => String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  const icsDate = (d) => d.replace(/-/g, '');
+  const nextDay = (d) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1); return x.toISOString().slice(0, 10); };
+  function toIcs(o) {
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Saint Lukes Neuroscience Research//Opportunities//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+      `UID:opp-${o.id}@slresearchhub.com`, `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${icsDate(o.deadline)}`, `DTEND;VALUE=DATE:${icsDate(nextDay(o.deadline))}`,
+      `SUMMARY:${icsEsc((KIND_LABEL[o.kind] || 'Deadline') + ': ' + o.title)}`,
+      `DESCRIPTION:${icsEsc([o.sponsor ? 'Sponsor: ' + o.sponsor : '', o.amount ? 'Amount: ' + o.amount : '', o.summary || '', o.url || ''].filter(Boolean).join('\n'))}`,
+      o.url ? `URL:${icsEsc(o.url)}` : '', 'BEGIN:VALARM', 'TRIGGER:-P7D', 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc(o.title)} due in 7 days`, 'END:VALARM',
+      'END:VEVENT', 'END:VCALENDAR'].filter(Boolean);
+    // fold lines >75 octets per RFC 5545
+    return lines.map((l) => { const out = []; while (l.length > 73) { out.push(l.slice(0, 73)); l = ' ' + l.slice(73); } out.push(l); return out.join('\r\n'); }).join('\r\n') + '\r\n';
+  }
+  window.__oppIcs = (id) => {
+    const o = all.find((x) => String(x.id) === String(id)); if (!o || !o.deadline) return;
+    SL.download((o.title || 'deadline').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60).toLowerCase() + '.ics', toIcs(o), 'text/calendar');
+    SL.toast('Calendar file downloaded', 'ok');
+  };
+
+  function card(o) {
+    const kd = kindDef(o.kind);
+    const tags = [];
+    if (o.featured) tags.push('<span class="tag tag-gold">Featured</span>');
+    tags.push(`<span class="tag ${kd.tag}">${h(KIND_LABEL[o.kind] || o.kind)}</span>`);
+    (o.field || []).forEach((f) => tags.push(`<span class="tag tag-outline">${h(f)}</span>`));
+    return `<article class="card card-hover opp ${o.featured ? 'featured' : ''}" style="${isPast(o) ? 'opacity:.65' : ''}">
+      <div>
+        <h3>${o.url ? `<a href="${h(o.url)}" target="_blank" rel="noopener">${h(o.title)}${SL.icons.external}</a>` : h(o.title)}</h3>
+        ${o.sponsor ? `<div class="sponsor">${h(o.sponsor)}${o.open_date ? ` · Opens ${SL.fmtDate(o.open_date)}` : ''}</div>` : ''}
+        <div class="tags">${tags.join('')}</div>
+        ${o.summary ? `<p class="summary">${h(o.summary)}</p>` : ''}
+        ${o.eligibility ? `<div class="elig"><b>Eligibility:</b> ${h(o.eligibility)}</div>` : ''}
+      </div>
+      <div class="side">
+        <div class="deadline">${deadlineTag(o)}</div>
+        ${o.amount ? `<div class="amount">${h(o.amount)}</div>` : ''}
+        <div class="src">${h(SOURCE[o.source] || SOURCE.manual)}</div>
+        ${o.deadline && !isPast(o) ? `<button class="btn btn-outline btn-sm" onclick="__oppIcs('${h(String(o.id))}')">${SL.icons.cal} Add to calendar</button>` : ''}
+      </div>
+    </article>`;
+  }
+  function render() {
+    const s = F.q.value.trim().toLowerCase();
+    const rows = all.filter((o) => (!kind || kindDef(o.kind).key === kind)
+      && (F.past.checked || !isPast(o))
+      && (!field || (o.field || []).includes(field))
+      && (!s || [o.title, o.sponsor, o.summary, o.eligibility, o.amount].join(' ').toLowerCase().includes(s)));
+    const t = (o) => (dl(o) ? dl(o).getTime() : Infinity);
+    if (F.sort.value === 'deadline') rows.sort((a, b) => t(a) - t(b) || (b.featured - a.featured));
+    else if (F.sort.value === 'latest') rows.sort((a, b) => (t(b) === Infinity ? -1 : t(b)) - (t(a) === Infinity ? -1 : t(a)));
+    else rows.sort((a, b) => String(a.title).localeCompare(String(b.title)));
+    const base = all.filter((o) => F.past.checked || !isPast(o));
+    SL.qs('#count').textContent = all.length ? `Showing ${rows.length} of ${base.length}` : '';
+    const box = SL.qs('#list');
+    if (!all.length) { box.innerHTML = `<div class="empty">${SL.icons.award}<p>No funding opportunities or calls have been published yet. Check back after the next weekly sync.</p></div>`; return; }
+    if (!rows.length) { box.innerHTML = `<div class="empty">${SL.icons.search}<p>No opportunities match these filters${F.past.checked ? '' : ' — try showing past deadlines'}.</p></div>`; return; }
+    box.innerHTML = `<div class="opps">${rows.map(card).join('')}</div>`;
+    SL.reveal(box);
+  }
+  renderTabs(); renderChips(); render();
+
+  // last sync
+  try {
+    const { data } = await SL.sb.from('opportunity_sync_log').select('finished_at,status').eq('status', 'ok').order('finished_at', { ascending: false }).limit(1);
+    const row = data && data[0];
+    SL.qs('#sync').innerHTML = row && row.finished_at ? `<span class="dot dot-ok"></span>Grants.gov and NIH Guide last synced ${h(SL.fmtDateTime(row.finished_at))}.` : `<span class="dot dot-warn"></span>Automatic sync has not run yet; listings are curated manually.`;
+  } catch (e) { SL.qs('#sync').textContent = ''; }
+})();
+</script>
+</body>
+</html>

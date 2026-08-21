@@ -1,0 +1,386 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Data Management | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Import, browse and edit Hub data: resources, opportunities, publications, grants, feed sources and announcements.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+.tab-panel{display:none}.tab-panel.active{display:block}
+.dm-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+@media(max-width:1000px){.dm-layout{grid-template-columns:1fr}}
+.dm-layout>*{min-width:0}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.steps .st{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:.8rem;color:var(--muted);background:rgba(255,255,255,.03)}
+.steps .st b{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.06);font-size:.72rem;color:var(--ink-2)}
+.steps .st.on{border-color:rgba(34,211,238,.45);color:var(--ink)}.steps .st.on b{background:var(--grad);color:#06101a}
+.steps .st.done{color:var(--ok)}.steps .st.done b{background:var(--ok-bg,rgba(52,211,153,.18));color:var(--ok)}
+.tbl-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.tbl-pick button{text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03);color:var(--ink);cursor:pointer;transition:.2s;font:inherit}
+.tbl-pick button:hover,.tbl-pick button.on{border-color:rgba(34,211,238,.5);background:rgba(34,211,238,.08)}
+.tbl-pick b{display:block;font-family:var(--font-head);font-size:.95rem}.tbl-pick span{font-size:.76rem;color:var(--muted)}
+.drop{border:1px dashed var(--line-2,var(--line));border-radius:12px;padding:26px;text-align:center;color:var(--muted);cursor:pointer;transition:.2s}
+.drop:hover,.drop.over{border-color:var(--teal);background:rgba(34,211,238,.06);color:var(--ink)}
+.drop svg{width:28px;height:28px;margin-bottom:6px;color:var(--teal-600)}
+.map-grid{display:grid;grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr);gap:6px 10px;align-items:center;font-size:.86rem}
+.map-grid .arrow{color:var(--faint);text-align:center}
+.map-grid .req{color:var(--danger)}
+.map-grid .input{padding:6px 8px;font-size:.84rem}
+.map-grid .meta{font-size:.72rem;color:var(--muted)}
+.prev-wrap{max-height:420px;overflow:auto}
+.prev-wrap .table td{font-size:.8rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prev-wrap tr.bad td{background:rgba(251,113,133,.07)}
+.prev-wrap td.cell-err{color:var(--danger);white-space:normal;min-width:240px;max-width:340px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.kpi-row .stat{padding:12px 14px}.kpi-row .stat .n{font-size:1.5rem}
+.side-card h4{font-size:.95rem;margin-bottom:8px}
+.sync-btns{display:grid;gap:8px}
+.sync-btns .btn{justify-content:space-between}
+.sync-out{font-size:.8rem;color:var(--muted);margin-top:8px;white-space:pre-wrap;font-family:var(--font-mono,ui-monospace,monospace)}
+.row-link{cursor:pointer;font-weight:600;color:var(--ink)}.row-link:hover{text-decoration:underline;color:var(--teal-600)}
+.browse-table td{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:.85rem;color:var(--muted)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:var(--teal);border-radius:50%;animation:rot .8s linear infinite;vertical-align:-2px}
+@keyframes rot{to{transform:rotate(360deg)}}
+</style>
+</head><body>
+<main id="main">
+  <div class="breadcrumb"><a href="/hub/index.html">Dashboard</a> › Data management</div>
+  <div class="page-head">
+    <div><h1>Data management</h1><div class="sub">Bulk-import CSVs into Hub tables, browse and correct records, and trigger the background syncs</div></div>
+    <div class="flex wrap"><a class="btn btn-outline btn-sm" href="/hub/registries/index.html">Clinical registries</a><a class="btn btn-outline btn-sm" href="/hub/admin.html#monitoring">Monitoring</a></div>
+  </div>
+  <div class="tabs" id="tabs"><button data-tab="import" class="active">CSV import</button><button data-tab="browse">Browse &amp; edit</button></div>
+
+  <div class="dm-layout">
+    <div>
+      <section class="tab-panel active" id="tab-import">
+        <div class="steps" id="steps"><div class="st on" data-s="1"><b>1</b>Table</div><div class="st" data-s="2"><b>2</b>Upload</div><div class="st" data-s="3"><b>3</b>Map columns</div><div class="st" data-s="4"><b>4</b>Validate</div><div class="st" data-s="5"><b>5</b>Import</div></div>
+        <div class="card mb-3">
+          <div class="flex between wrap mb-2"><h3 style="margin:0;font-size:1.05rem">1 · Choose the target table</h3><button class="btn btn-outline btn-sm hidden" id="btnTpl">Download template CSV</button></div>
+          <div class="tbl-pick" id="tblPick"></div>
+          <div class="xs muted mt-2" id="tblHelp">Arrays are written as <span class="mono">a|b|c</span>, booleans as <span class="mono">true</span>/<span class="mono">false</span>, dates as <span class="mono">YYYY-MM-DD</span>. Rows that match an existing natural key are updated instead of duplicated.</div>
+        </div>
+        <div class="card mb-3 hidden" id="upCard">
+          <h3 style="font-size:1.05rem">2 · Upload a CSV file</h3>
+          <div class="drop" id="drop"><div id="dropInner"></div></div>
+          <input type="file" id="file" accept=".csv,text/csv,text/plain" hidden>
+          <div class="xs muted mt-2" id="fileInfo"></div>
+        </div>
+        <div class="card mb-3 hidden" id="mapCard">
+          <div class="flex between wrap mb-2"><h3 style="margin:0;font-size:1.05rem">3 · Map CSV columns to fields</h3><span class="xs muted">Columns were matched by header name; adjust as needed. <span style="color:var(--danger)">*</span> required</span></div>
+          <div class="map-grid" id="mapGrid"></div>
+          <div class="flex mt-3" style="justify-content:flex-end"><button class="btn btn-primary btn-sm" id="btnValidate">Validate rows</button></div>
+        </div>
+        <div class="card mb-3 hidden" id="valCard">
+          <div class="flex between wrap mb-2"><h3 style="margin:0;font-size:1.05rem">4 · Validation preview</h3><label class="check xs"><input type="checkbox" id="onlyBad"> Show only rows with errors</label></div>
+          <div class="kpi-row" id="valKpis"></div>
+          <div class="table-wrap prev-wrap" id="valTable"></div>
+          <div class="flex between wrap mt-3"><span class="xs muted" id="valNote"></span><button class="btn btn-primary" id="btnImport" disabled>Import</button></div>
+        </div>
+        <div class="card hidden" id="resCard"><h3 style="font-size:1.05rem">5 · Result</h3><div id="resBody"></div></div>
+      </section>
+
+      <section class="tab-panel" id="tab-browse">
+        <div class="filters">
+          <select class="input" id="bTable" style="min-width:200px"></select>
+          <div class="search grow" style="min-width:220px"><input class="input" id="bq" placeholder="Search…"></div>
+          <button class="btn btn-outline btn-sm" id="bCsv">Export CSV</button>
+          <button class="btn btn-primary btn-sm" id="bNew">New record</button>
+        </div>
+        <div class="table-wrap"><table class="table browse-table"><thead id="bHead"></thead><tbody id="bBody"><tr><td><div class="skeleton"></div><div class="skeleton"></div></td></tr></tbody></table></div>
+        <div class="pager"><span id="bCount"></span><button class="btn btn-outline btn-sm" id="bPrev">‹ Prev</button><span id="bPage"></span><button class="btn btn-outline btn-sm" id="bNext">Next ›</button></div>
+      </section>
+    </div>
+
+    <aside>
+      <div class="card side-card mb-3"><h4>Clinical registries</h4><p class="small muted" style="margin-bottom:10px">The BTR, TBI and FNR registries have their own importers with patient-level validation and audit trails.</p><a class="btn btn-outline btn-sm" href="/hub/registries/index.html">Open registries</a></div>
+      <div class="card side-card mb-3 hidden" id="syncCard"><h4>Sync controls</h4><p class="xs muted" style="margin-bottom:10px">Admin only. Each button queues the edge function through <span class="mono">call_edge</span>; results appear in the sync logs (Admin Panel → Monitoring).</p>
+        <div class="sync-btns"><button class="btn btn-outline btn-sm" data-fn="sync-pubmed" data-body="{}">PubMed publications <span class="xs muted">nightly</span></button><button class="btn btn-outline btn-sm" data-fn="sync-feed" data-body='{"days":7}'>Literature feed <span class="xs muted">7 days</span></button><button class="btn btn-outline btn-sm" data-fn="sync-opportunities" data-body="{}">Funding opportunities</button></div>
+        <div class="sync-out" id="syncOut"></div></div>
+      <div class="card side-card"><h4>Natural keys</h4><ul class="xs muted" style="margin:0;padding-left:16px;line-height:1.7"><li>resources: kind + url</li><li>opportunities: source + external_id (= url)</li><li>feed_sources: query</li><li>publications: doi, else pmid</li><li>grants, announcements: always inserted</li></ul></div>
+    </aside>
+  </div>
+</main>
+<script>
+(async function () {
+  const me = await SL.requireAuth({ roles: ['Admin', 'Faculty', 'Research Fellow', 'Statistician', 'CRC'] });
+  SL.renderHubShell({ active: 'data' });
+  const sb = SL.sb, esc = SL.esc, qs = SL.qs, qsa = SL.qsa, I = SL.icons;
+  qsa('.search').forEach((el) => { if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', I.search); });
+  const skel = (n) => Array.from({ length: n || 3 }, () => '<div class="skeleton"></div>').join('');
+  const err = (e, fb) => SL.toast((e && e.message) || fb || 'Something went wrong', 'err');
+  const admin = SL.isAdmin();
+  qs('#dropInner').innerHTML = `${I.upload}<div>Drop a CSV here or <u>browse</u></div>`;
+  qs('.side-card .btn').insertAdjacentHTML('afterbegin', I.db);
+
+  // ---------- table definitions ----------
+  // type: text|int|num|date|bool|arr|enum|json ; key = natural key columns (upsert)
+  const c = (name, type, o) => Object.assign({ name, type: type || 'text' }, o || {});
+  const TABLES = {
+    resources: { label: 'Resources', desc: 'Datasets, tools, templates and links', key: ['kind', 'url'], search: ['name', 'description', 'provider', 'category'],
+      cols: [c('kind', 'text', { req: true }), c('name', 'text', { req: true }), c('url', 'text', { req: true, url: true }), c('description'), c('provider'), c('category'), c('field', 'arr'), c('modality', 'arr'), c('access'), c('license'), c('contact'), c('tags', 'arr'), c('featured', 'bool', { def: false }), c('published', 'bool', { def: true })] },
+    opportunities: { label: 'Opportunities', desc: 'Funding, training and award calls', key: ['source', 'external_id'], search: ['title', 'sponsor', 'summary'], fixed: { source: 'manual' }, derive: (r) => { r.external_id = r.url; },
+      cols: [c('kind', 'text', { req: true }), c('title', 'text', { req: true }), c('sponsor'), c('url', 'text', { req: true, url: true }), c('deadline', 'date'), c('open_date', 'date'), c('amount'), c('field', 'arr'), c('eligibility'), c('summary'), c('featured', 'bool', { def: false }), c('published', 'bool', { def: true })],
+      extra: [c('source'), c('external_id')] },
+    publications: { label: 'Publications', desc: 'Manual (non-PubMed) entries', key: ['doi'], altKey: ['pmid'], search: ['title', 'author_string', 'journal'], fixed: { source: 'manual' },
+      derive: (r) => { if (r.authors != null && !Array.isArray(r.authors)) { const names = String(r.authors).split(/;|\|/).map((s) => s.trim()).filter(Boolean); r.authors = names.map((n) => { const m = n.match(/^(.*?)[\s,]+([A-Z]{1,3})$/); return m ? { name: n, last: m[1], initials: m[2] } : { name: n, last: n.split(/\s+/).pop(), initials: '' }; }); r.author_string = names.join(', '); } if (r.doi) r.doi = String(r.doi).replace(/^https?:\/\/(dx\.)?doi\.org\//i, '').trim(); },
+      cols: [c('title', 'text', { req: true }), c('authors', 'text', { hint: 'semicolon list: Smith JA; Doe R' }), c('journal'), c('year', 'int'), c('doi'), c('pmid'), c('pub_type'), c('url', 'text', { url: true }), c('visible', 'bool', { def: true })],
+      extra: [c('source'), c('author_string'), c('volume'), c('issue'), c('pages'), c('abstract'), c('notes'), c('featured', 'bool')] },
+    grants: { label: 'Grants', desc: 'Internal grant records', search: ['title', 'pi', 'agency', 'grant_number'],
+      cols: [c('title', 'text', { req: true }), c('pi'), c('agency'), c('mechanism'), c('amount', 'num'), c('period_start', 'date'), c('period_end', 'date'), c('status', 'enum', { enum: ['Active', 'Pending', 'Submitted', 'Completed', 'Closed', 'Not funded'], loose: true }), c('grant_number'), c('is_public', 'bool', { def: false }), c('summary'), c('funding_type')] },
+    feed_sources: { label: 'Feed sources', desc: 'PubMed journal queries for the literature feed', key: ['query'], search: ['name', 'query', 'field'], adminOnly: true,
+      cols: [c('name', 'text', { req: true }), c('query', 'text', { req: true }), c('field', 'enum', { enum: ['Neurosurgery', 'Neurology', 'Neuroscience'], req: true }), c('enabled', 'bool', { def: true }), c('sort_order', 'int')] },
+    announcements: { label: 'Announcements', desc: 'Hub and public news posts', search: ['title', 'content'], adminOnly: true,
+      cols: [c('title', 'text', { req: true }), c('content', 'text', { req: true }), c('priority', 'enum', { enum: ['low', 'medium', 'high'], def: 'medium' }), c('pinned', 'bool', { def: false }), c('visibility', 'enum', { enum: ['public', 'internal'], def: 'internal' })],
+      extra: [c('slug'), c('image_url'), c('created_by')] },
+  };
+  const available = Object.keys(TABLES).filter((k) => admin || !TABLES[k].adminOnly);
+
+  // ---------- CSV helpers ----------
+  function parseCsv(text) {
+    const rows = []; let row = [], cell = '', q = false; text = String(text || '').replace(/^﻿/, '');
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += ch;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter((r) => r.some((x) => String(x).trim() !== ''));
+  }
+  const normHeader = (h) => String(h || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const ALIASES = { name: ['title', 'resource'], title: ['name'], url: ['link', 'website', 'href'], description: ['desc', 'summary'], summary: ['description', 'abstract'], pi: ['principal_investigator'], agency: ['funder', 'sponsor'], sponsor: ['agency', 'funder'], amount: ['award', 'budget'], period_start: ['start', 'start_date'], period_end: ['end', 'end_date'], deadline: ['due', 'due_date', 'close_date'], content: ['body', 'text'], query: ['term', 'pubmed_query'], authors: ['author', 'author_string'], year: ['pub_year'], doi: ['DOI'], pmid: ['pubmed_id'] };
+  function autoMap(headers, cols) {
+    const nh = headers.map(normHeader), used = new Set(), m = {};
+    cols.forEach((col) => { const cands = [col.name].concat(ALIASES[col.name] || []).map(normHeader); for (const cnd of cands) { const i = nh.indexOf(cnd); if (i >= 0 && !used.has(i)) { m[col.name] = i; used.add(i); return; } } });
+    return m;
+  }
+  const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T12:00:00'));
+  const toDate = (s) => { s = String(s).trim(); if (!s) return null; if (isDate(s)) return s; const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (m) { const d = `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`; return isDate(d) ? d : undefined; } if (/^\d{4}$/.test(s)) return s + '-01-01'; const d = new Date(s); return isNaN(d) ? undefined : d.toISOString().slice(0, 10); };
+  function coerce(col, raw) {
+    const s = raw == null ? '' : String(raw).trim();
+    if (s === '') return { v: col.def !== undefined ? col.def : null };
+    switch (col.type) {
+      case 'int': { if (!/^-?\d+$/.test(s)) return { e: 'not a whole number' }; return { v: parseInt(s, 10) }; }
+      case 'num': { const n = Number(s.replace(/[$,\s]/g, '')); if (!isFinite(n)) return { e: 'not a number' }; return { v: n }; }
+      case 'date': { const d = toDate(s); if (d === undefined) return { e: 'bad date (use YYYY-MM-DD)' }; return { v: d }; }
+      case 'bool': { if (/^(true|yes|y|1|t)$/i.test(s)) return { v: true }; if (/^(false|no|n|0|f)$/i.test(s)) return { v: false }; return { e: 'expected true/false' }; }
+      case 'arr': return { v: s.split(/\||;/).map((x) => x.trim()).filter(Boolean) };
+      case 'enum': { const hit = col.enum.find((x) => x.toLowerCase() === s.toLowerCase()); if (!hit) { if (col.loose) return { v: s, w: `unusual value (expected ${col.enum.join(' / ')})` }; return { e: `must be one of ${col.enum.join(' / ')}` }; } return { v: hit }; }
+      default: { if (col.url && !/^https?:\/\/\S+$/i.test(s)) return { e: 'must be a full http(s) URL' }; return { v: s }; }
+    }
+  }
+  const fmtCell = (v) => v == null ? '' : Array.isArray(v) ? v.map((x) => typeof x === 'object' ? (x.name || JSON.stringify(x)) : x).join(' | ') : typeof v === 'object' ? JSON.stringify(v) : String(v);
+
+  // ---------- tabs ----------
+  function showTab(k) { qsa('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === k)); qsa('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + k)); history.replaceState(null, '', '#' + k); if (k === 'browse' && !bLoaded) loadBrowse(); }
+  qsa('#tabs button').forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+
+  // ============ IMPORT ============
+  let tbl = null, headers = [], rows = [], mapping = {}, valid = [], invalid = [], fileName = '';
+  const setStep = (n) => qsa('#steps .st').forEach((s) => { const k = +s.dataset.s; s.classList.toggle('on', k === n); s.classList.toggle('done', k < n); });
+  qs('#tblPick').innerHTML = available.map((k) => `<button data-t="${k}"><b>${esc(TABLES[k].label)}</b><span>${esc(TABLES[k].desc)}</span></button>`).join('');
+  qsa('#tblPick button').forEach((b) => b.onclick = () => pickTable(b.dataset.t));
+  function pickTable(k) {
+    tbl = k; qsa('#tblPick button').forEach((b) => b.classList.toggle('on', b.dataset.t === k));
+    qs('#btnTpl').classList.remove('hidden'); qs('#upCard').classList.remove('hidden');
+    ['#mapCard', '#valCard', '#resCard'].forEach((s) => qs(s).classList.add('hidden'));
+    const d = TABLES[k];
+    qs('#tblHelp').innerHTML = `<strong>${esc(d.label)}</strong> — columns: ${d.cols.map((c) => `<span class="mono">${c.name}${c.req ? '*' : ''}</span>`).join(', ')}.${d.key ? ` Upsert key: <span class="mono">${d.key.join(' + ')}</span>${d.altKey ? ` (else <span class="mono">${d.altKey.join(' + ')}</span>)` : ''}.` : ' Rows are always inserted.'}${d.fixed ? ' Set automatically: ' + Object.entries(d.fixed).map(([a, b]) => `<span class="mono">${a}=${esc(b)}</span>`).join(', ') + '.' : ''}`;
+    qs('#fileInfo').textContent = ''; rows = []; headers = [];
+    setStep(2);
+  }
+  qs('#btnTpl').onclick = () => { if (!tbl) return; const d = TABLES[tbl]; const ex = d.cols.map((c) => c.type === 'bool' ? String(c.def !== undefined ? c.def : 'true') : c.type === 'date' ? '2026-01-31' : c.type === 'arr' ? 'a|b' : c.type === 'enum' ? (c.def || c.enum[0]) : c.type === 'int' || c.type === 'num' ? '0' : c.url ? 'https://example.org' : c.hint || ''); SL.download(`${tbl}_template.csv`, SL.csv([Object.fromEntries(d.cols.map((c, i) => [c.name, ex[i]]))], d.cols.map((c) => c.name)), 'text/csv'); };
+
+  const drop = qs('#drop'), fileIn = qs('#file');
+  drop.onclick = () => fileIn.click();
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); }; drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) readFile(f); };
+  fileIn.onchange = () => { const f = fileIn.files[0]; if (f) readFile(f); fileIn.value = ''; };
+  function readFile(f) {
+    if (f.size > 8 * 1024 * 1024) return SL.toast('File is larger than 8 MB — split it first', 'err');
+    const rd = new FileReader();
+    rd.onload = () => {
+      const all = parseCsv(rd.result);
+      if (all.length < 2) return SL.toast('The file needs a header row and at least one data row', 'err');
+      headers = all[0].map((h) => String(h).trim()); rows = all.slice(1); fileName = f.name;
+      qs('#fileInfo').innerHTML = `<strong>${esc(f.name)}</strong> · ${rows.length.toLocaleString()} data row${rows.length === 1 ? '' : 's'} · ${headers.length} columns: ${headers.map((h) => `<span class="mono">${esc(h)}</span>`).join(', ')}`;
+      buildMapping(); setStep(3);
+    };
+    rd.readAsText(f);
+  }
+  function buildMapping() {
+    const d = TABLES[tbl]; mapping = autoMap(headers, d.cols);
+    qs('#mapGrid').innerHTML = d.cols.map((c) => `<div><strong>${esc(c.name)}</strong>${c.req ? '<span class="req"> *</span>' : ''}<div class="meta">${esc(c.type)}${c.enum ? ': ' + esc(c.enum.join(' / ')) : ''}${c.hint ? ' · ' + esc(c.hint) : ''}${c.def !== undefined ? ' · default ' + esc(String(c.def)) : ''}</div></div><div class="arrow">←</div><select class="input" data-col="${c.name}"><option value="">— skip —</option>${headers.map((h, i) => `<option value="${i}" ${mapping[c.name] === i ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select>`).join('');
+    qs('#mapCard').classList.remove('hidden'); ['#valCard', '#resCard'].forEach((s) => qs(s).classList.add('hidden'));
+    qsa('#mapGrid select').forEach((s) => s.onchange = () => { if (s.value === '') delete mapping[s.dataset.col]; else mapping[s.dataset.col] = +s.value; });
+  }
+  qs('#btnValidate').onclick = validate;
+  function validate() {
+    const d = TABLES[tbl]; valid = []; invalid = []; const issues = {};
+    const missingReq = d.cols.filter((c) => c.req && mapping[c.name] === undefined);
+    if (missingReq.length) return SL.toast('Map the required columns first: ' + missingReq.map((c) => c.name).join(', '), 'err');
+    const seen = new Map();
+    rows.forEach((r, idx) => {
+      const out = Object.assign({}, d.fixed || {}); const errs = [], warns = [];
+      d.cols.forEach((col) => {
+        const mi = mapping[col.name]; const raw = mi === undefined ? '' : r[mi];
+        const res = coerce(col, raw);
+        if (res.e) errs.push(`${col.name}: ${res.e}`); else { out[col.name] = res.v; if (res.w) warns.push(`${col.name}: ${res.w}`); }
+        if (col.req && !res.e && (out[col.name] == null || out[col.name] === '')) errs.push(`${col.name} is required`);
+      });
+      if (d.derive) d.derive(out);
+      // natural-key duplicates within the file
+      const kc = d.key && d.key.every((k) => out[k]) ? d.key : (d.altKey && d.altKey.every((k) => out[k]) ? d.altKey : null);
+      if (kc) { const kv = kc.map((k) => String(out[k]).toLowerCase()).join(''); if (seen.has(kv)) warns.push(`duplicate of row ${seen.get(kv)} in this file (last one wins)`); else seen.set(kv, idx + 2); }
+      if (tbl === 'publications' && !out.doi && !out.pmid) warns.push('no doi/pmid — will be inserted, never matched to existing records');
+      const rec = { n: idx + 2, row: out, errs, warns };
+      if (errs.length) { invalid.push(rec); errs.forEach((e) => { const k = e.split(':')[0]; issues[k] = (issues[k] || 0) + 1; }); } else valid.push(rec);
+    });
+    renderValidation(issues); setStep(4);
+  }
+  function renderValidation(issues) {
+    const d = TABLES[tbl]; const all = valid.concat(invalid).sort((a, b) => a.n - b.n); const warnCount = all.filter((x) => x.warns.length).length;
+    qs('#valKpis').innerHTML = [[rows.length, 'Rows in file'], [valid.length, 'Ready to import', 'var(--ok)'], [invalid.length, 'With errors', invalid.length ? 'var(--danger)' : ''], [warnCount, 'Warnings', warnCount ? 'var(--warn)' : '']].map(([n, l, col]) => `<div class="card stat"><div class="n" style="${col ? `-webkit-text-fill-color:${col};color:${col};background:none` : ''}">${n}</div><div class="l">${l}</div></div>`).join('');
+    const onlyBad = qs('#onlyBad').checked; const show = (onlyBad ? invalid : all).slice(0, 300);
+    const shown = d.cols.filter((c) => mapping[c.name] !== undefined);
+    qs('#valTable').innerHTML = `<table class="table"><thead><tr><th>#</th><th>Status</th>${shown.map((c) => `<th>${esc(c.name)}</th>`).join('')}</tr></thead><tbody>${show.map((x) => `<tr class="${x.errs.length ? 'bad' : ''}"><td class="xs muted">${x.n}</td><td class="${x.errs.length ? 'cell-err' : ''}">${x.errs.length ? `<span class="tag tag-danger">error</span><div class="xs">${esc(x.errs.join('; '))}</div>` : x.warns.length ? `<span class="tag tag-warn">warn</span><div class="xs muted">${esc(x.warns.join('; '))}</div>` : '<span class="tag tag-ok">ok</span>'}</td>${shown.map((c) => `<td title="${esc(fmtCell(x.row[c.name]))}">${esc(fmtCell(x.row[c.name]))}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${shown.length + 2}"><div class="empty">No rows to show.</div></td></tr>`}</tbody></table>`;
+    const top = Object.entries(issues).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, n]) => `${k} (${n})`).join(', ');
+    qs('#valNote').textContent = (all.length > 300 ? `Showing first 300 of ${all.length}. ` : '') + (invalid.length ? `Rows with errors are skipped. Most common: ${top}.` : 'All rows passed validation.');
+    const b = qs('#btnImport'); b.disabled = !valid.length; b.textContent = `Import ${valid.length} row${valid.length === 1 ? '' : 's'}`;
+    qs('#valCard').classList.remove('hidden'); qs('#resCard').classList.add('hidden');
+  }
+  qs('#onlyBad').onchange = () => renderValidation({});
+  qs('#btnImport').onclick = async () => {
+    const d = TABLES[tbl]; if (!valid.length) return;
+    if (!await SL.confirm(`Import ${valid.length} row${valid.length === 1 ? '' : 's'} into ${d.label}?${d.key ? ' Existing rows with the same key will be updated.' : ''}`, 'Import')) return;
+    const btn = qs('#btnImport'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Importing…';
+    const t0 = Date.now(); let written = 0; const errors = [];
+    const byKey = {}; valid.forEach((x) => { const r = x.row; if (tbl === 'publications') { if (r.doi) (byKey.doi = byKey.doi || []).push(r); else if (r.pmid) (byKey.pmid = byKey.pmid || []).push(r); else (byKey.none = byKey.none || []).push(r); } else (byKey.main = byKey.main || []).push(r); });
+    const dedupe = (arr, keys) => { const m = new Map(); arr.forEach((r) => m.set(keys.map((k) => String(r[k]).toLowerCase()).join(''), r)); return [...m.values()]; };
+    const batches = [];
+    if (tbl === 'publications') { if (byKey.doi) batches.push([dedupe(byKey.doi, ['doi']), 'doi']); if (byKey.pmid) batches.push([dedupe(byKey.pmid, ['pmid']), 'pmid']); if (byKey.none) batches.push([byKey.none, null]); }
+    else batches.push([d.key ? dedupe(byKey.main, d.key) : byKey.main, d.key ? d.key.join(',') : null]);
+    for (const [list, conflict] of batches) {
+      for (let i = 0; i < list.length; i += 200) {
+        const chunk = list.slice(i, i + 200);
+        if (tbl === 'announcements') chunk.forEach((r) => { r.created_by = r.created_by || me.name; r.slug = r.slug || r.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36); });
+        if (tbl === 'publications') chunk.forEach((r) => { r.created_by = me.id; });
+        if (tbl === 'grants') chunk.forEach((r) => { r.created_by = me.id; });
+        const q = conflict ? sb.from(tbl).upsert(chunk, { onConflict: conflict, ignoreDuplicates: false }) : sb.from(tbl).insert(chunk);
+        const { error } = await q.select('id');
+        if (error) { errors.push(`Rows ${i + 1}-${i + chunk.length}${conflict ? ' (' + conflict + ')' : ''}: ${error.message}`); if (/no unique|constraint matching|ON CONFLICT/i.test(error.message)) { const r2 = await sb.from(tbl).insert(chunk).select('id'); if (!r2.error) { written += chunk.length; errors.push('  → fell back to plain insert (no unique index for the natural key)'); } } }
+        else written += chunk.length;
+      }
+    }
+    const secs = ((Date.now() - t0) / 1000).toFixed(1);
+    SL.audit('imported', tbl, '', { file: fileName, rows: valid.length, written, skipped: invalid.length, errors: errors.slice(0, 5) });
+    qs('#resBody').innerHTML = `<div class="alert ${errors.length ? (written ? 'alert-warn' : 'alert-danger') : 'alert-ok'} mb-2"><strong>${written.toLocaleString()} row${written === 1 ? '' : 's'} written to ${esc(d.label)}</strong> in ${secs}s · ${invalid.length} skipped for validation errors.</div>${errors.length ? `<pre class="xs" style="white-space:pre-wrap;color:var(--danger);margin:0 0 10px">${esc(errors.join('\n'))}</pre>` : ''}<div class="flex wrap"><button class="btn btn-outline btn-sm" id="resBrowse">Browse ${esc(d.label)}</button><button class="btn btn-ghost btn-sm" id="resAgain">Import another file</button></div>`;
+    qs('#resCard').classList.remove('hidden'); setStep(5);
+    qs('#resBrowse').onclick = () => { qs('#bTable').value = tbl; bPage = 0; bLoaded = false; showTab('browse'); };
+    qs('#resAgain').onclick = () => pickTable(tbl);
+    btn.innerHTML = 'Import'; btn.disabled = true;
+    SL.toast(errors.length ? 'Import finished with errors' : 'Import complete', errors.length ? 'warn' : 'ok');
+  };
+
+  // ============ BROWSE & EDIT ============
+  let bLoaded = false, bPage = 0, bTotal = 0, bRows = [];
+  const PAGE = 50;
+  qs('#bTable').innerHTML = available.map((k) => `<option value="${k}">${esc(TABLES[k].label)}</option>`).join('');
+  const allCols = (k) => TABLES[k].cols.concat(TABLES[k].extra || []);
+  async function loadBrowse() {
+    bLoaded = true; const k = qs('#bTable').value, d = TABLES[k]; const body = qs('#bBody');
+    const shown = d.cols.slice(0, 6);
+    qs('#bHead').innerHTML = `<tr>${shown.map((c) => `<th>${esc(c.name)}</th>`).join('')}<th>created</th><th></th></tr>`;
+    body.innerHTML = `<tr><td colspan="${shown.length + 2}">${skel(4)}</td></tr>`;
+    let q = sb.from(k).select('*', { count: 'exact' });
+    const s = qs('#bq').value.trim().replace(/[,()%]/g, ' ');
+    if (s) q = q.or(d.search.map((col) => `${col}.ilike.%${s}%`).join(','));
+    const orderCol = k === 'feed_sources' ? 'sort_order' : 'created_at';
+    const { data, error, count } = await q.order(orderCol, { ascending: k === 'feed_sources', nullsFirst: false }).range(bPage * PAGE, bPage * PAGE + PAGE - 1);
+    if (error) { body.innerHTML = `<tr><td colspan="${shown.length + 2}"><div class="alert alert-danger mb-0">${esc(error.message)}</div></td></tr>`; qs('#bCount').textContent = ''; return; }
+    bRows = data || []; bTotal = count || 0;
+    if (!bRows.length) body.innerHTML = `<tr><td colspan="${shown.length + 2}"><div class="empty">${I.info}<div>${s ? 'No records match.' : 'No records yet.'}</div></div></td></tr>`;
+    else body.innerHTML = bRows.map((r, i) => `<tr>${shown.map((c, ci) => `<td title="${esc(fmtCell(r[c.name]))}">${ci === 0 ? `<span class="row-link" data-edit="${i}">${esc(fmtCell(r[c.name]) || '(blank)')}</span>` : c.type === 'bool' ? (r[c.name] ? '<span class="tag tag-ok">yes</span>' : '<span class="tag tag-outline">no</span>') : esc(fmtCell(r[c.name]))}</td>`).join('')}<td class="xs muted" style="white-space:nowrap">${r.created_at ? SL.fmtDate(r.created_at) : ''}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm btn-icon" data-edit="${i}" title="Edit">${I.edit}</button>${admin ? `<button class="btn btn-ghost btn-sm btn-icon" data-del="${i}" title="Delete">${I.trash}</button>` : ''}</td></tr>`).join('');
+    qsa('[data-edit]', body).forEach((b) => b.onclick = () => editModal(k, bRows[+b.dataset.edit]));
+    qsa('[data-del]', body).forEach((b) => b.onclick = () => delRow(k, bRows[+b.dataset.del]));
+    const pages = Math.max(1, Math.ceil(bTotal / PAGE));
+    qs('#bCount').textContent = `${bTotal.toLocaleString()} record${bTotal === 1 ? '' : 's'}`; qs('#bPage').textContent = `Page ${bPage + 1} of ${pages}`;
+    qs('#bPrev').disabled = bPage === 0; qs('#bNext').disabled = bPage >= pages - 1;
+  }
+  qs('#bTable').onchange = () => { bPage = 0; loadBrowse(); };
+  qs('#bq').oninput = SL.debounce(() => { bPage = 0; loadBrowse(); }, 300);
+  qs('#bPrev').onclick = () => { if (bPage > 0) { bPage--; loadBrowse(); } };
+  qs('#bNext').onclick = () => { bPage++; loadBrowse(); };
+  qs('#bCsv').onclick = async () => {
+    const k = qs('#bTable').value, d = TABLES[k];
+    let q = sb.from(k).select('*').limit(5000); const s = qs('#bq').value.trim().replace(/[,()%]/g, ' '); if (s) q = q.or(d.search.map((col) => `${col}.ilike.%${s}%`).join(','));
+    const { data, error } = await q; if (error) return err(error);
+    const cols = ['id'].concat(allCols(k).map((c) => c.name), ['created_at']);
+    SL.download(`${k}_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv((data || []).map((r) => { const o = {}; cols.forEach((c) => o[c] = fmtCell(r[c])); return o; }), cols), 'text/csv');
+  };
+  qs('#bNew').onclick = () => editModal(qs('#bTable').value, null);
+  function editModal(k, r) {
+    const d = TABLES[k]; const isNew = !r; r = r || {};
+    const fld = (c) => {
+      const v = r[c.name];
+      if (c.type === 'bool') return `<div class="field"><label>&nbsp;</label><label class="check"><input type="checkbox" name="${c.name}" ${(v == null ? c.def : v) ? 'checked' : ''}> ${esc(c.name)}</label></div>`;
+      if (c.type === 'enum') return `<div class="field"><label>${esc(c.name)}${c.req ? ' *' : ''}</label><select class="input" name="${c.name}">${!c.req ? '<option value="">—</option>' : ''}${c.enum.concat(v && !c.enum.includes(v) ? [v] : []).map((x) => `<option ${(v == null ? c.def : v) === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>`;
+      const long = ['description', 'summary', 'content', 'abstract', 'eligibility', 'notes', 'authors'].includes(c.name);
+      if (long) return `<div class="field" style="grid-column:1/-1"><label>${esc(c.name)}${c.req ? ' *' : ''}${c.hint ? ` <span class="muted" style="font-weight:400">(${esc(c.hint)})</span>` : ''}</label><textarea class="input" name="${c.name}" rows="3" ${c.req ? 'required' : ''}>${esc(fmtCell(v).replace(/ \| /g, '; '))}</textarea></div>`;
+      return `<div class="field"><label>${esc(c.name)}${c.req ? ' *' : ''}${c.type === 'arr' ? ' <span class="muted" style="font-weight:400">(a | b)</span>' : ''}</label><input class="input" name="${c.name}" type="${c.type === 'date' ? 'date' : c.type === 'int' || c.type === 'num' ? 'number' : 'text'}" ${c.type === 'num' ? 'step="any"' : ''} value="${esc(fmtCell(v))}" ${c.req ? 'required' : ''}></div>`;
+    };
+    const editable = d.cols.concat((d.extra || []).filter((c) => !['source', 'external_id', 'created_by', 'author_string', 'slug'].includes(c.name)));
+    SL.modal(`<div class="modal-head"><h3>${isNew ? 'New' : 'Edit'} — ${esc(d.label)}</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
+      <form id="edForm"><div class="modal-body"><div class="form-row" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">${editable.map(fld).join('')}</div>${!isNew ? `<div class="xs muted mt-2">ID <span class="mono">${esc(r.id)}</span>${r.source ? ' · source ' + esc(r.source) : ''}</div>` : ''}</div>
+      <div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="edSave">${isNew ? 'Create' : 'Save'}</button></div></form>`, { size: 'lg' });
+    qs('#edForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const btn = qs('#edSave'); btn.disabled = true;
+      const row = Object.assign({}, isNew ? (d.fixed || {}) : {}); const problems = [];
+      editable.forEach((c) => { const raw = c.type === 'bool' ? (fd.get(c.name) === 'on' ? 'true' : 'false') : fd.get(c.name); const res = coerce(c, raw); if (res.e) problems.push(`${c.name}: ${res.e}`); else row[c.name] = res.v; });
+      if (problems.length) { btn.disabled = false; return SL.toast(problems.join('; '), 'err'); }
+      if (d.derive) d.derive(row);
+      if (isNew) { if (k === 'announcements') { row.created_by = me.name; row.slug = row.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36); } if (k === 'publications' || k === 'grants') row.created_by = me.id; }
+      const res = isNew ? await sb.from(k).insert(row).select('id').single() : await sb.from(k).update(row).eq('id', r.id);
+      if (res.error) { btn.disabled = false; return err(res.error, 'Save failed'); }
+      SL.audit(isNew ? 'created' : 'updated', k, isNew ? (res.data && res.data.id) : r.id, { via: 'data_management', title: row.title || row.name || row.query });
+      SL.toast(isNew ? 'Record created' : 'Saved', 'ok'); SL.closeModal(); loadBrowse();
+    };
+  }
+  async function delRow(k, r) {
+    if (!r || !admin) return; const label = r.title || r.name || r.query || r.id;
+    if (!await SL.confirm(`Delete "${label}" from ${TABLES[k].label}? This cannot be undone.`, 'Delete')) return;
+    const { error } = await sb.from(k).delete().eq('id', r.id); if (error) return err(error, 'Delete failed');
+    SL.audit('deleted', k, r.id, { via: 'data_management', title: label }); SL.toast('Deleted', 'ok'); loadBrowse();
+  }
+
+  // ============ SYNC CONTROLS (admin) ============
+  if (admin) {
+    qs('#syncCard').classList.remove('hidden');
+    qsa('#syncCard [data-fn]').forEach((b) => b.onclick = async () => {
+      const fn = b.dataset.fn; let body = {}; try { body = JSON.parse(b.dataset.body || '{}'); } catch (e) { /* default */ }
+      b.disabled = true; const orig = b.innerHTML; b.innerHTML = '<span class="spin"></span> Queuing…';
+      const { data, error } = await sb.rpc('call_edge', { fn, body });
+      b.disabled = false; b.innerHTML = orig;
+      const out = qs('#syncOut');
+      if (error) { out.textContent = `${fn}: ${error.message}`; return err(error, 'Could not queue the sync'); }
+      const id = typeof data === 'object' && data !== null ? (data.request_id || data.id || JSON.stringify(data)) : String(data);
+      out.textContent = `${new Date().toLocaleTimeString()} · ${fn} queued · request id ${id}\nResults appear in the sync logs within a minute or two.`;
+      SL.audit('sync_requested', fn, String(id), { body });
+      SL.toast(`${fn} queued (request ${id})`, 'ok');
+    });
+  }
+
+  // initial
+  if (SL.param('table') && available.includes(SL.param('table'))) { qs('#bTable').value = SL.param('table'); }
+  if (location.hash === '#browse') showTab('browse');
+})();
+</script>
+</body></html>

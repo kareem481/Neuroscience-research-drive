@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research Resources | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="A curated, department-maintained catalogue of free and public datasets, databases, AI models, tools, working groups and consortia for neurosurgery, neurology and neuroscience research.">
+<link rel="canonical" href="https://slresearchhub.com/resources.html">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .summary-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px}
+  @media(max-width:640px){.summary-tiles{grid-template-columns:1fr}}
+  .hero-note{font-size:.9rem;color:var(--muted);margin-top:18px;max-width:62ch}
+  .tabs{margin-bottom:24px}
+  .tabs button .cnt{display:inline-block;margin-left:6px;font-size:.72rem;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--muted)}
+  .tabs button.active .cnt{background:var(--teal-100);color:var(--teal-600)}
+  .filters .search{max-width:380px}
+  .count{font-size:.85rem;color:var(--muted);margin:0 0 14px}
+  .res-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+  .res{display:flex;flex-direction:column;gap:10px;padding:20px 22px}
+  .res.featured{border-color:rgba(245,196,81,.35)}
+  .res .head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .res h3{margin:0;font-size:1.05rem;line-height:1.35}
+  .res h3 a{color:#fff;display:inline-flex;align-items:flex-start;gap:6px}
+  .res h3 a:hover{color:var(--teal-600);text-decoration:none}
+  .res h3 a svg{width:15px;height:15px;flex:none;margin-top:4px;opacity:.6}
+  .res .prov{font-size:.83rem;color:var(--muted)}
+  .res .desc{font-size:.9rem;color:var(--ink-2);margin:0;flex:1;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .res .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-top:12px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .res .lic{font-size:.76rem;color:var(--faint)}
+  .res .contact{font-size:.82rem;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+  .res .contact svg{width:14px;height:14px}
+</style>
+</head>
+<body>
+<main>
+  <section class="hero"><div class="container" style="grid-template-columns:1fr">
+    <div>
+      <div class="eyebrow">Resources</div>
+      <h1>Datasets, AI models <span class="grad-text">&amp; working groups</span></h1>
+      <p class="lead">A curated, department-maintained catalogue of free and public resources for neurosurgery, neurology and neuroscience research — open datasets and databases, AI models and analysis tools, and the working groups and consortia worth joining. Every entry is reviewed by the research office before it appears here.</p>
+      <p class="hero-note">Know a resource we are missing? Research Hub editors can add it under <a href="/hub/data.html">Data Management</a>; everyone else can suggest an addition through <a href="/services.html">Research Services</a>.</p>
+      <div class="summary-tiles" id="tiles">
+        <div class="card stat"><div class="n">—</div><div class="l">Datasets &amp; databases</div></div>
+        <div class="card stat"><div class="n">—</div><div class="l">AI models &amp; tools</div></div>
+        <div class="card stat"><div class="n">—</div><div class="l">Working groups &amp; consortia</div></div>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="section"><div class="container">
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div class="filters">
+      <div class="search grow"><input class="input" id="q" placeholder="Search by name, description, provider or tag…"></div>
+      <select class="input" id="fCat"><option value="">All categories</option></select>
+      <select class="input" id="fAccess"><option value="">Any access</option><option>Open</option><option>Registration</option><option>Application / DUA</option><option>Paid</option></select>
+    </div>
+    <div class="chips" id="fieldChips" style="margin-bottom:18px"></div>
+    <p class="count" id="count"></p>
+    <div id="list"><div class="skeleton" style="height:120px"></div><div class="skeleton" style="height:120px"></div></div>
+    <p class="xs muted mt-3">Links go to third-party sites; access terms, licences and data-use agreements are set by each provider. The department does not host or redistribute these resources.</p>
+  </div></section>
+</main>
+<script>
+(async () => {
+  SL.renderShell({ active: 'resources' });
+  const h = SL.esc;
+  const TABS = [
+    { key: 'datasets', label: 'Datasets & databases', kinds: ['dataset'], icon: 'db', empty: 'No datasets or databases have been published yet.' },
+    { key: 'ai', label: 'AI models & tools', kinds: ['ai_model', 'tool'], icon: 'brain', empty: 'No AI models or tools have been published yet.' },
+    { key: 'groups', label: 'Working groups & consortia', kinds: ['working_group'], icon: 'users', empty: 'No working groups or consortia have been published yet.' },
+  ];
+  const FIELDS = ['Neurosurgery', 'Neurology', 'Neuroscience', 'General'];
+  const ACCESS_TAG = { 'Open': 'tag-ok', 'Registration': 'tag-info', 'Application / DUA': 'tag-warn', 'Paid': 'tag-outline' };
+  SL.qs('.search').insertAdjacentHTML('afterbegin', SL.icons.search);
+
+  let all = [];
+  try {
+    const { data, error } = await SL.sb.from('resources').select('*').eq('published', true).order('featured', { ascending: false }).order('sort_order');
+    if (error) throw error; all = data || [];
+  } catch (e) { console.warn('resources load failed', e); }
+
+  // tiles
+  const tiles = SL.qs('#tiles').children;
+  TABS.forEach((t, i) => { tiles[i].querySelector('.n').textContent = all.filter((r) => t.kinds.includes(r.kind)).length; });
+
+  // state
+  let tab = TABS.find((t) => t.key === SL.param('tab')) || TABS[0];
+  let field = '';
+  const F = { q: SL.qs('#q'), cat: SL.qs('#fCat'), access: SL.qs('#fAccess') };
+  Object.values(F).forEach((el) => el.addEventListener('input', SL.debounce(render, 120)));
+
+  function tabRows() { return all.filter((r) => tab.kinds.includes(r.kind)); }
+  function renderTabs() {
+    SL.qs('#tabs').innerHTML = TABS.map((t) => `<button role="tab" aria-selected="${t === tab}" class="${t === tab ? 'active' : ''}" data-tab="${t.key}">${h(t.label)}<span class="cnt">${all.filter((r) => t.kinds.includes(r.kind)).length}</span></button>`).join('');
+    SL.qsa('#tabs button').forEach((b) => b.onclick = () => {
+      tab = TABS.find((t) => t.key === b.dataset.tab);
+      history.replaceState(null, '', '?tab=' + tab.key);
+      F.cat.value = ''; field = '';
+      renderTabs(); renderCats(); renderChips(); render();
+    });
+  }
+  function renderCats() {
+    const cats = [...new Set(tabRows().map((r) => r.category).filter(Boolean))].sort();
+    F.cat.innerHTML = '<option value="">All categories</option>' + cats.map((c) => `<option>${h(c)}</option>`).join('');
+  }
+  function renderChips() {
+    SL.qs('#fieldChips').innerHTML = [''].concat(FIELDS).map((f) => `<button class="chip ${field === f ? 'active' : ''}" data-f="${h(f)}">${f || 'All fields'}</button>`).join('');
+    SL.qsa('#fieldChips .chip').forEach((c) => c.onclick = () => { field = c.dataset.f; renderChips(); render(); });
+  }
+  function card(r) {
+    const tags = [];
+    if (r.featured) tags.push('<span class="tag tag-gold">Featured</span>');
+    if (r.category) tags.push(`<span class="tag tag-teal">${h(r.category)}</span>`);
+    (r.modality || []).forEach((m) => tags.push(`<span class="tag">${h(m)}</span>`));
+    if (r.access) tags.push(`<span class="tag ${ACCESS_TAG[r.access] || ''}">${h(r.access)}</span>`);
+    (r.field || []).filter((f) => f !== 'General').forEach((f) => tags.push(`<span class="tag tag-outline">${h(f)}</span>`));
+    const contact = r.kind === 'working_group' && r.contact ? `<a class="contact" href="${h(/^https?:/i.test(r.contact) ? r.contact : 'mailto:' + r.contact)}" ${/^https?:/i.test(r.contact) ? 'target="_blank" rel="noopener"' : ''}>${SL.icons.chat} Contact</a>` : '';
+    return `<article class="card card-hover res ${r.featured ? 'featured' : ''}">
+      <div class="head"><h3>${r.url ? `<a href="${h(r.url)}" target="_blank" rel="noopener">${h(r.name)}${SL.icons.external}</a>` : h(r.name)}</h3></div>
+      ${r.provider ? `<div class="prov">${h(r.provider)}</div>` : ''}
+      ${r.description ? `<p class="desc">${h(r.description)}</p>` : ''}
+      <div class="tags">${tags.join('')}</div>
+      ${(r.license || contact) ? `<div class="foot"><span class="lic">${r.license ? 'Licence: ' + h(r.license) : ''}</span>${contact}</div>` : ''}
+    </article>`;
+  }
+  function render() {
+    const rows = tabRows();
+    const s = F.q.value.trim().toLowerCase();
+    const shown = rows.filter((r) => (!F.cat.value || r.category === F.cat.value)
+      && (!F.access.value || r.access === F.access.value)
+      && (!field || (r.field || []).includes(field))
+      && (!s || [r.name, r.description, r.provider, (r.tags || []).join(' ')].join(' ').toLowerCase().includes(s)));
+    SL.qs('#count').textContent = rows.length ? `Showing ${shown.length} of ${rows.length}` : '';
+    const box = SL.qs('#list');
+    if (!rows.length) { box.innerHTML = `<div class="empty">${SL.icons[tab.icon]}<p>${tab.empty}</p></div>`; return; }
+    if (!shown.length) { box.innerHTML = `<div class="empty">${SL.icons.search}<p>No resources match these filters.</p></div>`; return; }
+    box.innerHTML = `<div class="res-grid">${shown.map(card).join('')}</div>`;
+    SL.reveal(box);
+  }
+  renderTabs(); renderCats(); renderChips(); render();
+})();
+</script>
+</body>
+</html>
