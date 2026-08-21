@@ -1,0 +1,194 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Directory | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Internal people directory for the Saint Luke's Neuroscience Research Hub.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+.people-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.pcard{cursor:pointer;display:flex;gap:14px;align-items:flex-start;padding:18px}
+.pcard .avatar{width:52px;height:52px;font-size:1rem}
+.pcard .who{min-width:0;flex:1}
+.pcard .name{font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .ttl{font-size:.84rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .contact{font-size:.8rem;color:var(--ink-2);margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard .contact span{display:block}
+.chip .n{opacity:.7;margin-left:4px;font-size:.75rem}
+.prof-head{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 14px;font-size:.9rem}.kv dt{color:var(--muted)}.kv dd{margin:0}
+@media(max-width:520px){.kv{grid-template-columns:1fr}}
+.side-modal{display:grid;grid-template-columns:180px 1fr;gap:24px}
+@media(max-width:760px){.side-modal{grid-template-columns:1fr}}
+.photo-box{width:150px;height:150px;border-radius:12px;background:var(--navy-100);display:grid;place-items:center;overflow:hidden;font-family:var(--font-head);font-size:2.2rem;color:var(--teal-600)}
+.photo-box img{width:100%;height:100%;object-fit:cover}
+.pill-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+</style>
+</head><body>
+<main id="main">
+  <div class="page-head">
+    <div><h1>Directory</h1><div class="sub">Faculty, staff and trainees of the Neuroscience Research Department. Contact details are internal.</div></div>
+    <div class="flex wrap"><button class="btn btn-outline btn-sm hidden" id="btnCsv">Export CSV</button><button class="btn btn-primary btn-sm" id="btnEditMe">Edit my profile</button></div>
+  </div>
+  <div class="filters">
+    <div class="search grow" style="min-width:240px"><input class="input" id="q" placeholder="Search name, title, department, specialty, email"></div>
+    <select class="input" id="dept"><option value="">All departments</option></select>
+    <select class="input" id="sort"><option value="name">Sort: name</option><option value="role">Sort: role</option><option value="dept">Sort: department</option></select>
+  </div>
+  <div class="chips mb-3" id="chips"></div>
+  <div class="muted small mb-2" id="count"></div>
+  <div class="people-grid" id="grid"><div class="card"><div class="skeleton"></div><div class="skeleton"></div></div><div class="card"><div class="skeleton"></div><div class="skeleton"></div></div><div class="card"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+</main>
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'directory' });
+  const sb = SL.sb, esc = SL.esc, qs = SL.qs, qsa = SL.qsa;
+  qsa('.search').forEach((el) => { if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', SL.icons.search); });
+  const skel = (n) => Array.from({ length: n || 3 }, () => '<div class="skeleton"></div>').join('');
+  const err = (e, fb) => SL.toast((e && e.message) || fb || 'Something went wrong', 'err');
+  const GROUPS = [
+    ['All', null],
+    ['Faculty', ['Faculty']],
+    ['APP / NP / PA', ['APP', 'NP', 'PA']],
+    ['Nursing', ['RN']],
+    ['Trainees', ['Resident', 'Research Fellow']],
+    ['Medical Students', ['Medical Student']],
+    ['Research Staff', ['CRC', 'Statistician', 'Budget & Contracts']],
+    ['Admin / IRB', ['Admin', 'IRB']],
+  ];
+  const ROLE_TAG = { Admin: 'tag-gold', IRB: 'tag-gold', Faculty: 'tag-teal', 'Medical Student': 'tag-ok', Resident: 'tag-info', 'Research Fellow': 'tag-info' };
+  let people = [], fpById = {}, group = 'All';
+  const btnCsv = qs('#btnCsv'); btnCsv.textContent = 'Export CSV'; btnCsv.classList.toggle('hidden', !SL.isAdmin());
+
+  async function load() {
+    const [{ data: profs, error }, { data: fps }] = await Promise.all([sb.from('profiles').select('*').order('name'), sb.from('faculty_profiles').select('*')]);
+    if (error) { qs('#grid').innerHTML = `<div class="alert alert-danger">${esc(error.message)}</div>`; return; }
+    fpById = {}; (fps || []).forEach((f) => fpById[f.user_id] = f);
+    people = (profs || []).filter((p) => p.name);
+    const depts = [...new Set(people.map((p) => p.department).filter(Boolean))].sort();
+    const dsel = qs('#dept'); dsel.innerHTML = '<option value="">All departments</option>' + depts.map((d) => `<option>${esc(d)}</option>`).join('');
+    renderChips(); render();
+  }
+  function renderChips() {
+    qs('#chips').innerHTML = GROUPS.map(([label, roles]) => { const n = roles ? people.filter((p) => roles.includes(p.role)).length : people.length; return `<button class="chip ${group === label ? 'active' : ''}" data-g="${esc(label)}">${esc(label)}<span class="n">${n}</span></button>`; }).join('');
+    qsa('#chips .chip').forEach((c) => c.onclick = () => { group = c.dataset.g; renderChips(); render(); });
+  }
+  function filtered() {
+    const q = qs('#q').value.trim().toLowerCase(), d = qs('#dept').value, roles = (GROUPS.find((g) => g[0] === group) || [])[1];
+    const rows = people.filter((p) => {
+      const f = fpById[p.id] || {};
+      return (!roles || roles.includes(p.role)) && (!d || p.department === d) && (!q || [p.name, p.title, p.department, p.email, p.role, p.credential, f.clinical_focus, f.research_interests, (f.specialties || []).join(' ')].some((v) => (v || '').toLowerCase().includes(q)));
+    });
+    const s = qs('#sort').value;
+    rows.sort((a, b) => s === 'role' ? (a.role || '').localeCompare(b.role || '') || a.name.localeCompare(b.name) : s === 'dept' ? (a.department || 'zz').localeCompare(b.department || 'zz') || a.name.localeCompare(b.name) : a.name.localeCompare(b.name));
+    return rows;
+  }
+  const avatar = (p, cls) => { const f = fpById[p.id]; return `<span class="avatar ${cls || ''}">${f && f.photo_url ? `<img src="${esc(f.photo_url)}" alt="" loading="lazy">` : esc(p.initials || SL.initials(p.name))}</span>`; };
+  function render() {
+    const rows = filtered(); qs('#count').textContent = `${rows.length} ${rows.length === 1 ? 'person' : 'people'}`;
+    const g = qs('#grid');
+    if (!rows.length) { g.innerHTML = `<div class="empty" style="grid-column:1/-1">${SL.icons.users}<div>No one matches that search.</div></div>`; return; }
+    g.innerHTML = rows.map((p) => `<div class="card card-hover pcard" data-id="${esc(p.id)}" role="button" tabindex="0">${avatar(p)}<div class="who"><div class="name">${esc(p.name)}${p.credential ? `<span class="muted" style="font-weight:400">, ${esc(p.credential)}</span>` : ''}</div><div class="ttl">${esc(p.title || p.role || '')}</div><div class="pill-row"><span class="tag ${ROLE_TAG[p.role] || ''}">${esc(p.role || '')}</span>${p.department ? `<span class="tag tag-outline">${esc(p.department)}</span>` : ''}${!p.login_approved ? '<span class="tag tag-warn">Pending</span>' : ''}</div><div class="contact"><span>${esc(p.email || '')}</span>${p.phone ? `<span>${esc(p.phone)}</span>` : ''}</div></div></div>`).join('');
+    qsa('.pcard', g).forEach((c) => { c.onclick = () => openProfile(c.dataset.id); c.onkeydown = (e) => { if (e.key === 'Enter') openProfile(c.dataset.id); }; });
+  }
+  ['#q', '#dept', '#sort'].forEach((s) => qs(s).oninput = SL.debounce(render, 120));
+  btnCsv.onclick = () => SL.download(`directory_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv(filtered().map((p) => Object.assign({}, p, { specialties: ((fpById[p.id] || {}).specialties || []).join('; '), office: (fpById[p.id] || {}).office_location || '' })), ['name', 'credential', 'role', 'title', 'department', 'email', 'phone', 'office', 'specialties', 'login_approved']), 'text/csv');
+
+  // ---------- profile modal ----------
+  async function openProfile(id) {
+    const p = people.find((x) => x.id === id); if (!p) return;
+    const f = fpById[id] || {};
+    const link = (url, label) => url ? `<a class="btn btn-outline btn-sm" href="${esc(/^https?:/i.test(url) ? url : 'https://' + url)}" target="_blank" rel="noopener">${SL.icons.external}${label}</a>` : '';
+    const row = (k, v, raw) => v ? `<dt>${k}</dt><dd>${raw ? v : esc(v)}</dd>` : '';
+    SL.modal(`<div class="modal-head"><h3>Profile</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <div class="modal-body">
+      <div class="prof-head">${avatar(p, 'avatar-lg')}<div><h2 style="font-size:1.4rem;margin:0">${esc(p.name)}${p.credential ? `<span class="muted" style="font-weight:400;font-size:1rem">, ${esc(p.credential)}</span>` : ''}</h2><div class="muted">${esc(p.title || '')}</div><div class="pill-row"><span class="tag ${ROLE_TAG[p.role] || ''}">${esc(p.role || '')}</span>${p.department ? `<span class="tag tag-outline">${esc(p.department)}</span>` : ''}${f.accepting_students ? '<span class="tag tag-ok">Accepting students</span>' : ''}</div></div></div>
+      <div class="flex wrap mt-3"><a class="btn btn-primary btn-sm" href="mailto:${esc(p.email)}">Email</a>${p.phone ? `<a class="btn btn-outline btn-sm" href="tel:${esc(p.phone)}">Call ${esc(p.phone)}</a>` : ''}${link(f.lab_website, 'Lab website')}${link(f.google_scholar, 'Google Scholar')}${f.orcid ? link('https://orcid.org/' + f.orcid.replace(/^https?:\/\/orcid\.org\//, ''), 'ORCID') : ''}${f.slug && f.show_on_site ? `<a class="btn btn-ghost btn-sm" href="/people.html?p=${esc(f.slug)}" target="_blank">Public page</a>` : ''}</div>
+      <hr class="rule" style="margin:18px 0">
+      <dl class="kv">${row('Email', p.email)}${row('Phone', p.phone)}${row('Office', f.office_location)}${row('Clinical focus', f.clinical_focus)}${row('Specialties', (f.specialties || []).length ? f.specialties.map((s) => `<span class="tag tag-teal">${esc(s)}</span>`).join(' ') : '', true)}${row('Research interests', f.research_interests)}${row('Education', f.education)}${f.h_index ? row('h-index', String(f.h_index)) : ''}${f.total_citations ? row('Citations', String(f.total_citations)) : ''}</dl>
+      ${f.bio ? `<h4 class="mt-3">Biography</h4><p class="small" style="white-space:pre-wrap">${esc(f.bio)}</p>` : ''}
+    </div>
+    <div class="modal-foot">${(id === me.id || SL.isAdmin()) ? `<button class="btn btn-outline" id="btnEditProf">Edit profile</button>` : ''}<button class="btn btn-primary" data-close>Close</button></div>`, { size: 'lg' });
+    const eb = qs('#btnEditProf'); if (eb) eb.onclick = () => openEditor(id);
+  }
+
+  // ---------- editor (self or admin) ----------
+  const FP_FIELDS = ['bio', 'research_interests', 'education', 'clinical_focus', 'lab_website', 'orcid', 'google_scholar', 'office_location', 'slug'];
+  const slugify = (s) => (s || '').toLowerCase().replace(/,.*$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  async function openEditor(id) {
+    const self = id === me.id;
+    if (!self && !SL.isAdmin()) return SL.toast('You can only edit your own profile', 'err');
+    SL.modal(`<div class="modal-body">${skel(5)}</div>`, { size: 'lg' });
+    const [{ data: p }, { data: fp }] = await Promise.all([sb.from('profiles').select('*').eq('id', id).maybeSingle(), sb.from('faculty_profiles').select('*').eq('user_id', id).maybeSingle()]);
+    if (!p) { SL.closeModal(); return SL.toast('Profile not found', 'err'); }
+    const f = fp || {};
+    const inp = (name, label, val, type, ph) => `<div class="field"><label>${label}</label><input class="input" name="${name}" type="${type || 'text'}" value="${esc(val || '')}" placeholder="${esc(ph || '')}"></div>`;
+    const ta = (name, label, val, rows) => `<div class="field"><label>${label}</label><textarea class="input" name="${name}" rows="${rows || 3}">${esc(val || '')}</textarea></div>`;
+    SL.modal(`<div class="modal-head"><h3>${self ? 'Edit my profile' : 'Edit ' + esc(p.name)}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="peForm"><div class="modal-body side-modal">
+      <div>
+        <div class="photo-box" id="pePhoto">${f.photo_url ? `<img src="${esc(f.photo_url)}" alt="">` : esc(p.initials || SL.initials(p.name))}</div>
+        <label class="btn btn-outline btn-sm mt-2" style="width:150px;justify-content:center">${SL.icons.upload} Photo<input type="file" id="pePhotoFile" accept="image/*" hidden></label>
+        <input type="hidden" name="photo_url" value="${esc(f.photo_url || '')}">
+        <div class="xs muted mt-1">Square JPG/PNG under 5 MB.</div>
+        ${self ? `<hr class="rule" style="margin:18px 0"><h4>Password</h4><div class="field"><label>New password</label><input class="input" type="password" id="pw1" autocomplete="new-password" minlength="8"></div><div class="field"><label>Confirm</label><input class="input" type="password" id="pw2" autocomplete="new-password"></div><button type="button" class="btn btn-outline btn-sm" id="btnPw">Change password</button>` : ''}
+      </div>
+      <div>
+        <h4>Contact</h4>
+        <div class="form-row">${inp('p_name', 'Name', p.name)}${inp('p_credential', 'Credential', p.credential, 'text', 'MD, PhD')}</div>
+        <div class="form-row">${inp('p_title', 'Title', p.title)}${inp('p_department', 'Department', p.department)}</div>
+        <div class="form-row">${inp('p_phone', 'Phone', p.phone, 'tel')}<div class="field"><label>Role</label><input class="input" value="${esc(p.role || '')}" disabled><div class="help">${self ? 'Roles are changed by an administrator.' : 'Change roles in the Admin Panel.'}</div></div></div>
+        <h4 class="mt-3">Research profile</h4>
+        <p class="help xs muted" style="margin-top:-6px">Shown on the public People page when "Show on public site" is on.</p>
+        ${ta('bio', 'Biography', f.bio, 4)}${ta('research_interests', 'Research interests', f.research_interests, 2)}${ta('education', 'Education', f.education, 2)}
+        ${inp('clinical_focus', 'Clinical focus', f.clinical_focus)}
+        <div class="form-row">${inp('lab_website', 'Lab website', f.lab_website, 'url', 'https://')}${inp('orcid', 'ORCID', f.orcid, 'text', '0000-0000-0000-0000')}</div>
+        <div class="form-row">${inp('google_scholar', 'Google Scholar URL', f.google_scholar, 'url')}${inp('office_location', 'Office location', f.office_location)}</div>
+        <div class="form-row">${inp('specialties', 'Specialties (comma separated)', (f.specialties || []).join(', '))}${inp('slug', 'Public URL slug', f.slug || slugify(p.name), 'text', 'jane-doe')}</div>
+        <div class="flex wrap"><label class="check"><input type="checkbox" name="accepting_students" ${f.accepting_students ? 'checked' : ''}> Accepting students</label><label class="check"><input type="checkbox" name="show_on_site" ${f.show_on_site ? 'checked' : ''}> Show on public site</label></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="peSave">Save</button></div></form>`, { size: 'lg' });
+    qs('#pePhotoFile').onchange = async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      if (file.size > 5 * 1024 * 1024) return SL.toast('Photo must be under 5 MB', 'err');
+      try { const url = await SL.upload('public-assets', 'photos', file); qs('[name=photo_url]').value = url; qs('#pePhoto').innerHTML = `<img src="${esc(url)}" alt="">`; SL.toast('Photo uploaded — save to apply', 'ok'); } catch (ex) { err(ex, 'Upload failed'); }
+    };
+    const pwBtn = qs('#btnPw');
+    if (pwBtn) pwBtn.onclick = async () => {
+      const a = qs('#pw1').value, b = qs('#pw2').value;
+      if (a.length < 8) return SL.toast('Password must be at least 8 characters', 'err');
+      if (a !== b) return SL.toast('Passwords do not match', 'err');
+      pwBtn.disabled = true;
+      const { error } = await sb.auth.updateUser({ password: a });
+      pwBtn.disabled = false;
+      if (error) return err(error); qs('#pw1').value = qs('#pw2').value = ''; SL.toast('Password updated', 'ok');
+    };
+    qs('#peForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const btn = qs('#peSave'); btn.disabled = true;
+      const prof = { name: fd.get('p_name').trim(), credential: fd.get('p_credential').trim() || null, title: fd.get('p_title').trim() || null, department: fd.get('p_department').trim() || null, phone: fd.get('p_phone').trim() || null };
+      if (!prof.name) { btn.disabled = false; return SL.toast('Name is required', 'err'); }
+      prof.initials = SL.initials(prof.name); if (self) prof.needs_profile_setup = false;
+      const fac = { user_id: id, accepting_students: fd.get('accepting_students') === 'on', show_on_site: fd.get('show_on_site') === 'on', photo_url: fd.get('photo_url') || null, specialties: String(fd.get('specialties') || '').split(',').map((s) => s.trim()).filter(Boolean) };
+      FP_FIELDS.forEach((k) => fac[k] = (fd.get(k) || '').trim() || null); if (fac.slug) fac.slug = slugify(fac.slug);
+      try {
+        let r = await sb.from('profiles').update(prof).eq('id', id); if (r.error) throw r.error;
+        r = await sb.from('faculty_profiles').upsert(fac, { onConflict: 'user_id' }); if (r.error) throw r.error;
+        SL.audit('updated', 'profile', id, self ? 'Edited own profile' : `Edited profile of ${p.email}`);
+        if (self) { SL.profile = Object.assign(SL.profile || {}, prof); }
+        SL.toast('Profile saved', 'ok'); SL.closeModal(); load();
+      } catch (ex) { err(ex, 'Save failed'); btn.disabled = false; }
+    };
+  }
+  qs('#btnEditMe').onclick = () => openEditor(me.id);
+  await load();
+  const want = SL.param('id') || SL.param('p');
+  if (want) { if (people.some((x) => x.id === want)) openProfile(want); else SL.toast('Person not found in the directory', 'warn'); }
+})();
+</script>
+</body></html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Training &amp; Students | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="CITI training, CME credits and medical student program for the Saint Luke's Neuroscience Research Hub.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+.tab-panel{display:none}.tab-panel.active{display:block}
+.train-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.status-row{display:grid;grid-template-columns:1fr 180px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.status-row:last-child{border-bottom:0}
+@media(max-width:520px){.status-row{grid-template-columns:1fr}}
+.cme-big{font-family:var(--font-head);font-size:2.4rem;color:var(--ink);line-height:1}
+.student-layout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px}.student-layout>*{min-width:0}
+@media(max-width:900px){.student-layout{grid-template-columns:1fr}}
+.roster a{display:flex;gap:10px;align-items:center;padding:10px;border-radius:8px;color:var(--ink);cursor:pointer}
+.roster a:hover{background:rgba(255,255,255,.05);text-decoration:none}.roster a.active{background:var(--navy-100)}
+.roster .avatar{width:36px;height:36px;font-size:.8rem}
+.chk{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:16px}
+.chk h4{margin:0 0 8px;font-size:.9rem}
+.chk label{display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:.88rem;cursor:pointer}
+.chk input{margin-top:3px}
+.likert{display:grid;grid-template-columns:1fr repeat(5,40px);gap:4px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:.88rem}
+.likert span.lab{padding-right:8px}.likert label{text-align:center;cursor:pointer}
+@media(max-width:560px){.likert{grid-template-columns:1fr repeat(5,32px)}}
+.likert-head{display:grid;grid-template-columns:1fr repeat(5,40px);gap:4px;font-size:.72rem;color:var(--muted);text-align:center}
+@media(max-width:560px){.likert-head{grid-template-columns:1fr repeat(5,32px)}}
+.score{font-family:var(--font-head);font-size:1.4rem;color:var(--ink)}
+</style>
+</head><body>
+<main id="main">
+  <div class="page-head">
+    <div><h1>Training &amp; Students</h1><div class="sub">Research compliance training, CME credits and the medical student program</div></div>
+  </div>
+  <div class="tabs" id="tabs"><button data-tab="training" class="active">My training</button><button data-tab="students" id="tabStudentsBtn">Students</button><button data-tab="compliance" id="tabComplianceBtn" class="hidden">Compliance overview</button></div>
+
+  <section class="tab-panel active" id="tab-training">
+    <div class="train-grid">
+      <div class="card">
+        <div class="section-head" style="margin-bottom:8px"><h3 style="margin:0;font-size:1.1rem">CITI &amp; compliance training</h3><span id="citiBadge"></span></div>
+        <p class="small muted">Human subjects training is required before any research activity. Update each module as you complete it and upload your CITI completion report.</p>
+        <div id="citiBox"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1.1rem">CME credits</h3>
+        <p class="small muted">Annual requirement: 25 credits. Record credits as you earn them.</p>
+        <div id="cmeBox"><div class="skeleton"></div><div class="skeleton"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-students">
+    <div id="studentsWrap"><div class="skeleton"></div><div class="skeleton"></div></div>
+  </section>
+
+  <section class="tab-panel" id="tab-compliance">
+    <div class="filters"><div class="search grow" style="min-width:220px"><input class="input" id="cq" placeholder="Search name, role"></div><select class="input" id="cStatus"><option value="">All statuses</option><option>Completed</option><option>In progress</option><option>Not started</option><option value="__none">No record</option></select><button class="btn btn-outline btn-sm" id="btnCompCsv">Export CSV</button></div>
+    <div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Role</th><th>Human subjects</th><th>HIPAA</th><th>GCP</th><th>RCR</th><th>Certificate</th><th>Updated</th></tr></thead><tbody id="compBody"><tr><td colspan="8"><div class="skeleton"></div><div class="skeleton"></div></td></tr></tbody></table></div>
+  </section>
+</main>
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'education' });
+  const sb = SL.sb, esc = SL.esc, qs = SL.qs, qsa = SL.qsa;
+  qsa('.search').forEach((el) => { if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', SL.icons.search); });
+  const skel = (n) => Array.from({ length: n || 3 }, () => '<div class="skeleton"></div>').join('');
+  const err = (e, fb) => SL.toast((e && e.message) || fb || 'Something went wrong', 'err');
+  const STATUSES = ['Not started', 'In progress', 'Completed'];
+  const ST_TAG = { Completed: 'tag-ok', 'In progress': 'tag-warn', 'Not started': 'tag-outline' };
+  const normSt = (s) => { s = String(s || '').toLowerCase(); if (/complete|submitted|approved|done/.test(s)) return 'Completed'; if (/progress|pending/.test(s)) return 'In progress'; return 'Not started'; };
+  const isStudent = me.role === 'Medical Student', isAdmin = SL.isAdmin(), isFaculty = SL.hasRole('Admin', 'Faculty', 'Research Fellow');
+  const MODULES = [['human_subjects_status', 'Human Subjects Research (CITI)'], ['hipaa_status', 'HIPAA for Research'], ['gcp_status', 'Good Clinical Practice (GCP)'], ['responsible_conduct_status', 'Responsible Conduct of Research (RCR)']];
+  const CHECKLIST = [
+    ['Administrative', [['badge', 'ID badge & building access'], ['it', 'IT account setup (email, network)'], ['hub', 'Research Hub account created'], ['redcap', 'REDCap account provisioned'], ['epic', 'EPIC research access (if applicable)']]],
+    ['Required training', [['citi', 'CITI Human Subjects Training'], ['hipaa', 'HIPAA Training'], ['gcp', 'Good Clinical Practice (GCP)'], ['rcr', 'Responsible Conduct of Research']]],
+    ['Orientation', [['mentor', 'Meet assigned PI / mentor'], ['tour', 'Department orientation tour'], ['privacy', 'Data management & privacy review'], ['irb_overview', 'IRB protocol overview'], ['first_meeting', 'Attend first team meeting']]],
+    ['Project readiness', [['irb_added', 'Added to IRB protocol (if applicable)'], ['protocol_reviewed', 'Reviewed study protocol'], ['data_training', 'Trained on data collection procedures'], ['first_entry', 'First supervised data entry']]],
+  ];
+  const DOMAINS = ['Medical Knowledge & Literature Review', 'Data Collection & Accuracy', 'Analytical & Critical Thinking', 'Communication & Presentation Skills', 'Professionalism & Reliability', 'Initiative & Self-Direction', 'Teamwork & Collaboration', 'Manuscript / Abstract Contribution'];
+  const dkey = (l) => 'likert_' + l.replace(/[^A-Za-z]+/g, '_').replace(/_+$/, '');
+  // research-files is a private bucket: open certificates via a short-lived signed URL
+  async function openCert(url) {
+    const m = /\/object\/(?:public|sign|authenticated)\/research-files\/(.+)$/.exec(url || '');
+    if (!m) { window.open(url, '_blank', 'noopener'); return; }
+    const { data, error } = await sb.storage.from('research-files').createSignedUrl(decodeURIComponent(m[1]), 300);
+    if (error || !data) return err(error, 'Could not open certificate');
+    window.open(data.signedUrl, '_blank', 'noopener');
+  }
+  document.addEventListener('click', (e) => { const a = e.target.closest('[data-cert]'); if (a) { e.preventDefault(); openCert(a.dataset.cert); } });
+
+  // tabs + visibility
+  if (!(isFaculty || isStudent)) qs('#tabStudentsBtn').classList.add('hidden');
+  if (isAdmin) qs('#tabComplianceBtn').classList.remove('hidden');
+  if (isStudent) qs('#tabStudentsBtn').textContent = 'My student record';
+  const loaded = {}; const loaders = { training: loadTraining, students: loadStudents, compliance: loadCompliance };
+  function showTab(k) { if (qs(`#tabs [data-tab="${k}"]`).classList.contains('hidden')) k = 'training'; qsa('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === k)); qsa('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + k)); history.replaceState(null, '', '#' + k); if (!loaded[k]) { loaded[k] = true; loaders[k](); } }
+  qsa('#tabs button').forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+
+  // ============ MY TRAINING ============
+  let citi = null, cme = null;
+  async function loadTraining() {
+    const [{ data: c }, { data: m }] = await Promise.all([sb.from('citi_training').select('*').eq('user_id', me.id).order('id', { ascending: false }).limit(1), sb.from('cme_records').select('*').eq('user_id', me.id).order('id', { ascending: false }).limit(1)]);
+    citi = (c && c[0]) || null; cme = (m && m[0]) || null; renderCiti(); renderCme();
+  }
+  function renderCiti() {
+    const c = citi || {}; const hs = normSt(c.human_subjects_status);
+    qs('#citiBadge').innerHTML = `<span class="tag ${ST_TAG[hs]}">${hs}</span>`;
+    qs('#citiBox').innerHTML = MODULES.map(([k, label]) => `<div class="status-row"><div>${label}${k === 'human_subjects_status' ? ' <span class="tag tag-danger" style="font-size:.65rem">Required</span>' : ''}</div><select class="input" data-mod="${k}">${STATUSES.map((s) => `<option ${normSt(c[k]) === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`).join('') +
+      `<div class="mt-3"><label style="font-size:.85rem;font-weight:600;color:var(--ink-2)">Completion certificate</label><div class="flex wrap mt-1">${c.certificate_url ? `<a class="btn btn-outline btn-sm" href="#" data-cert="${esc(c.certificate_url)}">${SL.icons.doc} View certificate</a>` : '<span class="small muted">None uploaded</span>'}<label class="btn btn-primary btn-sm">${SL.icons.upload} ${c.certificate_url ? 'Replace' : 'Upload'} PDF<input type="file" id="citiFile" accept="application/pdf,image/*" hidden></label></div><div class="xs muted mt-1">Stored privately in research-files/citi-certs. ${c.updated_at ? 'Last updated ' + SL.fmtDateTime(c.updated_at) + '.' : ''}</div></div>`;
+    qsa('[data-mod]').forEach((s) => s.onchange = () => saveCiti({ [s.dataset.mod]: s.value }));
+    qs('#citiFile').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; if (f.size > 10 * 1024 * 1024) return SL.toast('File must be under 10 MB', 'err'); try { SL.toast('Uploading…'); const url = await SL.upload('research-files', 'citi-certs/' + me.id, f); await saveCiti({ certificate_url: url, human_subjects_status: normSt(citi && citi.human_subjects_status) === 'Not started' ? 'Completed' : undefined }); } catch (ex) { err(ex, 'Upload failed'); } };
+  }
+  async function saveCiti(patch) {
+    Object.keys(patch).forEach((k) => patch[k] === undefined && delete patch[k]);
+    patch.updated_at = new Date().toISOString();
+    const r = citi ? await sb.from('citi_training').update(patch).eq('id', citi.id).select().single() : await sb.from('citi_training').insert(Object.assign({ user_id: me.id, human_subjects_status: 'Not started' }, patch)).select().single();
+    if (r.error) return err(r.error);
+    citi = r.data; SL.audit('updated', 'citi_training', citi.id, Object.keys(patch).filter((k) => k !== 'updated_at').join(', ')); SL.toast('Training record saved', 'ok'); renderCiti();
+  }
+  function renderCme() {
+    const c = cme || { credits_earned: 0, credits_required: 25 }; const req = Number(c.credits_required) || 25, earned = Number(c.credits_earned) || 0, pct = Math.min(100, Math.round(earned / req * 100));
+    qs('#cmeBox').innerHTML = `<div class="flex" style="align-items:flex-end;gap:8px"><span class="cme-big">${earned}</span><span class="muted">/ ${req} credits</span><span class="tag ${pct >= 100 ? 'tag-ok' : 'tag-warn'}" style="margin-left:auto">${pct >= 100 ? 'Complete' : normSt(c.status) === 'In progress' || earned > 0 ? 'In progress' : 'Not started'}</span></div>
+      <div class="progress mt-2"><span style="width:${pct}%"></span></div>
+      <form id="cmeForm" class="mt-3"><div class="form-row"><div class="field"><label>Credits earned</label><input class="input" type="number" step="0.5" min="0" name="credits_earned" value="${earned}"></div><div class="field"><label>Required</label><input class="input" type="number" step="1" min="1" name="credits_required" value="${req}"></div></div>
+        <div class="field"><label>Certificate (PDF or image, optional)</label><input class="input" type="file" name="cert" accept="application/pdf,image/*"><div class="help">${c.certificate_url ? `Current: <a href="#" data-cert="${esc(c.certificate_url)}">view certificate</a> — choose a file to replace it.` : 'Stored privately in research-files/cme-certs.'}</div></div>
+        <button class="btn btn-primary btn-sm" type="submit" id="cmeSave">Save credits</button></form>
+      <div class="xs muted mt-2">${c.updated_at ? 'Last updated ' + SL.fmtDateTime(c.updated_at) + '.' : ''}</div>`;
+    qs('#cmeForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const earned2 = parseFloat(fd.get('credits_earned')) || 0, req2 = parseFloat(fd.get('credits_required')) || 25;
+      const row = { credits_earned: earned2, credits_required: req2, status: earned2 >= req2 ? 'Completed' : earned2 > 0 ? 'In progress' : 'Not started', updated_at: new Date().toISOString() };
+      const file = e.target.cert.files[0]; const btn = qs('#cmeSave'); btn.disabled = true;
+      if (file) { if (file.size > 10 * 1024 * 1024) { btn.disabled = false; return SL.toast('File must be under 10 MB', 'err'); } try { row.certificate_url = await SL.upload('research-files', 'cme-certs/' + me.id, file); } catch (ex) { btn.disabled = false; return err(ex, 'Upload failed'); } }
+      const r = cme ? await sb.from('cme_records').update(row).eq('id', cme.id).select().single() : await sb.from('cme_records').insert(Object.assign({ user_id: me.id }, row)).select().single();
+      if (r.error) { btn.disabled = false; return err(r.error); } cme = r.data; SL.audit('updated', 'cme_records', cme.id, `${earned2}/${req2}`); SL.toast('CME credits saved', 'ok'); renderCme();
+    };
+  }
+
+  // ============ STUDENTS ============
+  let students = [], records = {}, projects = [], selected = null;
+  async function loadStudents() {
+    const wrap = qs('#studentsWrap'); wrap.innerHTML = skel(4);
+    if (isStudent) { students = [SL.profile]; }
+    else { const { data, error } = await sb.from('profiles').select('*').eq('role', 'Medical Student').order('name'); if (error) { wrap.innerHTML = `<div class="alert alert-danger">${esc(error.message)}</div>`; return; } students = data || []; }
+    const [{ data: recs }, { data: projs }] = await Promise.all([sb.from('student_records').select('*'), sb.from('projects').select('id,title,pi,status').order('title')]);
+    records = {}; (recs || []).forEach((r) => { if (!records[r.user_id] || r.id > records[r.user_id].id) records[r.user_id] = r; }); projects = projs || [];
+    if (!students.length) { wrap.innerHTML = `<div class="empty">${SL.icons.graduation}<div>No medical students have accounts yet. Students are added when their login is approved with the "Medical Student" role.</div></div>`; return; }
+    selected = selected || (isStudent ? me.id : (SL.param('s') || students[0].id));
+    wrap.innerHTML = `<div class="student-layout"><div class="card roster" style="padding:10px"><div class="search mb-1" style="padding:4px"><input class="input" id="sq" placeholder="Find student"></div><div id="rosterList"></div>${isFaculty ? `<div class="xs muted" style="padding:8px 10px">Onboarding checklists are visible to the student and Admin; assessments you submit stay visible to you and the student.</div>` : ''}</div><div id="studentDetail"></div></div>`;
+    renderRoster(); renderStudent();
+    qs('#sq').oninput = renderRoster;
+  }
+  function renderRoster() {
+    const q = (qs('#sq').value || '').toLowerCase();
+    qs('#rosterList').innerHTML = students.filter((s) => !q || (s.name || '').toLowerCase().includes(q)).map((s) => { const r = records[s.id]; const done = r && r.checklist_items ? Object.values(r.checklist_items).filter(Boolean).length : 0; return `<a class="${s.id === selected ? 'active' : ''}" data-id="${esc(s.id)}"><span class="avatar">${esc(s.initials || SL.initials(s.name))}</span><span style="min-width:0"><div style="font-weight:600;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div><div class="xs muted">${r ? esc(r.onboarding_status || 'Onboarding') + ' · ' + done + '/18' : 'No record'}</div></span></a>`; }).join('') || '<div class="empty" style="padding:20px">No match</div>';
+    qsa('#rosterList a').forEach((a) => a.onclick = () => { selected = a.dataset.id; renderRoster(); renderStudent(); });
+  }
+  async function renderStudent() {
+    const s = students.find((x) => x.id === selected); const box = qs('#studentDetail'); if (!s) { box.innerHTML = ''; return; }
+    box.innerHTML = skel(4);
+    const r = records[s.id] || null; const items = (r && r.checklist_items) || {};
+    const canEditRec = isAdmin || s.id === me.id;
+    const { data: assessments } = await sb.from('student_assessments').select('*').eq('student_id', s.id).order('assessment_date', { ascending: false });
+    const { data: reqs } = await sb.from('forum_requests').select('*').eq('requested_by', s.id).eq('category', 'Student project request').order('created_at', { ascending: false });
+    const total = CHECKLIST.reduce((n, c) => n + c[1].length, 0), done = Object.values(items).filter(Boolean).length;
+    const avg = (a) => { const v = DOMAINS.map((d) => Number((a.responses || {})[dkey(d)])).filter((x) => x); return v.length ? (v.reduce((x, y) => x + y, 0) / v.length).toFixed(1) : '—'; };
+    box.innerHTML = `
+      <div class="card mb-2"><div class="flex wrap between"><div class="person"><span class="avatar">${esc(s.initials || SL.initials(s.name))}</span><div><div class="person-name" style="font-size:1.1rem">${esc(s.name)}</div><div class="person-title">${esc(s.email)}${s.phone ? ' · ' + esc(s.phone) : ''}</div></div></div>
+        <div class="flex wrap">${isFaculty ? `<button class="btn btn-primary btn-sm" id="btnAssess">Monthly assessment</button>` : ''}${s.id === me.id ? `<button class="btn btn-accent btn-sm" id="btnReq">Request to join a project</button>` : ''}</div></div>
+        <div class="form-row mt-3" style="grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr))">
+          <div class="field"><label>Mentor / PI</label><input class="input" id="recMentor" value="${esc(r ? r.mentor || '' : '')}" ${canEditRec ? '' : 'disabled'}></div>
+          <div class="field"><label>Assigned project</label><input class="input" id="recProject" list="projList" value="${esc(r ? r.assigned_project || '' : '')}" ${canEditRec ? '' : 'disabled'}><datalist id="projList">${projects.map((p) => `<option value="${esc(p.title)}">`).join('')}</datalist></div>
+          <div class="field"><label>Rotation start</label><input class="input" type="date" id="recStart" value="${esc(r ? r.rotation_start || '' : '')}" ${canEditRec ? '' : 'disabled'}></div>
+          <div class="field"><label>Rotation end</label><input class="input" type="date" id="recEnd" value="${esc(r ? r.rotation_end || '' : '')}" ${canEditRec ? '' : 'disabled'}></div>
+        </div>${canEditRec ? `<button class="btn btn-outline btn-sm" id="btnSaveRec">Save details</button>` : '<div class="xs muted">Only the student and Admin can edit these details (database policy).</div>'}</div>
+      <div class="card mb-2"><div class="section-head" style="margin-bottom:10px"><h3 style="margin:0;font-size:1.05rem">Onboarding checklist</h3><span class="tag ${done === total ? 'tag-ok' : 'tag-warn'}">${done}/${total} complete</span></div><div class="progress mb-2"><span style="width:${Math.round(done / total * 100)}%"></span></div>
+        ${(canEditRec || r) ? `<div class="chk">${CHECKLIST.map(([g, list]) => `<div><h4>${g}</h4>${list.map(([k, l]) => `<label><input type="checkbox" data-chk="${k}" ${items[k] ? 'checked' : ''} ${canEditRec ? '' : 'disabled'}> ${l}</label>`).join('')}</div>`).join('')}</div>` : `<div class="empty" style="padding:20px">No onboarding record is visible to you. The student or an Admin creates it by ticking the first item.</div>`}</div>
+      <div class="card mb-2"><div class="section-head" style="margin-bottom:10px"><h3 style="margin:0;font-size:1.05rem">Monthly assessments</h3><span class="muted small">${(assessments || []).length} on file</span></div>
+        ${(assessments || []).length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Month</th><th>Overall</th><th>Domain avg</th><th>Assessor</th><th></th></tr></thead><tbody>${assessments.map((a) => `<tr><td>${esc((a.responses || {}).month || SL.fmtDate(a.assessment_date, { year: 'numeric', month: 'short' }))}</td><td><span class="score">${esc((a.responses || {}).overall || '—')}</span><span class="muted xs">/5</span></td><td>${avg(a)}</td><td class="small">${esc((a.responses || {}).assessor_name || '')}</td><td><button class="btn btn-ghost btn-sm" data-view="${a.id}">View</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty" style="padding:20px">No assessments yet.</div>`}</div>
+      <div class="card"><div class="section-head" style="margin-bottom:10px"><h3 style="margin:0;font-size:1.05rem">Project requests</h3></div>
+        ${(reqs || []).length ? reqs.map((q) => `<div class="pub" style="padding:10px 0"><div style="font-weight:600">${esc(q.title)}</div><div class="xs muted">${SL.fmtDate(q.created_at)} · <span class="tag ${q.status === 'Done' ? 'tag-ok' : q.status === 'In progress' ? 'tag-warn' : 'tag-info'}">${esc(q.status || 'Open')}</span>${q.assigned_to ? ' · ' + esc(q.assigned_to) : ''}</div><div class="small mt-1" style="white-space:pre-wrap">${esc(q.description || '')}</div></div>`).join('') : `<div class="empty" style="padding:20px">No project requests.${s.id === me.id ? ' Use "Request to join a project" above.' : ''}</div>`}</div>`;
+    qsa('[data-chk]', box).forEach((c) => c.onchange = () => saveRecord(s.id, { checklist_items: Object.assign({}, ((records[s.id] || {}).checklist_items) || {}, { [c.dataset.chk]: c.checked }) }));
+    const sv = qs('#btnSaveRec'); if (sv) sv.onclick = () => saveRecord(s.id, { mentor: qs('#recMentor').value.trim() || null, assigned_project: qs('#recProject').value.trim() || null, rotation_start: qs('#recStart').value || null, rotation_end: qs('#recEnd').value || null });
+    const ab = qs('#btnAssess'); if (ab) ab.onclick = () => assessmentForm(s);
+    const rb = qs('#btnReq'); if (rb) rb.onclick = () => projectRequestForm(s);
+    qsa('[data-view]', box).forEach((b) => b.onclick = () => viewAssessment(assessments.find((a) => String(a.id) === b.dataset.view), s));
+  }
+  async function saveRecord(uid, patch) {
+    const cur = records[uid];
+    if (patch.checklist_items) { const n = Object.values(patch.checklist_items).filter(Boolean).length, t = CHECKLIST.reduce((x, c) => x + c[1].length, 0); patch.onboarding_status = n === 0 ? 'Not started' : n === t ? 'Complete' : 'In progress'; }
+    const r = cur ? await sb.from('student_records').update(patch).eq('id', cur.id).select().single() : await sb.from('student_records').insert(Object.assign({ user_id: uid, onboarding_status: 'In progress', checklist_items: {} }, patch)).select().single();
+    if (r.error) return err(r.error);
+    records[uid] = r.data; SL.audit('updated', 'student_record', r.data.id, Object.keys(patch).join(', ')); SL.toast('Saved', 'ok'); renderRoster(); if (!patch.checklist_items) renderStudent();
+  }
+  function assessmentForm(s) {
+    const month = new Date().toISOString().slice(0, 7);
+    SL.modal(`<div class="modal-head"><h3>Monthly assessment — ${esc(s.name)}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="aForm"><div class="modal-body">
+      <div class="alert alert-info">Validated monthly assessment on a 5-point Likert scale (1 = Poor, 5 = Excellent), completed by supervising faculty.</div>
+      <div class="form-row"><div class="field"><label>Assessment month</label><input class="input" type="month" name="month" value="${month}" required></div><div class="field"><label>Linked project</label><select class="input" name="project"><option value="">None</option>${projects.map((p) => `<option>${esc(p.title)}</option>`).join('')}</select></div></div>
+      <h4>Performance domains</h4>
+      <div class="likert-head"><span></span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+      ${DOMAINS.map((d) => `<div class="likert"><span class="lab">${d}</span>${[1, 2, 3, 4, 5].map((v) => `<label><input type="radio" name="${dkey(d)}" value="${v}" required></label>`).join('')}</div>`).join('')}
+      <div class="field mt-3"><label>Overall performance</label><select class="input" name="overall" required><option value="">Select…</option><option value="5">5 – Exceptional</option><option value="4">4 – Exceeds expectations</option><option value="3">3 – Meets expectations</option><option value="2">2 – Needs improvement</option><option value="1">1 – Unsatisfactory</option></select></div>
+      <div class="field"><label>Strengths</label><textarea class="input" name="strengths" rows="2"></textarea></div>
+      <div class="field"><label>Areas for growth</label><textarea class="input" name="growth" rows="2"></textarea></div>
+      <div class="field"><label>Goals for next month</label><textarea class="input" name="goals" rows="2"></textarea></div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="aSave">Submit assessment</button></div></form>`, { size: 'lg' });
+    qs('#aForm').onsubmit = async (e) => {
+      e.preventDefault(); qs('#aSave').disabled = true; const fd = new FormData(e.target); const responses = { assessment_type: 'monthly_likert', assessor_name: me.name, assessor_id: me.id };
+      fd.forEach((v, k) => { if (v !== '') responses[k] = v; });
+      const { data, error } = await sb.from('student_assessments').insert({ student_id: s.id, assessment_date: new Date(fd.get('month') + '-15T12:00:00').toISOString(), responses, submitted_by: me.id }).select().single();
+      if (error) { qs('#aSave').disabled = false; return err(error); }
+      SL.audit('created', 'student_assessment', data.id, `${s.name} · ${fd.get('month')}`);
+      SL.notify([s.email], 'assessment', `${me.name} submitted your monthly assessment for ${fd.get('month')}.`);
+      SL.toast('Assessment submitted', 'ok'); SL.closeModal(); renderStudent();
+    };
+  }
+  function viewAssessment(a, s) {
+    const r = a.responses || {};
+    SL.modal(`<div class="modal-head"><h3>Assessment — ${esc(r.month || SL.fmtDate(a.assessment_date))}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div><div class="modal-body">
+      <div class="small muted mb-2">${esc(s.name)} · assessed by ${esc(r.assessor_name || '')}${r.project ? ' · ' + esc(r.project) : ''}</div>
+      ${DOMAINS.map((d) => `<div class="likert"><span class="lab">${d}</span><span style="grid-column:span 5;text-align:left"><span class="score">${esc(r[dkey(d)] || '—')}</span><span class="xs muted"> / 5</span></span></div>`).join('')}
+      <div class="mt-2"><strong>Overall:</strong> <span class="score">${esc(r.overall || '—')}</span> / 5</div>
+      ${r.strengths ? `<h4 class="mt-2">Strengths</h4><p class="small" style="white-space:pre-wrap">${esc(r.strengths)}</p>` : ''}${r.growth ? `<h4>Areas for growth</h4><p class="small" style="white-space:pre-wrap">${esc(r.growth)}</p>` : ''}${r.goals ? `<h4>Goals</h4><p class="small" style="white-space:pre-wrap">${esc(r.goals)}</p>` : ''}
+    </div><div class="modal-foot"><button class="btn btn-primary" data-close>Close</button></div>`);
+  }
+  function projectRequestForm(s) {
+    SL.modal(`<div class="modal-head"><h3>Request to join a project</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="rForm"><div class="modal-body">
+      <div class="alert alert-info">Your request goes to the research office and the PI for approval. Once approved you will complete IRB onboarding and gain access to the protocol.</div>
+      <div class="field"><label>Project</label><select class="input" name="project" required><option value="">Select a project…</option>${projects.map((p) => `<option value="${p.id}">${esc(p.title)}${p.pi ? ' — ' + esc(p.pi) : ''}</option>`).join('')}</select></div>
+      <div class="field"><label>Research interest / motivation</label><textarea class="input" name="motivation" rows="4" required placeholder="Why this project, and what you hope to contribute"></textarea></div>
+      <div class="form-row"><div class="field"><label>Availability (hours / week)</label><input class="input" type="number" min="1" max="40" name="hours"></div><div class="field"><label>Preferred start</label><input class="input" type="date" name="start"></div></div>
+      <div class="field"><label>Relevant experience</label><textarea class="input" name="experience" rows="2"></textarea></div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="rSave">Submit request</button></div></form>`);
+    qs('#rForm').onsubmit = async (e) => {
+      e.preventDefault(); qs('#rSave').disabled = true; const fd = new FormData(e.target); const p = projects.find((x) => String(x.id) === fd.get('project'));
+      const desc = `Motivation: ${fd.get('motivation')}\nAvailability: ${fd.get('hours') || '?'} h/week${fd.get('start') ? '\nPreferred start: ' + fd.get('start') : ''}${fd.get('experience') ? '\nExperience: ' + fd.get('experience') : ''}`;
+      const { data, error } = await sb.from('forum_requests').insert({ title: `${s.name} → ${p ? p.title : 'project'}`, category: 'Student project request', urgency: 'Medium', project_id: p ? p.id : null, description: desc, status: 'Open', requested_by: me.id }).select().single();
+      if (error) { qs('#rSave').disabled = false; return err(error); }
+      const { data: admins } = await sb.from('profiles').select('email').eq('role', 'Admin');
+      SL.notify([...new Set((admins || []).map((a) => a.email).concat(SL.ADMIN_EMAILS))], 'student_request', `${s.name} requested to join "${p ? p.title : 'a project'}"`, { project_id: p ? p.id : null, project_title: p ? p.title : null });
+      SL.audit('created', 'forum_request', data.id, 'Student project request');
+      SL.toast('Request submitted', 'ok'); SL.closeModal(); renderStudent();
+    };
+  }
+
+  // ============ COMPLIANCE (admin) ============
+  let comp = [];
+  async function loadCompliance() {
+    const body = qs('#compBody');
+    const [{ data: profs, error }, { data: rows }] = await Promise.all([sb.from('profiles').select('id,name,role,email').order('name'), sb.from('citi_training').select('*').order('id', { ascending: false })]);
+    if (error) { body.innerHTML = `<tr><td colspan="8"><div class="alert alert-danger mb-0">${esc(error.message)}</div></td></tr>`; return; }
+    const by = {}; (rows || []).forEach((r) => { if (!by[r.user_id]) by[r.user_id] = r; });
+    comp = (profs || []).map((p) => Object.assign({ profile: p }, by[p.id] || {}, { name: p.name, role: p.role, email: p.email, hs: by[p.id] ? normSt(by[p.id].human_subjects_status) : '__none' }));
+    renderCompliance();
+  }
+  function renderCompliance() {
+    const q = qs('#cq').value.trim().toLowerCase(), st = qs('#cStatus').value;
+    const rows = comp.filter((r) => (!q || (r.name + ' ' + r.role).toLowerCase().includes(q)) && (!st || r.hs === st));
+    const cell = (v) => v ? `<span class="tag ${ST_TAG[normSt(v)]}">${normSt(v)}</span>` : '<span class="muted xs">—</span>';
+    qs('#compBody').innerHTML = rows.length ? rows.map((r) => `<tr><td style="font-weight:600">${esc(r.name)}</td><td class="small">${esc(r.role)}</td><td>${r.hs === '__none' ? '<span class="tag tag-danger">No record</span>' : cell(r.human_subjects_status)}</td><td>${cell(r.hipaa_status)}</td><td>${cell(r.gcp_status)}</td><td>${cell(r.responsible_conduct_status)}</td><td>${r.certificate_url ? `<a href="#" data-cert="${esc(r.certificate_url)}">View</a>` : '<span class="muted xs">—</span>'}</td><td class="xs muted">${r.updated_at ? SL.fmtDate(r.updated_at) : ''}</td></tr>`).join('') : `<tr><td colspan="8"><div class="empty">No users match.</div></td></tr>`;
+  }
+  qs('#cq').oninput = SL.debounce(renderCompliance, 120); qs('#cStatus').onchange = renderCompliance;
+  qs('#btnCompCsv').onclick = () => SL.download(`citi_compliance_${new Date().toLocaleDateString('sv-SE')}.csv`, SL.csv(comp.map((r) => Object.assign({}, r, { human_subjects: r.hs === '__none' ? 'No record' : normSt(r.human_subjects_status), hipaa: r.hipaa_status ? normSt(r.hipaa_status) : '', gcp: r.gcp_status ? normSt(r.gcp_status) : '', rcr: r.responsible_conduct_status ? normSt(r.responsible_conduct_status) : '' })), ['name', 'email', 'role', 'human_subjects', 'hipaa', 'gcp', 'rcr', 'certificate_url', 'updated_at']), 'text/csv');
+
+  const initial = (location.hash || '#training').slice(1);
+  showTab(initial in loaders ? initial : 'training');
+})();
+</script>
+</body></html>

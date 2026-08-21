@@ -1,0 +1,174 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Meetings &amp; Events | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Research meetings, seminars and journal club schedule for the Saint Luke's Neuroscience Research Hub.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+.view-toggle{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+.view-toggle button{border:0;background:rgba(255,255,255,.04);padding:7px 12px;font-size:.85rem;font-weight:500;cursor:pointer;color:var(--ink-2)}
+.view-toggle button.active{background:var(--grad);color:#06101a}
+.mtg{display:flex;gap:16px;padding:16px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.mtg:last-child{border-bottom:0}
+.mtg .date{flex:none;width:64px;text-align:center;border:1px solid var(--line-2);border-radius:8px;padding:6px 4px;background:rgba(255,255,255,.04)}
+.mtg .date .d{font-family:var(--font-head);font-size:1.4rem;line-height:1;color:var(--ink)}
+.mtg .date .m{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.mtg .body{flex:1;min-width:0}.mtg .ttl{font-weight:600;color:var(--ink);font-size:1.02rem}
+.mtg .meta{font-size:.85rem;color:var(--muted);margin-top:2px}
+.mtg .actions{display:flex;gap:4px;flex:none;flex-wrap:wrap;justify-content:flex-end}
+.mtg.past{opacity:.7}
+.cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.cal-head h3{margin:0;font-size:1.15rem}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface);backdrop-filter:blur(12px)}
+.cal .dow{padding:8px 6px;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--surface-2);border-bottom:1px solid var(--line);text-align:center}
+.cal .day{min-height:96px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px;font-size:.8rem}
+.cal .day:nth-child(7n){border-right:0}
+.cal .day.other{background:var(--surface-2);color:var(--faint)}
+.cal .day.today .num{background:var(--grad);color:#06101a}
+.cal .num{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;font-weight:600;margin-bottom:4px}
+.cal .ev{display:block;padding:2px 6px;border-radius:4px;background:var(--teal-100);color:var(--teal-600);font-size:.72rem;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.cal .ev.jc{background:rgba(245,196,81,.16);color:#fcd77a}.cal .ev.sem{background:var(--info-bg);color:var(--info)}
+@media(max-width:640px){.cal .day{min-height:64px;padding:3px}.cal .ev{font-size:.62rem;padding:1px 3px}}
+</style>
+</head><body>
+<main id="main">
+  <div class="page-head">
+    <div><h1>Meetings &amp; Events</h1><div class="sub">Research meetings, seminars and journal club</div></div>
+    <div class="flex wrap"><div class="view-toggle" id="viewToggle"><button data-v="list" class="active">List</button><button data-v="cal">Calendar</button></div><button class="btn btn-outline btn-sm" id="btnCsv">Export CSV</button><button class="btn btn-primary btn-sm" id="btnAdd">Add meeting</button></div>
+  </div>
+  <div class="filters">
+    <div class="search grow" style="min-width:220px"><input class="input" id="q" placeholder="Search title, agenda, attendees, location"></div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div id="listView"><div class="card"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div>
+  <div id="calView" class="hidden">
+    <div class="cal-head"><button class="btn btn-outline btn-sm" id="calPrev">‹ Prev</button><h3 id="calTitle"></h3><div class="flex" style="gap:6px"><button class="btn btn-ghost btn-sm" id="calToday">Today</button><button class="btn btn-outline btn-sm" id="calNext">Next ›</button></div></div>
+    <div class="cal" id="cal"></div>
+  </div>
+</main>
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'meetings' });
+  const sb = SL.sb, esc = SL.esc, qs = SL.qs, qsa = SL.qsa;
+  qsa('.search').forEach((el) => { if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', SL.icons.search); });
+  const err = (e, fb) => SL.toast((e && e.message) || fb || 'Something went wrong', 'err');
+  const canEdit = (m) => SL.isAdmin() || m.created_by === me.id;
+  const today = new Date().toLocaleDateString('sv-SE');
+  const FILTERS = ['Upcoming', 'Past', 'Seminars', 'Journal Club', 'All'];
+  let meetings = [], filter = 'Upcoming', view = 'list', cur = new Date(); cur.setDate(1);
+
+  const category = (m) => { const t = ((m.title || '') + ' ' + (m.agenda || '')).toLowerCase(); if (/journal\s*club/.test(t)) return 'Journal Club'; if (/seminar|grand rounds|lecture|symposium|visiting professor/.test(t)) return 'Seminar'; return 'Meeting'; };
+  const fmtTime = (t) => { if (!t) return ''; const [h, mi] = t.split(':').map(Number); const d = new Date(); d.setHours(h, mi || 0); return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); };
+  const isTeams = (u) => /teams\.microsoft|teams\.live|zoom\.us|webex|meet\.google/i.test(u || '');
+
+  async function load() {
+    const { data, error } = await sb.from('meetings').select('*').order('meeting_date', { ascending: true }).order('meeting_time', { ascending: true });
+    if (error) { qs('#listView').innerHTML = `<div class="alert alert-danger">${esc(error.message)}</div>`; return; }
+    meetings = data || []; renderChips(); render();
+  }
+  function renderChips() {
+    const n = (f) => applyFilter(meetings, f).length;
+    qs('#chips').innerHTML = FILTERS.map((f) => `<button class="chip ${filter === f ? 'active' : ''}" data-f="${f}">${f} <span style="opacity:.7;font-size:.75rem">${n(f)}</span></button>`).join('');
+    qsa('#chips .chip').forEach((c) => c.onclick = () => { filter = c.dataset.f; renderChips(); render(); });
+  }
+  function applyFilter(rows, f) {
+    if (f === 'Upcoming') return rows.filter((m) => m.meeting_date >= today || m.recurring);
+    if (f === 'Past') return rows.filter((m) => m.meeting_date < today && !m.recurring).reverse();
+    if (f === 'Seminars') return rows.filter((m) => category(m) === 'Seminar');
+    if (f === 'Journal Club') return rows.filter((m) => category(m) === 'Journal Club');
+    return rows;
+  }
+  function filtered() {
+    const q = qs('#q').value.trim().toLowerCase();
+    return applyFilter(meetings.filter((m) => !q || [m.title, m.agenda, m.attendees, m.location].some((v) => (v || '').toLowerCase().includes(q))), filter);
+  }
+  function item(m) {
+    const d = new Date(m.meeting_date + 'T12:00:00'), past = m.meeting_date < today, cat = category(m);
+    return `<div class="mtg ${past && !m.recurring ? 'past' : ''}"><div class="date"><div class="d">${d.getDate()}</div><div class="m">${d.toLocaleString('en-US', { month: 'short' })} ${String(d.getFullYear()).slice(2)}</div></div>
+      <div class="body"><div class="ttl">${esc(m.title)}</div><div class="meta">${d.toLocaleDateString('en-US', { weekday: 'long' })}${m.meeting_time ? ' · ' + fmtTime(m.meeting_time) : ''}${m.location ? ' · ' + esc(m.location) : ''}${m.recurring ? ' · <span class="tag tag-outline">Recurring</span>' : ''} ${cat !== 'Meeting' ? `<span class="tag ${cat === 'Journal Club' ? 'tag-gold' : 'tag-info'}">${cat}</span>` : ''}</div>
+      ${m.agenda ? `<div class="small mt-1" style="white-space:pre-wrap">${esc(m.agenda)}</div>` : ''}${m.attendees ? `<div class="xs muted mt-1">Attendees: ${esc(m.attendees)}</div>` : ''}</div>
+      <div class="actions">${m.teams_link ? `<a class="btn btn-accent btn-sm" href="${esc(m.teams_link)}" target="_blank" rel="noopener">${isTeams(m.teams_link) ? 'Join Teams' : 'Join'}</a>` : ''}<button class="btn btn-outline btn-sm btn-icon" data-ics="${m.id}" title="Download .ics">${SL.icons.cal}</button>${canEdit(m) ? `<button class="btn btn-ghost btn-sm btn-icon" data-edit="${m.id}" title="Edit">${SL.icons.edit}</button>` : ''}${SL.isAdmin() ? `<button class="btn btn-ghost btn-sm btn-icon" data-del="${m.id}" title="Delete">${SL.icons.trash}</button>` : ''}</div></div>`;
+  }
+  function render() {
+    qs('#listView').classList.toggle('hidden', view !== 'list'); qs('#calView').classList.toggle('hidden', view !== 'cal');
+    if (view === 'cal') { renderCal(); return; }
+    const rows = filtered();
+    qs('#listView').innerHTML = rows.length ? `<div class="card">${rows.map(item).join('')}</div>` : `<div class="empty">${SL.icons.cal}<div>${meetings.length ? 'No meetings in this view.' : 'No meetings scheduled yet.'}</div></div>`;
+    wire(qs('#listView'));
+  }
+  function wire(root) {
+    qsa('[data-ics]', root).forEach((b) => b.onclick = () => downloadIcs(meetings.find((m) => String(m.id) === b.dataset.ics)));
+    qsa('[data-edit]', root).forEach((b) => b.onclick = () => form(meetings.find((m) => String(m.id) === b.dataset.edit)));
+    qsa('[data-del]', root).forEach((b) => b.onclick = async () => { const m = meetings.find((x) => String(x.id) === b.dataset.del); if (!await SL.confirm(`Delete "${m.title}"?`, 'Delete')) return; const { error } = await sb.from('meetings').delete().eq('id', m.id); if (error) return err(error); SL.audit('deleted', 'meeting', m.id, m.title); SL.toast('Meeting deleted', 'ok'); SL.closeModal(); load(); });
+  }
+  function renderCal() {
+    const y = cur.getFullYear(), mo = cur.getMonth();
+    qs('#calTitle').textContent = cur.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    const first = new Date(y, mo, 1), start = new Date(first); start.setDate(1 - first.getDay());
+    const q = qs('#q').value.trim().toLowerCase();
+    const rows = meetings.filter((m) => !q || [m.title, m.agenda, m.attendees, m.location].some((v) => (v || '').toLowerCase().includes(q)));
+    const byDate = {}; rows.forEach((m) => { (byDate[m.meeting_date] = byDate[m.meeting_date] || []).push(m); });
+    let html = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => `<div class="dow">${d}</div>`).join('');
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i); const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const evs = byDate[key] || [];
+      html += `<div class="day ${d.getMonth() !== mo ? 'other' : ''} ${key === today ? 'today' : ''}"><span class="num">${d.getDate()}</span>${evs.map((m) => { const c = category(m); return `<span class="ev ${c === 'Journal Club' ? 'jc' : c === 'Seminar' ? 'sem' : ''}" data-open="${m.id}" title="${esc(m.title)}">${m.meeting_time ? fmtTime(m.meeting_time) + ' ' : ''}${esc(m.title)}</span>`; }).join('')}</div>`;
+    }
+    qs('#cal').innerHTML = html;
+    qsa('[data-open]', qs('#cal')).forEach((e) => e.onclick = () => detail(meetings.find((m) => String(m.id) === e.dataset.open)));
+  }
+  function detail(m) {
+    SL.modal(`<div class="modal-head"><h3>Meeting</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div><div class="modal-body">${item(m)}</div><div class="modal-foot"><button class="btn btn-primary" data-close>Close</button></div>`);
+    wire(qs('#slModal'));
+  }
+  qs('#q').oninput = SL.debounce(render, 120);
+  qsa('#viewToggle button').forEach((b) => b.onclick = () => { view = b.dataset.v; qsa('#viewToggle button').forEach((x) => x.classList.toggle('active', x === b)); render(); });
+  qs('#calPrev').onclick = () => { cur.setMonth(cur.getMonth() - 1); renderCal(); };
+  qs('#calNext').onclick = () => { cur.setMonth(cur.getMonth() + 1); renderCal(); };
+  qs('#calToday').onclick = () => { cur = new Date(); cur.setDate(1); renderCal(); };
+  qs('#btnCsv').onclick = () => SL.download(`meetings_${today}.csv`, SL.csv(filtered().map((m) => Object.assign({ category: category(m) }, m)), ['title', 'category', 'meeting_date', 'meeting_time', 'location', 'attendees', 'agenda', 'teams_link', 'recurring']), 'text/csv');
+
+  function downloadIcs(m) {
+    const escI = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/[,;]/g, (c) => '\\' + c);
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Saint Lukes Neuroscience Research//Hub//EN', 'BEGIN:VEVENT', `UID:meeting-${m.id}@slresearchhub.com`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`];
+    const ymd = m.meeting_date.replace(/-/g, '');
+    if (m.meeting_time) { const hm = m.meeting_time.replace(/:/g, '').slice(0, 4); const [h, mi] = m.meeting_time.split(':').map(Number); const end = new Date(2000, 0, 1, h, (mi || 0) + 60); const ehm = String(end.getHours()).padStart(2, '0') + String(end.getMinutes()).padStart(2, '0'); lines.push(`DTSTART;TZID=America/Chicago:${ymd}T${hm}00`, `DTEND;TZID=America/Chicago:${ymd}T${ehm}00`); }
+    else { const n = new Date(m.meeting_date + 'T12:00:00'); n.setDate(n.getDate() + 1); lines.push(`DTSTART;VALUE=DATE:${ymd}`, `DTEND;VALUE=DATE:${n.toISOString().slice(0, 10).replace(/-/g, '')}`); }
+    if (m.recurring) lines.push('RRULE:FREQ=WEEKLY');
+    lines.push(`SUMMARY:${escI(m.title)}`, `DESCRIPTION:${escI((m.agenda || '') + (m.teams_link ? '\nJoin: ' + m.teams_link : '') + (m.attendees ? '\nAttendees: ' + m.attendees : ''))}`);
+    if (m.location) lines.push(`LOCATION:${escI(m.location)}`); if (m.teams_link) lines.push(`URL:${m.teams_link}`);
+    lines.push('BEGIN:VALARM', 'TRIGGER:-PT15M', 'ACTION:DISPLAY', `DESCRIPTION:${escI(m.title)}`, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR');
+    SL.download(`meeting-${m.id}.ics`, lines.join('\r\n'), 'text/calendar');
+  }
+  function form(m) {
+    m = m || {};
+    SL.modal(`<div class="modal-head"><h3>${m.id ? 'Edit meeting' : 'Add meeting'}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="mForm"><div class="modal-body">
+      <div class="field"><label>Title</label><input class="input" name="title" required value="${esc(m.title || '')}" placeholder="e.g. Neuro-oncology Journal Club"><div class="help">Titles containing "Journal Club", "Seminar" or "Grand Rounds" are categorised automatically.</div></div>
+      <div class="form-row"><div class="field"><label>Date</label><input class="input" type="date" name="meeting_date" required value="${esc(m.meeting_date || '')}"></div><div class="field"><label>Time</label><input class="input" type="time" name="meeting_time" value="${esc((m.meeting_time || '').slice(0, 5))}"></div></div>
+      <div class="form-row"><div class="field"><label>Location</label><input class="input" name="location" value="${esc(m.location || '')}" placeholder="Conference room / virtual"></div><div class="field"><label>Teams / video link</label><input class="input" type="url" name="teams_link" value="${esc(m.teams_link || '')}" placeholder="https://teams.microsoft.com/…"></div></div>
+      <div class="field"><label>Attendees</label><input class="input" name="attendees" value="${esc(m.attendees || '')}" placeholder="Names or groups"></div>
+      <div class="field"><label>Agenda</label><textarea class="input" name="agenda" rows="4">${esc(m.agenda || '')}</textarea></div>
+      <label class="check"><input type="checkbox" name="recurring" ${m.recurring ? 'checked' : ''}> Recurring weekly (stays in Upcoming)</label>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="mSave">Save</button></div></form>`);
+    qs('#mForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); qs('#mSave').disabled = true;
+      const row = { title: fd.get('title').trim(), meeting_date: fd.get('meeting_date'), meeting_time: fd.get('meeting_time') || null, location: (fd.get('location') || '').trim() || null, teams_link: (fd.get('teams_link') || '').trim() || null, attendees: (fd.get('attendees') || '').trim() || null, agenda: (fd.get('agenda') || '').trim() || null, recurring: fd.get('recurring') === 'on' };
+      if (!m.id) row.created_by = me.id;
+      const r = m.id ? await sb.from('meetings').update(row).eq('id', m.id) : await sb.from('meetings').insert(row).select().single();
+      if (r.error) { qs('#mSave').disabled = false; return err(r.error); }
+      SL.audit(m.id ? 'updated' : 'created', 'meeting', m.id || (r.data && r.data.id), row.title);
+      SL.toast(m.id ? 'Meeting updated' : 'Meeting scheduled', 'ok'); SL.closeModal(); load();
+    };
+  }
+  qs('#btnAdd').onclick = () => form(null);
+  load();
+})();
+</script>
+</body></html>

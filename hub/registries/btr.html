@@ -1,0 +1,320 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Brain Tumor Registry | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Brain Tumor Registry — WHO CNS5 pathology, molecular markers, treatment and survival.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<link rel="stylesheet" href="/hub/registries/registry.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<script src="/hub/registries/registry-common.js"></script>
+</head><body>
+<main class="main" id="main"></main>
+<script>
+(async () => {
+  const T = 'btr_patients', PREFIX = 'BTR', esc = SL.esc;
+
+  /* ---------------- WHO CNS5 taxonomy (kept from legacy) ---------------- */
+  const BTR_TAXONOMY = { name: 'CNS Tumors', children: [
+    { name: 'Diffuse Gliomas', children: [
+      { name: 'Adult-type', children: [{ name: 'Astrocytoma, IDH-mutant', code: 'AST-IDH' }, { name: 'Oligodendroglioma, IDH-mutant, 1p/19q-codeleted', code: 'ODG' }, { name: 'Glioblastoma, IDH-wildtype', code: 'GBM-IDH-WT' }] },
+      { name: 'Pediatric-type', children: [{ name: 'Diffuse Midline Glioma, H3 K27-altered', code: 'DMG' }, { name: 'Diffuse Hemispheric Glioma, H3 G34-mutant', code: 'DHG-H3G34' }] } ] },
+    { name: 'Circumscribed Gliomas', children: [{ name: 'Pilocytic Astrocytoma', code: 'PA' }, { name: 'Pleomorphic Xanthoastrocytoma', code: 'PXA' }, { name: 'Subependymal Giant Cell Astrocytoma', code: 'SEGA' }, { name: 'Ependymoma', code: 'EPD' }] },
+    { name: 'Glioneuronal Tumors', children: [{ name: 'Ganglioglioma', code: 'GG' }, { name: 'DNET', code: 'DNET' }, { name: 'Central Neurocytoma', code: 'CN' }] },
+    { name: 'Meningiomas', children: [{ name: 'Meningioma WHO I', code: 'MNG-I' }, { name: 'Meningioma WHO II', code: 'MNG-II' }, { name: 'Meningioma WHO III', code: 'MNG-III' }] },
+    { name: 'Sellar Region', children: [{ name: 'Pituitary Adenoma', code: 'PIT-A' }, { name: 'Craniopharyngioma', code: 'CRANIO' }, { name: "Rathke's Cleft Cyst", code: 'RCC' }] },
+    { name: 'Nerve Sheath', children: [{ name: 'Vestibular Schwannoma', code: 'VS' }, { name: 'Neurofibroma', code: 'NF' }, { name: 'MPNST', code: 'MPNST' }] },
+    { name: 'Embryonal', children: [{ name: 'Medulloblastoma', code: 'MB' }, { name: 'AT/RT', code: 'ATRT' }, { name: 'ETMR', code: 'ETMR' }] },
+    { name: 'Brain Metastasis', code: 'MET' }, { name: 'Primary CNS Lymphoma', code: 'PCNSL' }, { name: 'Hemangioblastoma', code: 'HB' }, { name: 'Chordoma', code: 'CHOR' }, { name: 'Chondrosarcoma', code: 'CS' } ] };
+  const leaves = []; (function walk(n) { if (n.code) leaves.push(n.name); (n.children || []).forEach(walk); })(BTR_TAXONOMY);
+
+  /* ---------------- field dictionaries ---------------- */
+  const SEX = ['Male', 'Female', 'Other'], RACE = [['White', 'White'], ['Black', 'Black or African American'], ['Asian', 'Asian'], ['AIAN', 'American Indian / Alaska Native'], ['NHPI', 'Native Hawaiian / Pacific Islander'], ['Other', 'Other'], ['Unknown', 'Unknown']], ETH = [['Hispanic', 'Hispanic or Latino'], ['Non-Hispanic', 'Not Hispanic or Latino'], ['Unknown', 'Unknown']];
+  const GRADES = ['I', 'II', 'III', 'IV'], EOR = [['GTR', 'Gross total resection'], ['STR', 'Subtotal resection'], ['Biopsy', 'Biopsy only']];
+  const MARKERS = [
+    { key: 'idh_status', label: 'IDH', options: ['Mutant', 'Wildtype'], pos: 'Mutant' },
+    { key: 'mgmt_status', label: 'MGMT', options: ['Methylated', 'Unmethylated'], pos: 'Methylated' },
+    { key: 'codel_1p19q', label: '1p/19q', options: ['Codeleted', 'Non-codeleted'], pos: 'Codeleted' },
+    { key: 'tert_promoter', label: 'TERT promoter', options: ['Mutant', 'Wildtype'], pos: 'Mutant' },
+    { key: 'egfr_amplification', label: 'EGFR', options: ['Amplified', 'Not Amplified'], pos: 'Amplified' },
+    { key: 'tp53_mutation', label: 'TP53', options: ['Mutant', 'Wildtype'], pos: 'Mutant' },
+    { key: 'atrx_status', label: 'ATRX', options: ['Lost', 'Retained'], pos: 'Lost' },
+    { key: 'cdkn2a_deletion', label: 'CDKN2A', options: ['Deleted', 'Not Deleted'], pos: 'Deleted' },
+  ];
+  const STEPS = [
+    { title: 'Demographics', fields: [
+      { key: 'study_id', label: 'Study ID', type: 'text', placeholder: 'Leave blank to auto-generate (BTR-0001)', help: 'Auto-generated on save when blank. Never use an MRN.' },
+      { key: 'age_at_diagnosis', label: 'Age at diagnosis', type: 'number', min: 0, max: 120 },
+      { key: 'sex', label: 'Sex', type: 'select', options: SEX }, { key: 'race', label: 'Race', type: 'select', options: RACE }, { key: 'ethnicity', label: 'Ethnicity', type: 'select', options: ETH } ] },
+    { title: 'Clinical presentation', fields: [
+      { key: 'presenting_symptoms', label: 'Presenting symptoms', type: 'checks', full: true, options: ['Headache', 'Seizure', 'Weakness', 'Vision Changes', 'Speech Difficulty', 'Cognitive Changes', 'Nausea/Vomiting', 'Gait Instability', 'Incidental', 'Other'] },
+      { key: 'kps_score', label: 'KPS', type: 'select', options: ['100', '90', '80', '70', '60', '50', '40', '30', '20', '10'] }, { key: 'gcs_score', label: 'GCS', type: 'number', min: 3, max: 15 },
+      { key: 'medical_history', label: 'Relevant medical history', type: 'textarea', full: true, help: 'Clinical summary only — no identifiers.' } ] },
+    { title: 'Surgery', fields: [
+      { key: 'surgery_date', label: 'Surgery date', type: 'date' }, { key: 'surgery_type', label: 'Surgery type', type: 'select', options: [['Craniotomy', 'Craniotomy'], ['Biopsy', 'Stereotactic biopsy'], ['Endoscopic', 'Endoscopic'], ['Awake Craniotomy', 'Awake craniotomy'], ['Transsphenoidal', 'Transsphenoidal'], ['Other', 'Other']] },
+      { key: 'surgical_approach', label: 'Approach', type: 'text', placeholder: 'e.g. Left frontal' }, { key: 'extent_of_resection', label: 'Extent of resection', type: 'select', options: EOR },
+      { key: 'surgeon', label: 'Surgeon', type: 'text' }, { key: 'complications', label: 'Complications', type: 'text', placeholder: 'None' } ] },
+    { title: 'Pathology & molecular', fields: [
+      { key: 'diagnosis', label: 'Integrated diagnosis (WHO CNS5)', type: 'select', options: leaves, full: true }, { key: 'who_grade', label: 'WHO grade', type: 'select', options: GRADES }, { key: 'pathology_id', label: 'Pathology accession', type: 'text', placeholder: 'e.g. SP-24-12345' },
+      ...MARKERS.map((m) => ({ key: m.key, label: m.label, type: 'select', options: m.options, blank: 'Unknown' })), { key: 'ki67_percent', label: 'Ki-67 (%)', type: 'number', min: 0, max: 100, step: '0.1' } ] },
+    { title: 'Treatment & status', fields: [
+      { key: 'radiation_received', label: 'Radiation received', type: 'bool' }, { key: 'chemotherapy_received', label: 'Chemotherapy received', type: 'bool' },
+      { key: 'vital_status', label: 'Vital status', type: 'select', options: ['Alive', 'Deceased'] }, { key: 'last_followup_date', label: 'Last follow-up', type: 'date' },
+      { key: 'os_months', label: 'Overall survival (months)', type: 'number', min: 0, step: '0.1' }, { key: 'pfs_months', label: 'Progression-free survival (months)', type: 'number', min: 0, step: '0.1' }, { key: 'date_of_death', label: 'Date of death', type: 'date' } ] },
+  ];
+  const ALL_FIELDS = STEPS.flatMap((s) => s.fields);
+  const ALL_COLS = ALL_FIELDS.map((f) => f.key);
+  const OUTCOME_FIELDS = STEPS[4].fields;
+
+  /* ---------------- badges ---------------- */
+  const grade = (g) => g ? REG.tag('Grade ' + g, { I: 'ok', II: 'info', III: 'warn', IV: 'danger' }[String(g).toUpperCase()] || 'outline') : REG.tag('—', 'outline');
+  const vital = (v) => v === 'Alive' ? REG.tag('Alive', 'ok') : v === 'Deceased' ? REG.tag('Deceased', 'danger') : REG.tag('Unknown', 'outline');
+  const mol = (v) => { if (!v) return REG.tag('Unknown', 'outline'); const s = v.toLowerCase(); const kind = /mutant|methylated$|codeleted$|amplified$|deleted$|lost/.test(s) && !/^un|^not |^non/.test(s) ? 'teal' : 'outline'; return REG.tag(v, kind); };
+  const LIST_COLS = [
+    { key: 'study_id', label: 'Study ID', render: (p) => REG.studyLink(p.study_id) }, { key: 'age_at_diagnosis', label: 'Age', num: true }, { key: 'sex', label: 'Sex' }, { key: 'diagnosis', label: 'Diagnosis' },
+    { key: 'who_grade', label: 'Grade', render: (p) => grade(p.who_grade) }, { key: 'idh_status', label: 'IDH', render: (p) => mol(p.idh_status) }, { key: 'mgmt_status', label: 'MGMT', render: (p) => mol(p.mgmt_status) },
+    { key: 'extent_of_resection', label: 'EOR' }, { key: 'vital_status', label: 'Status', render: (p) => vital(p.vital_status) }, { key: 'os_months', label: 'OS (mo)', num: true },
+  ];
+  const CSV_COLS = ['study_id', 'age_at_diagnosis', 'sex', 'race', 'ethnicity', 'diagnosis', 'who_grade', 'idh_status', 'mgmt_status', 'codel_1p19q', 'tert_promoter', 'egfr_amplification', 'tp53_mutation', 'atrx_status', 'cdkn2a_deletion', 'ki67_percent', 'surgery_date', 'surgery_type', 'extent_of_resection', 'surgeon', 'radiation_received', 'chemotherapy_received', 'vital_status', 'os_months', 'pfs_months', 'last_followup_date'];
+  const openDetail = (p) => REG.go('detail', { id: p.study_id });
+  const patients = (force) => REG.fetchAll(T, { force, order: 'study_id' });
+
+  /* ---------------- related tables (detail) ---------------- */
+  const REL = {
+    progressions: { table: 'btr_progressions', title: 'Disease progressions', order: 'progression_date', cols: [{ key: 'progression_date', label: 'Date', render: (r) => REG.date(r.progression_date) }, { key: 'type', label: 'Type' }, { key: 'location', label: 'Location' }, { key: 'treatment_plan', label: 'Treatment plan' }],
+      fields: [{ key: 'progression_date', label: 'Progression date', type: 'date', required: true }, { key: 'type', label: 'Type', type: 'select', options: ['Local', 'Distant', 'Leptomeningeal', 'Pseudoprogression'] }, { key: 'location', label: 'Location', type: 'text' }, { key: 'treatment_plan', label: 'Treatment plan', type: 'textarea', full: true }] },
+    surgeries: { table: 'btr_surgeries', title: 'Surgeries', order: 'surgery_date', cols: [{ key: 'surgery_date', label: 'Date', render: (r) => REG.date(r.surgery_date) }, { key: 'surgery_type', label: 'Type' }, { key: 'extent_of_resection', label: 'EOR' }, { key: 'surgeon', label: 'Surgeon' }],
+      fields: [{ key: 'surgery_date', label: 'Surgery date', type: 'date', required: true }, { key: 'surgery_type', label: 'Type', type: 'select', options: ['Craniotomy', 'Biopsy', 'Endoscopic', 'Awake Craniotomy', 'Transsphenoidal', 'Re-resection', 'Other'] }, { key: 'extent_of_resection', label: 'Extent of resection', type: 'select', options: EOR }, { key: 'surgeon', label: 'Surgeon', type: 'text' }] },
+    radiation: { table: 'btr_radiation_treatments', title: 'Radiation', order: 'start_date', cols: [{ key: 'start_date', label: 'Start', render: (r) => REG.date(r.start_date) }, { key: 'total_dose', label: 'Dose (Gy)', num: true }, { key: 'fractions', label: 'Fractions', num: true }, { key: 'technique', label: 'Technique' }],
+      fields: [{ key: 'start_date', label: 'Start date', type: 'date', required: true }, { key: 'total_dose', label: 'Total dose (Gy)', type: 'number', min: 0, step: '0.1' }, { key: 'fractions', label: 'Fractions', type: 'number', min: 0 }, { key: 'technique', label: 'Technique', type: 'select', options: ['IMRT', '3D-CRT', 'SRS', 'Fractionated SRT', 'Proton', 'Whole brain', 'Other'] }] },
+    chemo: { table: 'btr_chemotherapy_regimens', title: 'Chemotherapy', order: 'start_date', cols: [{ key: 'regimen', label: 'Regimen' }, { key: 'cycles_completed', label: 'Cycles', num: true }, { key: 'start_date', label: 'Start', render: (r) => REG.date(r.start_date) }, { key: 'end_date', label: 'End', render: (r) => REG.date(r.end_date) }],
+      fields: [{ key: 'regimen', label: 'Regimen', type: 'select', options: ['Temozolomide (concurrent)', 'Temozolomide (adjuvant)', 'PCV', 'Lomustine', 'Bevacizumab', 'Carboplatin/Vincristine', 'Clinical trial agent', 'Other'], required: true }, { key: 'cycles_completed', label: 'Cycles completed', type: 'number', min: 0 }, { key: 'start_date', label: 'Start date', type: 'date' }, { key: 'end_date', label: 'End date', type: 'date' }] },
+    imaging: { table: 'btr_imaging_studies', title: 'Imaging studies', order: 'study_date', asc: false, cols: [{ key: 'study_date', label: 'Date', render: (r) => REG.date(r.study_date) }, { key: 'modality', label: 'Modality' }, { key: 'findings', label: 'Findings' }],
+      fields: [{ key: 'study_date', label: 'Study date', type: 'date', required: true }, { key: 'modality', label: 'Modality', type: 'select', options: ['MRI Brain w/wo', 'MRI Brain w/o', 'CT Head', 'MR Perfusion', 'MR Spectroscopy', 'PET', 'Other'] }, { key: 'findings', label: 'Findings', type: 'textarea', full: true }] },
+    volumes: { table: 'btr_volumetric_measurements', title: 'Volumetric measurements', order: 'measurement_date', cols: [{ key: 'measurement_date', label: 'Date', render: (r) => REG.date(r.measurement_date) }, { key: 'volume_cc', label: 'Volume (cc)', num: true }, { key: 'method', label: 'Method' }],
+      fields: [{ key: 'measurement_date', label: 'Date', type: 'date', required: true }, { key: 'volume_cc', label: 'Volume (cc)', type: 'number', min: 0, step: '0.1', required: true }, { key: 'method', label: 'Method', type: 'select', options: ['Manual segmentation', 'Semi-automated', 'ABC/2', 'Other'] }],
+      chart: (el, rows) => REG.line(el, [{ label: 'Tumour volume', points: rows.filter((r) => r.measurement_date && r.volume_cc != null).map((r) => ({ x: new Date(r.measurement_date), y: +r.volume_cc })) }], { xTime: true, yLabel: 'cc', unit: 'cc', height: 200, xFormat: d3.timeFormat('%b %Y') }) },
+    rano: { table: 'btr_rano_assessments', title: 'RANO assessments', order: 'assessment_date', cols: [{ key: 'assessment_date', label: 'Date', render: (r) => REG.date(r.assessment_date) }, { key: 'response', label: 'Response', render: (r) => r.response ? REG.tag(r.response, { CR: 'ok', PR: 'teal', SD: 'info', PD: 'danger' }[r.response] || 'outline') : '—' }, { key: 'notes', label: 'Notes' }],
+      fields: [{ key: 'assessment_date', label: 'Date', type: 'date', required: true }, { key: 'response', label: 'Response', type: 'select', options: [['CR', 'CR — complete response'], ['PR', 'PR — partial response'], ['SD', 'SD — stable disease'], ['PD', 'PD — progressive disease']], required: true }, { key: 'notes', label: 'Notes', type: 'textarea', full: true }] },
+    followups: { table: 'btr_follow_ups', title: 'Follow-up visits', order: 'visit_date', asc: false, cols: [{ key: 'visit_date', label: 'Date', render: (r) => REG.date(r.visit_date) }, { key: 'visit_type', label: 'Type' }, { key: 'kps_score', label: 'KPS', num: true }, { key: 'notes', label: 'Notes' }],
+      fields: [{ key: 'visit_date', label: 'Visit date', type: 'date', required: true }, { key: 'visit_type', label: 'Visit type', type: 'select', options: ['Clinic', 'MRI surveillance', 'Telehealth', 'Neuro-oncology', 'Radiation oncology', 'Other'] }, { key: 'kps_score', label: 'KPS', type: 'number', min: 10, max: 100, step: '10' }, { key: 'notes', label: 'Notes', type: 'textarea', full: true }] },
+  };
+
+  /* ---------------- pages ---------------- */
+  const PAGES = [
+    { key: 'dashboard', label: 'Dashboard', icon: 'home' }, { key: 'tree', label: 'Pathology tree', icon: 'brain' }, { key: 'query', label: 'Query builder', icon: 'search' }, { key: 'add', label: 'Add patient', icon: 'plus', write: true },
+    { key: 'detail', label: 'Patient detail', icon: 'doc', hidden: true }, { key: 'followup', label: 'Follow-up alerts', icon: 'bell' }, { key: 'cohorts', label: 'Research cohorts', icon: 'users' },
+    { key: 'trials', label: 'Clinical trials', icon: 'flask' }, { key: 'biobank', label: 'Biobank', icon: 'db' }, { key: 'tumorboard', label: 'Tumor board', icon: 'cal' }, { key: 'genomics', label: 'Genomics', icon: 'chart' }, { key: 'quality', label: 'Data quality', icon: 'shield' },
+  ];
+
+  /* ---------- dashboard ---------- */
+  async function dashboard(el) {
+    const pts = await patients();
+    const ages = pts.map((p) => p.age_at_diagnosis); const surg = pts.filter((p) => p.extent_of_resection);
+    const osVals = pts.filter((p) => p.os_months != null).map((p) => +p.os_months).sort((a, b) => a - b);
+    const medianOS = osVals.length ? osVals[Math.floor(osVals.length / 2)] : null;
+    el.innerHTML = REG.stats([REG.statCard(pts.length, 'Total patients'), REG.statCard(REG.count(pts, (p) => p.vital_status === 'Alive'), 'Alive', { tone: 'ok' }), REG.statCard(REG.count(pts, (p) => p.vital_status === 'Deceased'), 'Deceased', { tone: 'danger' }), REG.statCard(REG.mean(ages), 'Mean age at dx'), REG.statCard(REG.pct(REG.count(surg, (p) => p.extent_of_resection === 'GTR'), surg.length), 'GTR rate', { sub: `of ${surg.length} resections` }), REG.statCard(medianOS != null ? medianOS + ' mo' : '—', 'Median OS', { sub: `${osVals.length} with OS data` })]) +
+      (pts.length ? '' : `<div class="alert alert-info">The registry is empty. ${REG.canWrite ? '<a href="?p=add" data-nav>Add the first patient</a> or import a CSV from the query page.' : 'Check back once data entry begins.'}</div>`) +
+      `<div class="chart-grid">
+        ${REG.section('Diagnosis distribution', '<div class="chart" id="cDx"></div>')}
+        ${REG.section('WHO grade', '<div class="chart" id="cGrade"></div>')}
+        ${REG.section('IDH and MGMT status', '<div class="chart" id="cMol"></div>')}
+        ${REG.section('Molecular markers (positive findings)', '<div class="chart" id="cMarkers"></div>')}
+        ${REG.section('Treatment modality', '<div class="chart" id="cTx"></div>')}
+        ${REG.section('Extent of resection', '<div class="chart" id="cEor"></div>')}
+      </div>
+      ${REG.section('Survival summary (Kaplan–Meier)', `<div class="filters"><select class="input" id="kmType"><option value="os_months">Overall survival</option><option value="pfs_months">Progression-free survival</option></select><select class="input" id="kmStrat"><option value="">All patients</option><option value="who_grade">By WHO grade</option><option value="idh_status">By IDH status</option><option value="mgmt_status">By MGMT status</option><option value="extent_of_resection">By extent of resection</option></select></div><div class="chart" id="cKm"></div>${REG.note('Events = deceased; alive patients are censored at their recorded OS/PFS time. Descriptive only — not a statistical analysis.')}`)}`;
+    const dx = REG.toData(REG.tally(pts, 'diagnosis'), 'desc').slice(0, 12);
+    REG.bar(el.querySelector('#cDx'), dx, { horizontal: true, color: REG.NAVY, empty: 'No diagnoses recorded' });
+    const gradeData = REG.toData(REG.tally(pts, (p) => p.who_grade ? 'Grade ' + p.who_grade : 'Unknown'), 'label');
+    REG.donut(el.querySelector('#cGrade'), gradeData, { colorFor: (l) => ({ 'Grade I': REG.STATUS.ok, 'Grade II': REG.SERIES[0], 'Grade III': REG.STATUS.warn, 'Grade IV': REG.STATUS.danger }[l] || REG.NEUTRAL) });
+    REG.groupedBar(el.querySelector('#cMol'), [{ group: 'IDH', series: { Positive: REG.count(pts, (p) => p.idh_status === 'Mutant'), Negative: REG.count(pts, (p) => p.idh_status === 'Wildtype'), Unknown: REG.count(pts, (p) => !p.idh_status) } }, { group: 'MGMT', series: { Positive: REG.count(pts, (p) => p.mgmt_status === 'Methylated'), Negative: REG.count(pts, (p) => p.mgmt_status === 'Unmethylated'), Unknown: REG.count(pts, (p) => !p.mgmt_status) } }], ['Positive', 'Negative', 'Unknown'], { height: 240, empty: 'No patients' });
+    el.querySelector('#cMol').insertAdjacentHTML('beforeend', REG.note('Positive = IDH-mutant / MGMT-methylated.'));
+    REG.bar(el.querySelector('#cMarkers'), MARKERS.map((m) => ({ label: m.label, value: REG.count(pts, (p) => p[m.key] === m.pos) })), { color: REG.TEAL, empty: 'No molecular data' });
+    const tx = { 'Surgery only': 0, 'Surgery + RT': 0, 'Surgery + chemo': 0, 'Trimodal': 0, 'Other / none': 0 };
+    pts.forEach((p) => { const s = !!p.extent_of_resection, r = p.radiation_received === true || p.radiation_received === 'Yes', c = p.chemotherapy_received === true || p.chemotherapy_received === 'Yes'; if (s && r && c) tx['Trimodal']++; else if (s && r) tx['Surgery + RT']++; else if (s && c) tx['Surgery + chemo']++; else if (s) tx['Surgery only']++; else tx['Other / none']++; });
+    REG.bar(el.querySelector('#cTx'), REG.toData(tx), { color: REG.NAVY, empty: 'No patients' });
+    REG.bar(el.querySelector('#cEor'), ['GTR', 'STR', 'Biopsy', 'Unknown'].map((k) => ({ label: k, value: REG.count(pts, (p) => (p.extent_of_resection || 'Unknown') === k) })), { colorFor: REG.colorFor(['GTR', 'STR', 'Biopsy', 'Unknown']), empty: 'No patients' });
+    const km = () => { const tf = el.querySelector('#kmType').value, st = el.querySelector('#kmStrat').value; const groups = {}; if (!st) groups['All patients'] = pts; else pts.forEach((p) => { const k = p[st] ? (st === 'who_grade' ? 'Grade ' + p[st] : p[st]) : 'Unknown'; (groups[k] = groups[k] || []).push(p); }); REG.km(el.querySelector('#cKm'), groups, tf, (p) => p.vital_status === 'Deceased', { empty: 'No survival data yet' }); };
+    el.querySelector('#kmType').onchange = km; el.querySelector('#kmStrat').onchange = km; km();
+  }
+
+  /* ---------- pathology tree ---------- */
+  async function tree(el) {
+    const pts = await patients(); const counts = REG.tally(pts.filter((p) => p.diagnosis), 'diagnosis');
+    const total = (n) => n.code ? (counts[n.name] || 0) : (n.children || []).reduce((s, c) => s + total(c), 0);
+    const node = (n, depth) => n.children ? `<details ${depth < 1 ? 'open' : ''}><summary>${esc(n.name)}<span class="cnt">${total(n)}</span></summary><ul>${n.children.map((c) => `<li>${node(c, depth + 1)}</li>`).join('')}</ul></details>` : `<div class="leaf" data-dx="${esc(n.name)}"><span>${esc(n.name)}</span><span class="code">${esc(n.code)}</span><span class="cnt">${counts[n.name] || 0}</span></div>`;
+    const unlisted = Object.keys(counts).filter((d) => !leaves.includes(d));
+    el.innerHTML = `<div class="tree-layout"><div>${REG.section('WHO CNS5 classification', `<div class="flex wrap mb-2"><button class="btn btn-outline btn-sm" id="tExpand">Expand all</button><button class="btn btn-outline btn-sm" id="tCollapse">Collapse all</button><span class="muted small">${pts.length} patients · ${Object.keys(counts).length} distinct diagnoses</span></div><div class="tree" id="treeRoot">${node(BTR_TAXONOMY, 0)}</div>${unlisted.length ? `<div class="alert alert-warn mt-2">Diagnoses not in the taxonomy: ${esc(unlisted.join(', '))}</div>` : ''}`)}</div>
+      <div>${REG.section('Patients', '<div id="treePanel"><div class="empty">' + SL.icons.brain + '<div>Select a diagnosis to list patients.</div></div></div>')}</div></div>`;
+    el.querySelector('#tExpand').onclick = () => SL.qsa('details', el).forEach((d) => d.open = true);
+    el.querySelector('#tCollapse').onclick = () => SL.qsa('details', el).forEach((d) => d.open = false);
+    SL.qsa('.leaf', el).forEach((l) => l.onclick = () => {
+      SL.qsa('.leaf', el).forEach((x) => x.classList.remove('active')); l.classList.add('active');
+      const dx = l.dataset.dx; const rows = pts.filter((p) => p.diagnosis === dx);
+      const panel = el.querySelector('#treePanel');
+      panel.innerHTML = `<h4 style="margin-bottom:8px">${esc(dx)} <span class="tag tag-teal">${rows.length}</span></h4>${rows.length ? rows.map((p) => `<div class="kcard" data-id="${esc(p.study_id)}"><div><div class="study-id">${esc(p.study_id)}</div><div class="meta">${esc(p.sex || '—')} · ${p.age_at_diagnosis != null ? p.age_at_diagnosis + ' y' : '—'} · ${grade(p.who_grade)}</div></div>${vital(p.vital_status)}</div>`).join('') : REG.empty('No patients with this diagnosis.')}`;
+      SL.qsa('.kcard', panel).forEach((c) => c.onclick = () => REG.go('detail', { id: c.dataset.id }));
+    });
+  }
+
+  /* ---------- query builder ---------- */
+  function query(el) {
+    el.innerHTML = `<div class="flex between wrap mb-2"><p class="muted small" style="margin:0">Build AND-combined conditions against <code>btr_patients</code>. Results can be exported or saved as a research cohort.</p><div class="flex">${REG.canWrite ? `<button class="btn btn-outline btn-sm" id="qImport">${SL.icons.upload}Import CSV</button>` : ''}</div></div><div id="qb"></div>`;
+    const qb = REG.queryBuilder(el.querySelector('#qb'), { table: T, cols: LIST_COLS, onRow: openDetail, csvName: 'btr_query.csv', csvCols: CSV_COLS, fields: [
+      { key: 'diagnosis', label: 'Diagnosis', type: 'select', options: leaves }, { key: 'who_grade', label: 'WHO grade', type: 'select', options: GRADES }, { key: 'age_at_diagnosis', label: 'Age at diagnosis', type: 'number' }, { key: 'sex', label: 'Sex', type: 'select', options: SEX },
+      ...MARKERS.map((m) => ({ key: m.key, label: m.label, type: 'select', options: m.options })), { key: 'extent_of_resection', label: 'Extent of resection', type: 'select', options: EOR }, { key: 'surgery_type', label: 'Surgery type', type: 'text' }, { key: 'surgeon', label: 'Surgeon', type: 'text' }, { key: 'surgery_date', label: 'Surgery date', type: 'date' },
+      { key: 'vital_status', label: 'Vital status', type: 'select', options: ['Alive', 'Deceased'] }, { key: 'os_months', label: 'OS (months)', type: 'number' }, { key: 'pfs_months', label: 'PFS (months)', type: 'number' }, { key: 'kps_score', label: 'KPS', type: 'number' }, { key: 'radiation_received', label: 'Radiation received', type: 'select', options: ['Yes', 'No'] }, { key: 'chemotherapy_received', label: 'Chemotherapy received', type: 'select', options: ['Yes', 'No'] }, { key: 'study_id', label: 'Study ID', type: 'text' } ] });
+    if (REG.canWrite) {
+      el.querySelector('#qImport').onclick = () => REG.importDialog(T, PREFIX, ALL_COLS, () => { REG.invalidate(T); qb.run(); });
+      el.querySelector('#qb').insertAdjacentHTML('beforeend', `<div class="right mt-2"><button class="btn btn-accent btn-sm" id="saveCohort">${SL.icons.users}Save results as cohort</button></div>`);
+      el.querySelector('#saveCohort').onclick = () => saveCohort(qb.results(), qb.rules);
+    }
+  }
+  async function saveCohort(rows, rules) {
+    if (!rows.length) { SL.toast('Run a query with results first', 'warn'); return; }
+    const v = await REG.modalForm('Save research cohort', [{ key: 'name', label: 'Cohort name', type: 'text', required: true, full: true }, { key: 'description', label: 'Description / hypothesis', type: 'textarea', full: true }], null, { intro: `${rows.length} patients will be saved with the current filters.` });
+    if (!v) return;
+    try { const row = await REG.insertLoose('btr_research_cohorts', { name: v.name, description: v.description, filters: rules.map((r) => ({ field: r.key, op: r.op, value: r.value })), patient_ids: rows.map((p) => p.study_id), created_by: SL.user && SL.user.id }); SL.closeModal(); SL.audit('registry_insert', 'btr_research_cohorts', row.id, { n: rows.length }); SL.toast('Cohort saved', 'ok'); }
+    catch (e) { SL.toast('Could not save cohort: ' + e.message, 'err'); SL.closeModal(); }
+  }
+
+  /* ---------- add wizard ---------- */
+  function add(el) {
+    el.innerHTML = `<div id="wiz"></div>`;
+    REG.wizard(el.querySelector('#wiz'), STEPS, { onSubmit: async (vals) => {
+      if (!vals.vital_status) vals.vital_status = 'Alive';
+      try { const saved = await REG.insertWithStudyId(T, PREFIX, vals); REG.invalidate(T); SL.audit('registry_insert', T, saved.study_id, { diagnosis: saved.diagnosis }); SL.toast(`Patient ${saved.study_id} saved`, 'ok'); REG.go('detail', { id: saved.study_id }); }
+      catch (e) { SL.toast('Save failed: ' + (e.message || e), 'err'); }
+    } });
+  }
+
+  /* ---------- detail ---------- */
+  async function detail(el, params) {
+    const p = await REG.loadPatient(T, params.id); if (!p) { REG.notFound(el); return; }
+    const rel = {}; for (const k of Object.keys(REL)) rel[k] = await REG.relatedSection(REL[k], p, () => REG.refresh());
+    const f = REG.detailField;
+    const overview = REG.section('Demographics', REG.detailGrid([f('Age at diagnosis', p.age_at_diagnosis), f('Sex', p.sex), f('Race', p.race), f('Ethnicity', p.ethnicity)])) +
+      REG.section('Diagnosis & key markers', REG.detailGrid([f('Integrated diagnosis', p.diagnosis, { full: true }), f('WHO grade', grade(p.who_grade), { html: true }), f('IDH', mol(p.idh_status), { html: true }), f('MGMT', mol(p.mgmt_status), { html: true }), f('1p/19q', mol(p.codel_1p19q), { html: true }), f('TERT', mol(p.tert_promoter), { html: true })])) +
+      REG.section('Outcomes', REG.detailGrid([f('Vital status', vital(p.vital_status), { html: true }), f('OS (months)', p.os_months), f('PFS (months)', p.pfs_months), f('Last follow-up', REG.date(p.last_followup_date), { html: true }), f('Date of death', REG.date(p.date_of_death), { html: true }), f('Radiation', REG.yesNo(p.radiation_received), { html: true }), f('Chemotherapy', REG.yesNo(p.chemotherapy_received), { html: true })]), REG.canWrite ? `<button class="btn btn-sm btn-outline" id="editOutcome">${SL.icons.edit}Update outcome</button>` : '');
+    const clinical = REG.section('Presentation', REG.detailGrid([f('Presenting symptoms', p.presenting_symptoms, { full: true }), f('KPS', p.kps_score), f('GCS', p.gcs_score)])) + REG.section('Medical history', `<p class="small" style="white-space:pre-wrap;margin:0">${esc(p.medical_history || 'None recorded')}</p>`);
+    const treatment = REG.section('Index surgery', REG.detailGrid([f('Date', REG.date(p.surgery_date), { html: true }), f('Type', p.surgery_type), f('Approach', p.surgical_approach), f('Extent of resection', p.extent_of_resection), f('Surgeon', p.surgeon), f('Complications', p.complications)])) + rel.surgeries.html + rel.radiation.html + rel.chemo.html;
+    const imaging = rel.imaging.html + rel.volumes.html + rel.rano.html;
+    const pathology = REG.section('Pathology', REG.detailGrid([f('Diagnosis', p.diagnosis, { full: true }), f('WHO grade', grade(p.who_grade), { html: true }), f('Pathology accession', p.pathology_id), f('Ki-67', p.ki67_percent != null ? p.ki67_percent + '%' : null)])) + REG.section('Molecular markers', REG.detailGrid(MARKERS.map((m) => f(m.label, mol(p[m.key]), { html: true }))));
+    const followup = rel.progressions.html + rel.followups.html;
+    REG.detailLayout(el, p, { badges: `${p.diagnosis ? REG.tag(p.diagnosis) : ''}${grade(p.who_grade)}${vital(p.vital_status)}`, actions: REG.canWrite ? `<button class="btn btn-outline btn-sm" id="editPt">${SL.icons.edit}Edit record</button><button class="btn btn-accent btn-sm" id="addProg">${SL.icons.plus}Add progression</button>` : '',
+      tabs: [{ key: 'overview', label: 'Overview', html: overview }, { key: 'clinical', label: 'Clinical', html: clinical }, { key: 'treatment', label: 'Treatment', html: treatment, mount: (r) => ['surgeries', 'radiation', 'chemo'].forEach((k) => rel[k].mount(r)) }, { key: 'imaging', label: 'Imaging', html: imaging, mount: (r) => ['imaging', 'volumes', 'rano'].forEach((k) => rel[k].mount(r)) }, { key: 'pathology', label: 'Pathology', html: pathology }, { key: 'followup', label: 'Follow-up', html: followup, mount: (r) => ['progressions', 'followups'].forEach((k) => rel[k].mount(r)) }] });
+    if (REG.canWrite) {
+      const onSaved = () => { REG.invalidate(T); REG.refresh(); };
+      el.querySelector('#editOutcome').onclick = () => REG.editRow(T, p, 'Update outcome — ' + p.study_id, OUTCOME_FIELDS, onSaved);
+      el.querySelector('#editPt').onclick = () => REG.editRow(T, p, 'Edit record — ' + p.study_id, ALL_FIELDS.filter((x) => x.key !== 'study_id'), onSaved);
+      el.querySelector('#addProg').onclick = () => REG.addRelated('btr_progressions', p.id, 'Add progression — ' + p.study_id, REL.progressions.fields, () => REG.refresh());
+    }
+    SL.audit('registry_view', T, p.study_id);
+  }
+
+  /* ---------- follow-up alerts (kanban) ---------- */
+  async function followup(el) {
+    const pts = await patients(); const today = new Date(); const cols = { overdue: [], upcoming: [], lost: [] };
+    pts.forEach((p) => { if (p.vital_status === 'Deceased') return; if (!p.last_followup_date) { cols.lost.push({ p, days: null }); return; } const last = new Date(p.last_followup_date); const since = Math.floor((today - last) / 864e5); const next = new Date(last); next.setMonth(next.getMonth() + 3); const until = Math.floor((next - today) / 864e5); if (since > 365) cols.lost.push({ p, days: since }); else if (until < 0) cols.overdue.push({ p, days: -until }); else if (until <= 30) cols.upcoming.push({ p, days: until }); });
+    cols.overdue.sort((a, b) => b.days - a.days); cols.upcoming.sort((a, b) => a.days - b.days); cols.lost.sort((a, b) => (b.days || 1e9) - (a.days || 1e9));
+    const card = (it, lbl) => `<div class="kcard" data-id="${esc(it.p.study_id)}"><div><div class="study-id">${esc(it.p.study_id)}</div><div class="meta">${esc(it.p.diagnosis || 'No diagnosis')} · ${esc(it.p.sex || '')} ${it.p.age_at_diagnosis != null ? it.p.age_at_diagnosis + 'y' : ''}</div></div><div class="days">${it.days == null ? '?' : it.days}<small>${lbl}</small></div></div>`;
+    const col = (key, title, lbl) => `<div class="kanban-col ${key}"><h3>${title}<span class="tag">${cols[key].length}</span></h3>${cols[key].length ? cols[key].map((it) => card(it, lbl)).join('') : '<div class="empty" style="padding:24px">None</div>'}</div>`;
+    el.innerHTML = `<p class="muted small">Assumes a 3-month MRI surveillance interval from the last recorded follow-up. Patients marked deceased are excluded.</p><div class="kanban">${col('overdue', 'Overdue', 'days overdue')}${col('upcoming', 'Due within 30 days', 'days until due')}${col('lost', 'Lost to follow-up (>12 mo)', 'days since visit')}</div>`;
+    SL.qsa('.kcard', el).forEach((c) => c.onclick = () => REG.go('detail', { id: c.dataset.id }));
+  }
+
+  /* ---------- cohorts ---------- */
+  async function cohorts(el) {
+    const [{ data: list, error }, pts] = await Promise.all([SL.sb.from('btr_research_cohorts').select('*').order('created_at', { ascending: false }), patients()]);
+    const rows = list || [];
+    el.innerHTML = `<div class="flex between wrap mb-2"><p class="muted small" style="margin:0">Saved patient sets (study IDs + the filters used). Build new cohorts from the <a href="?p=query" data-nav>query builder</a>.</p></div>${error ? `<div class="alert alert-danger">${esc(error.message)}</div>` : ''}<div class="grid grid-2"><div id="cohList"></div><div id="cohView">${REG.empty('Select a cohort to preview its patients.', 'users')}</div></div>`;
+    const listEl = el.querySelector('#cohList');
+    listEl.innerHTML = rows.length ? `<div class="card-list">${rows.map((c) => `<div class="card card-hover" data-id="${c.id}" style="cursor:pointer"><div class="flex between"><h4 style="margin:0">${esc(c.name || 'Untitled')}</h4><span class="tag tag-teal">${(c.patient_ids || []).length} pts</span></div><p class="small muted" style="margin:6px 0 0">${esc(c.description || '')}</p><div class="xs muted mt-1">${REG.date(c.created_at)}${(c.filters || []).length ? ' · ' + c.filters.map((fl) => `${esc(fl.field || fl.key || '')} ${esc(fl.op || '')} ${esc(fl.value || '')}`).join('; ') : ''}</div></div>`).join('')}</div>` : REG.empty('No saved cohorts yet.', 'users');
+    SL.qsa('[data-id]', listEl).forEach((c) => c.onclick = () => {
+      const coh = rows.find((r) => String(r.id) === c.dataset.id); const ids = new Set(coh.patient_ids || []); const sel = pts.filter((p) => ids.has(p.study_id));
+      const v = el.querySelector('#cohView');
+      v.innerHTML = REG.section(coh.name, `<div class="flex wrap mb-2">${REG.exportBtn('Export CSV')}<button class="btn btn-outline btn-sm" id="cohJson">${SL.icons.download}Export JSON</button>${REG.canWrite ? `<button class="btn btn-ghost btn-sm" id="cohDel" style="color:var(--danger)">${SL.icons.trash}Delete</button>` : ''}</div><div id="cohTable"></div>${ids.size !== sel.length ? REG.note(`${ids.size - sel.length} study IDs in this cohort no longer resolve to a patient.`) : ''}`);
+      REG.table(v.querySelector('#cohTable'), LIST_COLS.slice(0, 6), sel, { onRow: openDetail, empty: 'No matching patients.' });
+      v.querySelector('[data-export]').onclick = () => REG.csvDownload(`btr_cohort_${coh.id}.csv`, sel, CSV_COLS);
+      v.querySelector('#cohJson').onclick = () => { SL.download(`btr_cohort_${coh.id}.json`, JSON.stringify(sel.map((p) => Object.fromEntries(CSV_COLS.map((k) => [k, p[k]]))), null, 2), 'application/json'); SL.audit('registry_export', 'btr_research_cohorts', coh.id, { format: 'json', n: sel.length }); };
+      const del = v.querySelector('#cohDel'); if (del) del.onclick = async () => { if (!await SL.confirm(`Delete cohort "${coh.name}"?`, 'Delete')) return; const { error: e } = await SL.sb.from('btr_research_cohorts').delete().eq('id', coh.id); if (e) { SL.toast(e.message, 'err'); return; } SL.audit('registry_delete', 'btr_research_cohorts', coh.id); SL.toast('Cohort deleted', 'ok'); REG.refresh(); };
+    });
+  }
+
+  /* ---------- clinical trials ---------- */
+  const TRIAL_FIELDS = [{ key: 'name', label: 'Trial name', type: 'text', required: true, full: true }, { key: 'phase', label: 'Phase', type: 'select', options: ['Phase I', 'Phase I/II', 'Phase II', 'Phase III', 'Phase IV'] }, { key: 'status', label: 'Status', type: 'select', options: ['Enrolling', 'Active', 'Suspended', 'Closed'] }, { key: 'principal_investigator', label: 'Principal investigator', type: 'text' }, { key: 'nct_number', label: 'NCT number', type: 'text', placeholder: 'NCT########' }, { key: 'irb_number', label: 'IRB number', type: 'text' }, { key: 'description', label: 'Description', type: 'textarea', full: true }, { key: 'inclusion_criteria', label: 'Inclusion criteria', type: 'textarea', full: true }, { key: 'exclusion_criteria', label: 'Exclusion criteria', type: 'textarea', full: true }];
+  async function trials(el) {
+    const [{ data: list, error }, { data: notes }] = await Promise.all([SL.sb.from('btr_clinical_trials').select('*').order('created_at', { ascending: false }), SL.sb.from('btr_trial_notes').select('*').order('created_at', { ascending: false })]);
+    const rows = list || [], byTrial = {}; (notes || []).forEach((n) => (byTrial[n.trial_id] = byTrial[n.trial_id] || []).push(n));
+    const statusTag = (s) => REG.tag(s || '—', { Enrolling: 'ok', Active: 'teal', Suspended: 'warn', Closed: 'outline' }[s] || 'outline');
+    el.innerHTML = `<div class="flex between wrap mb-2">${REG.stats([REG.statCard(rows.length, 'Trials'), REG.statCard(REG.count(rows, (t) => t.status === 'Enrolling' || t.status === 'Active'), 'Open', { tone: 'ok' }), REG.statCard((notes || []).length, 'Trial notes')])}</div><div class="flex between wrap mb-2"><div class="search grow">${SL.icons.search}<input class="input" id="trialSearch" placeholder="Search trials, PI, NCT…"></div>${REG.canWrite ? `<button class="btn btn-primary btn-sm" id="addTrial">${SL.icons.plus}Add trial</button>` : ''}${REG.exportBtn()}</div>${error ? `<div class="alert alert-danger">${esc(error.message)}</div>` : ''}<div class="card-list" id="trialList"></div>`;
+    const draw = (q) => { const f = rows.filter((t) => !q || [t.name, t.principal_investigator, t.nct_number, t.phase].join(' ').toLowerCase().includes(q)); el.querySelector('#trialList').innerHTML = f.length ? f.map((t) => `<div class="card"><div class="flex between wrap"><h4 style="margin:0">${esc(t.name || 'Untitled')}</h4><div class="tags">${REG.tag(t.phase || '—', 'info')}${statusTag(t.status)}</div></div><div class="small muted mt-1">PI: ${esc(t.principal_investigator || '—')}${t.nct_number ? ` · <a href="https://clinicaltrials.gov/study/${encodeURIComponent(t.nct_number)}" target="_blank" rel="noopener">${esc(t.nct_number)}</a>` : ''}${t.irb_number ? ` · IRB ${esc(t.irb_number)}` : ''}</div>
+        <details><summary>Details & notes (${(byTrial[t.id] || []).length})</summary><p class="small mt-1">${esc(t.description || 'No description')}</p>${t.inclusion_criteria ? `<p class="small"><strong>Inclusion:</strong> ${esc(t.inclusion_criteria)}</p>` : ''}${t.exclusion_criteria ? `<p class="small"><strong>Exclusion:</strong> ${esc(t.exclusion_criteria)}</p>` : ''}
+        ${(byTrial[t.id] || []).map((n) => `<div class="case"><div class="xs muted">${REG.dt(n.created_at)} · ${esc(n.author || '')}${n.patient_study_id ? ` · ${REG.studyLink(n.patient_study_id)}` : ''}</div>${esc(n.note)}</div>`).join('')}
+        ${REG.canWrite ? `<button class="btn btn-outline btn-sm mt-2" data-note="${t.id}">${SL.icons.plus}Add note</button>` : ''}</details></div>`).join('') : REG.empty('No clinical trials recorded.', 'flask'); wire(); };
+    const wire = () => SL.qsa('[data-note]', el).forEach((b) => b.onclick = async () => { const v = await REG.modalForm('Add trial note', [{ key: 'patient_study_id', label: 'Patient study ID (optional)', type: 'text', placeholder: 'BTR-0001' }, { key: 'note', label: 'Note', type: 'textarea', required: true, full: true }]); if (!v) return; try { await REG.insertLoose('btr_trial_notes', Object.assign({ trial_id: +b.dataset.note, author: SL.profile && SL.profile.name }, v)); SL.closeModal(); SL.audit('registry_insert', 'btr_trial_notes', b.dataset.note); SL.toast('Note added', 'ok'); REG.refresh(); } catch (e) { SL.closeModal(); SL.toast(e.message, 'err'); } });
+    draw(''); el.querySelector('#trialSearch').oninput = SL.debounce((e) => draw(e.target.value.toLowerCase()));
+    el.querySelector('[data-export]').onclick = () => REG.csvDownload('btr_clinical_trials.csv', rows, ['name', 'phase', 'status', 'principal_investigator', 'nct_number', 'irb_number', 'description']);
+    const addBtn = el.querySelector('#addTrial'); if (addBtn) addBtn.onclick = async () => { const v = await REG.modalForm('Add clinical trial', TRIAL_FIELDS); if (!v) return; try { const r = await REG.insertLoose('btr_clinical_trials', v); SL.closeModal(); SL.audit('registry_insert', 'btr_clinical_trials', r.id); SL.toast('Trial created', 'ok'); REG.refresh(); } catch (e) { SL.closeModal(); SL.toast(e.message, 'err'); } };
+  }
+
+  /* ---------- biobank ---------- */
+  const SPEC_FIELDS = [{ key: 'specimen_id', label: 'Specimen ID', type: 'text', required: true, placeholder: 'SP-0001' }, { key: 'patient_study_id', label: 'Patient study ID', type: 'text', placeholder: 'BTR-0001' }, { key: 'collection_date', label: 'Collection date', type: 'date' }, { key: 'specimen_type', label: 'Specimen type', type: 'select', options: ['Tissue', 'Blood', 'CSF', 'Other'] }, { key: 'tissue_type', label: 'Tissue type', type: 'select', options: ['Tumor', 'Normal Brain', 'Peripheral Blood', 'CSF', 'Other'] }, { key: 'storage_location', label: 'Storage location', type: 'text', placeholder: 'Freezer / rack / box' }, { key: 'irb_protocol', label: 'IRB protocol', type: 'text' }, { key: 'status', label: 'Status', type: 'select', options: ['Available', 'Used', 'Depleted', 'Transferred'] }, { key: 'dna_extracted', label: 'DNA extracted', type: 'boolean' }, { key: 'rna_extracted', label: 'RNA extracted', type: 'boolean' }];
+  async function biobank(el) {
+    const { data, error } = await SL.sb.from('btr_biobank_specimens').select('*').order('collection_date', { ascending: false }); const rows = data || [];
+    el.innerHTML = REG.stats([REG.statCard(rows.length, 'Specimens'), REG.statCard(REG.count(rows, (s) => s.status === 'Available'), 'Available', { tone: 'ok' }), REG.statCard(REG.count(rows, (s) => s.dna_extracted === true), 'DNA extracted'), REG.statCard(REG.count(rows, (s) => s.rna_extracted === true), 'RNA extracted')]) + `<div class="chart-grid">${REG.section('Tissue type', '<div class="chart" id="cTissue"></div>')}${REG.section('Specimen type', '<div class="chart" id="cSpec"></div>')}</div>` +
+      `<div class="mt-3">${REG.listToolbar({ placeholder: 'Search specimen, study ID, tissue…', extra: REG.canWrite ? `<button class="btn btn-primary btn-sm" id="addSpec">${SL.icons.plus}Add specimen</button>` : '' })}${error ? `<div class="alert alert-danger">${esc(error.message)}</div>` : ''}<div id="specTable"></div></div>`;
+    REG.donut(el.querySelector('#cTissue'), REG.toData(REG.tally(rows, 'tissue_type'), 'desc')); REG.bar(el.querySelector('#cSpec'), REG.toData(REG.tally(rows, 'specimen_type'), 'desc'), { color: REG.TEAL, height: 200 });
+    const cols = [{ key: 'specimen_id', label: 'Specimen', render: (s) => `<span class="study-id">${esc(s.specimen_id)}</span>` }, { key: 'patient_study_id', label: 'Patient', render: (s) => s.patient_study_id ? REG.studyLink(s.patient_study_id) : '—' }, { key: 'specimen_type', label: 'Type' }, { key: 'tissue_type', label: 'Tissue' }, { key: 'collection_date', label: 'Collected', render: (s) => REG.date(s.collection_date) }, { key: 'storage_location', label: 'Storage' }, { key: 'dna_extracted', label: 'DNA', render: (s) => REG.yesNo(s.dna_extracted) }, { key: 'rna_extracted', label: 'RNA', render: (s) => REG.yesNo(s.rna_extracted) }, { key: 'status', label: 'Status', render: (s) => REG.tag(s.status || '—', { Available: 'ok', Used: 'warn', Depleted: 'outline', Transferred: 'info' }[s.status] || 'outline') }];
+    const tbl = REG.table(el.querySelector('#specTable'), cols, rows, { empty: 'No specimens recorded.' }); const cnt = el.querySelector('#listCount'); cnt.textContent = rows.length + ' specimens';
+    el.querySelector('#listSearch').oninput = SL.debounce((e) => { const q = e.target.value.toLowerCase(); const f = rows.filter((s) => [s.specimen_id, s.patient_study_id, s.tissue_type, s.storage_location].join(' ').toLowerCase().includes(q)); tbl.redraw(f); cnt.textContent = f.length + ' specimens'; });
+    el.querySelector('[data-export]').onclick = () => REG.csvDownload('btr_biobank.csv', rows, SPEC_FIELDS.map((f) => f.key));
+    const add = el.querySelector('#addSpec'); if (add) add.onclick = async () => { const v = await REG.modalForm('Add specimen', SPEC_FIELDS, { status: 'Available' }); if (!v) return; try { const r = await REG.insertLoose('btr_biobank_specimens', v); SL.closeModal(); SL.audit('registry_insert', 'btr_biobank_specimens', r.id || v.specimen_id); SL.toast('Specimen added', 'ok'); REG.refresh(); } catch (e) { SL.closeModal(); SL.toast(e.message, 'err'); } };
+  }
+
+  /* ---------- tumor board ---------- */
+  async function tumorboard(el) {
+    const [{ data: meetings, error }, { data: cases }] = await Promise.all([SL.sb.from('btr_tumor_board_meetings').select('*').order('meeting_date', { ascending: false }), SL.sb.from('btr_tumor_board_cases').select('*')]);
+    const ms = meetings || [], byM = {}; (cases || []).forEach((c) => (byM[c.meeting_id] = byM[c.meeting_id] || []).push(c));
+    el.innerHTML = REG.stats([REG.statCard(ms.length, 'Meetings'), REG.statCard((cases || []).length, 'Cases discussed'), REG.statCard(ms.length ? REG.date(ms[0].meeting_date) : '—', 'Most recent')]) + `<div class="flex between wrap mb-2"><span class="muted small">Multidisciplinary tumour board meetings and the cases reviewed at each.</span><div class="flex">${REG.canWrite ? `<button class="btn btn-primary btn-sm" id="addMtg">${SL.icons.plus}Add meeting</button>` : ''}${REG.exportBtn('Export cases')}</div></div>${error ? `<div class="alert alert-danger">${esc(error.message)}</div>` : ''}<div class="card-list">${ms.length ? ms.map((m) => { const mc = byM[m.id] || []; return `<div class="card"><div class="flex between wrap"><h4 style="margin:0">${REG.date(m.meeting_date)}</h4><span class="tag tag-teal">${mc.length} case${mc.length === 1 ? '' : 's'}</span></div>${m.notes ? `<p class="small muted" style="margin:6px 0 0">${esc(m.notes)}</p>` : ''}<details ${mc.length ? '' : ''}><summary>Cases</summary>${mc.length ? mc.map((c) => `<div class="case"><div class="flex wrap">${c.patient_study_id ? REG.studyLink(c.patient_study_id) : '<span class="muted">No study ID</span>'}${REG.tag(c.presentation_type || '—', 'info')}<span class="xs muted">${c.neuroradiology_reviewed ? 'Neuroradiology ✓ ' : ''}${c.pathology_reviewed ? 'Pathology ✓ ' : ''}${c.molecular_reviewed ? 'Molecular ✓' : ''}</span></div>${c.clinical_question ? `<div class="small mt-1"><strong>Question:</strong> ${esc(c.clinical_question)}</div>` : ''}${c.recommendation ? `<div class="small" style="color:var(--teal-600)"><strong>Recommendation:</strong> ${esc(c.recommendation)}</div>` : ''}</div>`).join('') : '<p class="small muted mt-1">No cases recorded.</p>'}${REG.canWrite ? `<button class="btn btn-outline btn-sm mt-2" data-case="${m.id}">${SL.icons.plus}Add case</button>` : ''}</details></div>`; }).join('') : REG.empty('No tumour board meetings recorded.', 'cal')}</div>`;
+    el.querySelector('[data-export]').onclick = () => REG.csvDownload('btr_tumor_board_cases.csv', (cases || []).map((c) => Object.assign({ meeting_date: (ms.find((m) => m.id === c.meeting_id) || {}).meeting_date }, c)), ['meeting_date', 'patient_study_id', 'presentation_type', 'clinical_question', 'recommendation', 'neuroradiology_reviewed', 'pathology_reviewed', 'molecular_reviewed']);
+    const addM = el.querySelector('#addMtg'); if (addM) addM.onclick = async () => { const v = await REG.modalForm('Add tumour board meeting', [{ key: 'meeting_date', label: 'Meeting date', type: 'date', required: true }, { key: 'notes', label: 'Notes', type: 'textarea', full: true }]); if (!v) return; try { const r = await REG.insertLoose('btr_tumor_board_meetings', v); SL.closeModal(); SL.audit('registry_insert', 'btr_tumor_board_meetings', r.id); SL.toast('Meeting created', 'ok'); REG.refresh(); } catch (e) { SL.closeModal(); SL.toast(e.message, 'err'); } };
+    SL.qsa('[data-case]', el).forEach((b) => b.onclick = async () => { const v = await REG.modalForm('Add case', [{ key: 'patient_study_id', label: 'Patient study ID', type: 'text', placeholder: 'BTR-0001', required: true }, { key: 'presentation_type', label: 'Presentation type', type: 'select', options: ['New Diagnosis', 'Recurrence', 'Treatment Planning', 'Follow-up'] }, { key: 'clinical_question', label: 'Clinical question', type: 'textarea', full: true }, { key: 'recommendation', label: 'Recommendation', type: 'textarea', full: true }, { key: 'neuroradiology_reviewed', label: 'Neuroradiology reviewed', type: 'boolean' }, { key: 'pathology_reviewed', label: 'Pathology reviewed', type: 'boolean' }, { key: 'molecular_reviewed', label: 'Molecular reviewed', type: 'boolean' }]); if (!v) return; try { const r = await REG.insertLoose('btr_tumor_board_cases', Object.assign({ meeting_id: +b.dataset.case }, v)); SL.closeModal(); SL.audit('registry_insert', 'btr_tumor_board_cases', r.id); SL.toast('Case added', 'ok'); REG.refresh(); } catch (e) { SL.closeModal(); SL.toast(e.message, 'err'); } });
+  }
+
+  /* ---------- genomics ---------- */
+  async function genomics(el) {
+    const pts = await patients(); const six = MARKERS.filter((m) => !['atrx_status', 'codel_1p19q'].includes(m.key));
+    el.innerHTML = REG.stats(MARKERS.slice(0, 4).map((m) => { const tested = REG.count(pts, (p) => p[m.key]); return REG.statCard(REG.pct(REG.count(pts, (p) => p[m.key] === m.pos), tested), m.label + ' ' + m.pos.toLowerCase(), { sub: `${tested} tested` }); })) +
+      `<div class="chart-grid">${REG.section('Marker positivity (tested patients)', '<div class="chart" id="gOverview"></div>')}${REG.section('Co-occurrence of positive markers', '<div class="chart" id="gMatrix"></div>' + REG.note('Cell = number of patients positive for both markers. Diagonal = total positive.'))}</div>${REG.section('Marker positivity by diagnosis (top 6)', '<div class="chart" id="gByDx"></div>')}`;
+    REG.groupedBar(el.querySelector('#gOverview'), MARKERS.map((m) => ({ group: m.label, series: { Positive: REG.count(pts, (p) => p[m.key] === m.pos), Negative: REG.count(pts, (p) => p[m.key] && p[m.key] !== m.pos), 'Not tested': REG.count(pts, (p) => !p[m.key]) } })), ['Positive', 'Negative', 'Not tested'], { empty: 'No molecular data' });
+    if (pts.length) REG.heatmap(el.querySelector('#gMatrix'), six.map((a) => six.map((b) => REG.count(pts, (p) => p[a.key] === a.pos && p[b.key] === b.pos))), six.map((m) => m.label)); else REG.chartEmpty(el.querySelector('#gMatrix'));
+    const dxGroups = {}; pts.forEach((p) => (dxGroups[p.diagnosis || 'Unknown'] = dxGroups[p.diagnosis || 'Unknown'] || []).push(p));
+    const top = Object.keys(dxGroups).sort((a, b) => dxGroups[b].length - dxGroups[a].length).slice(0, 6); const three = MARKERS.slice(0, 3);
+    REG.groupedBar(el.querySelector('#gByDx'), top.map((d) => ({ group: d.length > 28 ? d.slice(0, 26) + '…' : d, series: Object.fromEntries(three.map((m) => [m.label + '+', Math.round(REG.count(dxGroups[d], (p) => p[m.key] === m.pos) / dxGroups[d].length * 100)])) })), three.map((m) => m.label + '+'), { max: 100, format: (v) => v + '%', empty: 'No diagnoses', height: 300 });
+  }
+
+  /* ---------- data quality ---------- */
+  async function quality(el) {
+    const pts = await patients();
+    const cats = { Demographics: ['age_at_diagnosis', 'sex', 'race', 'ethnicity'], Diagnosis: ['diagnosis', 'who_grade', 'pathology_id'], Molecular: ['idh_status', 'mgmt_status', 'codel_1p19q', 'tert_promoter', 'egfr_amplification', 'tp53_mutation'], Surgery: ['surgery_date', 'surgery_type', 'extent_of_resection', 'surgeon'], Treatment: ['radiation_received', 'chemotherapy_received'], Outcomes: ['vital_status', 'os_months', 'last_followup_date'] };
+    const c = REG.completeness(pts, cats); const catVals = Object.values(c.catScores);
+    el.innerHTML = REG.stats([REG.statCard(c.total, 'Patients'), REG.statCard(c.avg + '%', 'Average completeness', { tone: REG.scoreTone(c.avg) }), REG.statCard(catVals.filter((v) => v >= 80).length, 'Categories ≥ 80%', { tone: 'ok' }), REG.statCard(catVals.filter((v) => v < 50).length, 'Categories < 50%', { tone: 'danger' })]) +
+      `<div class="chart-grid">${REG.section('Completeness by category', Object.keys(c.catScores).map((k) => `<div class="qrow"><span>${esc(k)}</span>${REG.progressBar(c.catScores[k])}<span class="pct">${c.catScores[k]}%</span></div>`).join(''))}${REG.section('Patients by completeness band', '<div class="chart" id="qPie"></div>')}</div>
+      <div class="chart-grid">${REG.section('Fields below 50% coverage', '<div id="qCrit"></div>')}${REG.section('Least complete records', '<div id="qWorst"></div>')}</div>`;
+    const bands = { 'Excellent (≥80%)': 0, 'Good (60–79%)': 0, 'Fair (40–59%)': 0, 'Poor (<40%)': 0 }; c.perPatient.forEach((x) => { if (x.pct >= 80) bands['Excellent (≥80%)']++; else if (x.pct >= 60) bands['Good (60–79%)']++; else if (x.pct >= 40) bands['Fair (40–59%)']++; else bands['Poor (<40%)']++; });
+    REG.donut(el.querySelector('#qPie'), REG.toData(bands), { colorFor: (l) => l.startsWith('Exc') ? REG.STATUS.ok : l.startsWith('Good') ? REG.STATUS.info : l.startsWith('Fair') ? REG.STATUS.warn : REG.STATUS.danger, empty: 'No patients' });
+    const crit = Object.keys(c.fieldScores).filter((f) => c.fieldScores[f] < 50).sort((a, b) => c.fieldScores[a] - c.fieldScores[b]);
+    REG.table(el.querySelector('#qCrit'), [{ key: 'field', label: 'Field', render: (r) => `<code>${esc(r.field)}</code>` }, { key: 'pct', label: 'Coverage', num: true, render: (r) => r.pct + '%' }, { key: 'bar', label: '', sortable: false, render: (r) => REG.progressBar(r.pct) }], crit.map((f) => ({ field: f, pct: c.fieldScores[f] })), { empty: pts.length ? 'All fields are above 50% coverage.' : 'No patients yet.', sticky: false });
+    REG.table(el.querySelector('#qWorst'), [{ key: 'study_id', label: 'Study ID', render: (r) => REG.studyLink(r.row.study_id) }, { key: 'pct', label: 'Complete', num: true, render: (r) => r.pct + '%' }, { key: 'missing', label: 'Missing', sortable: false, render: (r) => `<span class="xs muted">${esc(r.missing.slice(0, 5).join(', '))}${r.missing.length > 5 ? ` +${r.missing.length - 5}` : ''}</span>` }], c.perPatient.slice().sort((a, b) => a.pct - b.pct).slice(0, 15), { empty: 'No patients yet.', sticky: false });
+  }
+
+  await REG.init({ registry: 'btr', title: 'Brain Tumor Registry', subtitle: 'WHO CNS5 pathology · molecular markers · treatment · survival', prefix: PREFIX, table: T, pages: PAGES, defaultPage: 'dashboard',
+    render: (page, params, el) => ({ dashboard, tree, query, add, detail, followup, cohorts, trials, biobank, tumorboard, genomics, quality })[page](el, params) });
+})();
+</script>
+</body></html>

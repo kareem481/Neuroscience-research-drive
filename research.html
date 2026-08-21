@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research Programs | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Research programs in brain tumor and neuro-oncology, neurotrauma, functional neurosurgery and epilepsy, spine, stroke, and neuro-rehabilitation at Saint Luke's Health System, Kansas City.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .page-hero{border-bottom:1px solid var(--line);padding:64px 0 44px}
+  .page-hero .lead{margin-bottom:22px}
+  .jump{display:flex;gap:8px;flex-wrap:wrap}
+  .jump a{padding:7px 13px;border-radius:999px;border:1px solid var(--line-2);font-size:.85rem;font-weight:500;color:var(--ink-2);background:rgba(255,255,255,.03);transition:.2s}
+  .jump a:hover{border-color:rgba(34,211,238,.6);color:#fff;text-decoration:none;background:rgba(34,211,238,.12)}
+  .program{padding:56px 0;border-bottom:1px solid var(--line);scroll-margin-top:calc(var(--nav-h) + 16px)}
+  .program:nth-of-type(even){background:rgba(255,255,255,.015)}
+  .program .container{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:start}
+  @media (max-width:900px){.program .container{grid-template-columns:1fr;gap:28px}}
+  .program h2{margin-bottom:12px}
+  .program .desc{color:var(--ink-2);font-size:1.02rem;max-width:60ch}
+  .subhead{font-family:var(--font-body);font-size:.8rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:26px 0 12px}
+  .fac-list{display:flex;flex-wrap:wrap;gap:10px}
+  .fac-list a{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border:1px solid var(--line-2);border-radius:999px;background:rgba(255,255,255,.03);color:var(--ink);font-size:.88rem;font-weight:500;transition:.2s}
+  .fac-list a:hover{border-color:rgba(34,211,238,.6);background:rgba(34,211,238,.1);text-decoration:none}
+  .fac-list .avatar{width:28px;height:28px;font-size:.7rem}
+  .side-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:6px 22px;box-shadow:var(--shadow-sm);backdrop-filter:blur(12px)}
+  .side-card .pub{padding:16px 0}
+  .side-card .pub-title{font-size:.95rem}
+  .registries,.funding{padding:64px 0;scroll-margin-top:calc(var(--nav-h) + 16px)}
+  .funding{border-bottom:1px solid var(--line);background:rgba(255,255,255,.015)}
+  .reg-card{display:flex;flex-direction:column;gap:10px}
+  .reg-card p{margin:0;color:var(--muted);font-size:.92rem;flex:1}
+  .reg-card ul{margin:0;padding-left:18px;color:var(--ink-2);font-size:.88rem}
+  .more-link{font-size:.85rem;font-weight:600}
+  .grant{display:flex;flex-direction:column;gap:8px}
+  .grant .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .grant h3{font-size:1.05rem;margin:0;line-height:1.35}
+  .grant .pi{font-size:.9rem;color:var(--ink-2)} .grant .pi b{color:#fff;font-weight:600}
+  .grant .agency{font-size:.88rem;color:var(--muted)}
+  .grant .summary{font-size:.9rem;color:var(--muted);margin:4px 0 0;flex:1}
+  .grant .foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px;padding-top:12px;border-top:1px solid var(--line);font-size:.84rem;color:var(--muted)}
+  .grant .amount{font-family:var(--font-head);font-weight:600;color:var(--teal-600);font-size:1rem}
+</style>
+</head>
+<body>
+<main id="content">
+  <section class="page-hero">
+    <div class="container">
+      <div class="eyebrow">Research programs</div>
+      <h1>Six programs, <span class="grad-text">one department</span></h1>
+      <p class="lead">Our investigators work across neurosurgery and neurology on the conditions we treat every day. Each program combines clinical care, prospective data collection and trainee mentorship.</p>
+      <nav class="jump" aria-label="Jump to program">
+        <a href="#brain-tumor">Brain Tumor &amp; Neuro-oncology</a><a href="#neurotrauma">Neurotrauma &amp; Critical Care</a><a href="#functional">Functional &amp; Epilepsy</a>
+        <a href="#spine">Spine</a><a href="#stroke">Stroke &amp; Cerebrovascular</a><a href="#rehab">Neuro-rehabilitation &amp; Outcomes</a><a href="#funding">Funded research</a><a href="#registries">Databases &amp; registries</a>
+      </nav>
+    </div>
+  </section>
+
+  <div id="programs"></div>
+
+  <section class="funding" id="funding" aria-labelledby="fund-title">
+    <div class="container">
+      <div class="section-head">
+        <div><div class="eyebrow">Funding</div><h2 id="fund-title">Funded research</h2></div>
+        <a class="btn btn-outline" href="/services.html?request=Grant%20Development">Grant development help</a>
+      </div>
+      <p class="lead" style="margin-bottom:28px">Awards that investigators have chosen to list publicly. Amounts are total direct awards as reported by the investigator; internal and pending awards are tracked in the Research Hub.</p>
+      <div class="grid grid-3" id="grants"><div class="card"><div class="skeleton" style="width:70%"></div><div class="skeleton" style="width:45%"></div><div class="skeleton" style="width:85%"></div></div><div class="card"><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:50%"></div><div class="skeleton" style="width:80%"></div></div><div class="card"><div class="skeleton" style="width:75%"></div><div class="skeleton" style="width:40%"></div><div class="skeleton" style="width:85%"></div></div></div>
+    </div>
+  </section>
+
+  <section class="registries" id="registries" aria-labelledby="reg-title">
+    <div class="container">
+      <div class="section-head">
+        <div><div class="eyebrow">Data resources</div><h2 id="reg-title">Databases &amp; registries</h2></div>
+        <a class="btn btn-accent" href="/services.html?request=Registry%20Data%20Request%20(BTR%2FTBI%2FFNR)">Request data</a>
+      </div>
+      <p class="lead" style="margin-bottom:28px">The department maintains three IRB-governed clinical registries. They are internal resources: access is limited to approved Saint Luke's investigators and study staff, and every use is tied to an approved protocol.</p>
+      <div class="grid grid-3">
+        <div class="card card-hover reg-card">
+          <span class="icon-badge" aria-hidden="true"></span>
+          <h3 class="card-title">Brain Tumor Registry</h3>
+          <p>Longitudinal records for patients with primary and metastatic central nervous system tumors, capturing surgery, radiation and systemic therapy, imaging and volumetric measurements, RANO assessments, tumor board decisions and biobank specimens.</p>
+          <ul><li>Progression and follow-up tracking</li><li>Clinical-trial enrollment and research cohorts</li></ul>
+        </div>
+        <div class="card card-hover reg-card">
+          <span class="icon-badge" aria-hidden="true"></span>
+          <h3 class="card-title">Trauma / TBI Registry</h3>
+          <p>Traumatic brain injury and cranial trauma (including subdural and epidural hematoma and skull fracture), with intracranial pressure readings, imaging, complications and standardized outcome assessments.</p>
+          <ul><li>Neurocritical care physiology</li><li>Functional outcome follow-up</li></ul>
+        </div>
+        <div class="card card-hover reg-card">
+          <span class="icon-badge" aria-hidden="true"></span>
+          <h3 class="card-title">Functional Neurosurgery Registry</h3>
+          <p>Epilepsy surgery, deep brain stimulation, pain and spasticity procedures, with device programming history, seizure logs, medications, neurophysiology and validated outcome instruments.</p>
+          <ul><li>Device and programming timeline</li><li>Seizure and symptom diaries</li></ul>
+        </div>
+      </div>
+      <p class="small muted mt-3">Registry data never leave the institution without IRB approval and a data-use agreement. Learn how data requests work on the <a href="/services.html#data">Services page</a>, or <a href="/about.html#contact">contact the research office</a>.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+SL.renderShell({ active: 'research' });
+SL.qsa('.reg-card .icon-badge').forEach((el, i) => { el.innerHTML = [SL.icons.brain, SL.icons.shield, SL.icons.settings][i]; });
+
+const PROGRAMS = [
+  { id: 'brain-tumor', name: 'Brain Tumor & Neuro-oncology', kw: ['glioma', 'glioblastoma', 'meningioma', 'brain tumor', 'brain neoplasm', 'neuro-oncology', 'metastas', 'pituitary', 'skull base'],
+    desc: 'The neuro-oncology program studies the surgical, radiation and systemic management of primary and metastatic tumors of the brain, skull base and spine. Work is anchored by a prospective brain tumor registry and a weekly multidisciplinary tumor board, and spans extent-of-resection and imaging-response research, treatment sequencing, and quality of life in patients living with CNS tumors.' },
+  { id: 'neurotrauma', name: 'Neurotrauma & Critical Care', kw: ['traumatic brain injury', 'brain injuries', 'intracranial pressure', 'subdural', 'epidural hematoma', 'skull fracture', 'neurocritical', 'critical care', 'tbi', 'trauma'],
+    desc: 'Neurotrauma and neurocritical care research focuses on traumatic brain injury, intracranial hemorrhage and the physiologic monitoring that guides treatment in the intensive care unit. Investigators use the trauma/TBI registry to examine intracranial pressure management, surgical decision-making, complications and long-term functional recovery across the full severity spectrum.' },
+  { id: 'functional', name: 'Functional Neurosurgery & Epilepsy', kw: ['epilepsy', 'seizure', 'deep brain stimulation', 'neurostimulation', 'neuromodulation', 'parkinson', 'essential tremor', 'dystonia', 'spasticity', 'movement disorder', 'stereotactic'],
+    desc: 'The functional neurosurgery and epilepsy program evaluates neuromodulation and surgical therapies for epilepsy, movement disorders, pain and spasticity. Research draws on the functional neurosurgery registry — device programming histories, seizure diaries and validated outcome instruments — to understand which patients benefit most and how outcomes evolve over years of follow-up.' },
+  { id: 'spine', name: 'Spine', kw: ['spine', 'spinal', 'cervical', 'lumbar', 'myelopathy', 'fusion', 'scoliosis', 'disc', 'laminectomy', 'vertebr'],
+    desc: 'Spine research addresses degenerative, traumatic, deformity and oncologic disease of the cervical, thoracic and lumbar spine. Investigators study surgical technique and technology, patient-reported outcomes and recovery trajectories, and the drivers of cost, complication and readmission in value-based spine care.' },
+  { id: 'stroke', name: 'Stroke & Cerebrovascular', kw: ['stroke', 'ischemi', 'thrombectomy', 'thrombolysis', 'aneurysm', 'subarachnoid', 'intracerebral hemorrhage', 'carotid', 'cerebrovascular', 'arteriovenous', 'moyamoya', 'vasospasm'],
+    desc: 'The stroke and cerebrovascular program brings together vascular neurology, neurointerventional and open cerebrovascular surgery. Research spans regional systems of care and door-to-treatment performance, endovascular and microsurgical management of aneurysms and vascular malformations, and recovery after ischemic and hemorrhagic stroke.' },
+  { id: 'rehab', name: 'Neuro-rehabilitation & Outcomes', kw: ['rehabilitation', 'patient-reported', 'quality of life', 'functional outcome', 'recovery', 'cognitive', 'disability', 'return to work', 'caregiver'],
+    desc: 'Neuro-rehabilitation and outcomes research studies how people recover after neurological injury and disease, and how best to measure it. The program develops and applies patient-reported and performance-based outcome measures, and connects treatment data across the department\'s registries to long-term functional, cognitive and quality-of-life results.' },
+];
+
+const lastName = (n) => (n || '').replace(/,.*$/, '').trim().split(/\s+/).pop();
+const hay = (p) => [p.title, p.abstract, (p.keywords || []).join(' '), (p.mesh_terms || []).join(' ')].join(' ').toLowerCase();
+
+function render(programs) {
+  SL.qs('#programs').innerHTML = programs.map((p) => `
+    <section class="program" id="${p.id}" aria-labelledby="${p.id}-title">
+      <div class="container">
+        <div>
+          <div class="eyebrow">Program</div>
+          <h2 id="${p.id}-title">${SL.esc(p.name)}</h2>
+          <p class="desc">${SL.esc(p.desc)}</p>
+          <div id="${p.id}-fac"></div>
+        </div>
+        <div>
+          <div class="subhead" style="margin-top:0">Recent related publications</div>
+          <div class="side-card" id="${p.id}-pubs"><div class="skeleton"></div><div class="skeleton" style="width:70%"></div><div class="skeleton" style="width:85%"></div></div>
+        </div>
+      </div>
+    </section>`).join('');
+}
+render(PROGRAMS);
+
+async function load() {
+  const [{ data: people }, { data: pubs }, { data: links }] = await Promise.all([
+    SL.sb.from('public_people').select('id,name,initials,title,slug,photo_url,specialties,research_interests,role'),
+    SL.sb.from('publications').select('id,title,abstract,keywords,mesh_terms,journal,journal_abbrev,year,pub_date,authors,author_string,pmid,doi,url').eq('visible', true).order('pub_date', { ascending: false, nullsFirst: false }).order('year', { ascending: false }),
+    SL.sb.from('publication_authors').select('publication_id,profile_id'),
+  ]);
+  const P = people || [], PUBS = pubs || [], L = links || [];
+  const lastNames = P.map((x) => lastName(x.name));
+  const byPub = {}; L.forEach((l) => { (byPub[l.publication_id] = byPub[l.publication_id] || []).push(l.profile_id); });
+
+  PROGRAMS.forEach((prog) => {
+    const kws = prog.kw.map((k) => k.toLowerCase());
+    const matched = PUBS.filter((p) => { const h = hay(p); return kws.some((k) => h.includes(k)); });
+
+    // Faculty: explicit specialties tag first, then text on title/research_interests, then faculty linked to ≥1 matched publication.
+    const nameKw = prog.name.toLowerCase();
+    const tagged = P.filter((x) => (x.specialties || []).some((s) => s.toLowerCase() === nameKw || nameKw.includes(s.toLowerCase()) || kws.some((k) => s.toLowerCase().includes(k))));
+    const textual = P.filter((x) => !tagged.includes(x) && kws.some((k) => ((x.title || '') + ' ' + (x.research_interests || '')).toLowerCase().includes(k)));
+    const counts = {}; matched.forEach((p) => (byPub[p.id] || []).forEach((id) => counts[id] = (counts[id] || 0) + 1));
+    const viaPubs = P.filter((x) => counts[x.id] >= 1 && !tagged.includes(x) && !textual.includes(x)).sort((a, b) => counts[b.id] - counts[a.id]).slice(0, 8);
+    const fac = [...tagged, ...textual, ...viaPubs];
+    const facEl = SL.qs(`#${prog.id}-fac`);
+    if (fac.length) {
+      facEl.innerHTML = `<div class="subhead">Faculty &amp; investigators</div><div class="fac-list">${fac.map((x) => `
+        <a href="/people.html?s=${encodeURIComponent(x.slug)}"><span class="avatar">${x.photo_url ? `<img src="${SL.esc(x.photo_url)}" alt="">` : SL.esc(x.initials || SL.initials(x.name))}</span>${SL.esc(x.name)}</a>`).join('')}</div>
+        <p class="xs muted mt-1">Investigators are listed from profile specialties and from authorship of related publications.</p>`;
+    }
+
+    const pubEl = SL.qs(`#${prog.id}-pubs`);
+    const top = matched.slice(0, 3);
+    pubEl.innerHTML = top.length ? top.map((p) => `
+      <article class="pub">
+        <h3 class="pub-title"><a href="${SL.esc(p.url || (p.pmid ? 'https://pubmed.ncbi.nlm.nih.gov/' + p.pmid + '/' : '/publications.html?q=' + encodeURIComponent(p.title)))}" ${p.url || p.pmid ? 'target="_blank" rel="noopener"' : ''}>${SL.esc(p.title)}</a></h3>
+        <div class="pub-authors">${p.authors && p.authors.length ? SL.highlightAuthors(p, lastNames) : SL.esc(p.author_string || '')}</div>
+        <div class="pub-meta"><em>${SL.esc(p.journal_abbrev || p.journal || '')}</em>${p.year ? ' · ' + p.year : ''}</div>
+      </article>`).join('') + `<div style="padding:12px 0 14px"><a class="more-link" href="/publications.html?q=${encodeURIComponent(prog.kw[0])}">More in the library →</a></div>`
+      : '<div class="empty" style="padding:28px 10px">No related publications indexed yet.</div>';
+  });
+}
+const fmtMoney = (n) => n == null ? '' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+const period = (a, b) => { const y = (d) => d ? String(d).slice(0, 4) : ''; const s = y(a), e = y(b); return s && e ? (s === e ? s : `${s}–${e}`) : (s || e || ''); };
+const typeTag = (t) => { const k = (t || '').toLowerCase(); const cls = /federal|nih|dod|nsf/.test(k) ? 'tag-teal' : /foundation|philanthrop/.test(k) ? 'tag-gold' : /industry/.test(k) ? 'tag-info' : /internal|pilot/.test(k) ? 'tag-ok' : 'tag-outline'; return t ? `<span class="tag ${cls}">${SL.esc(t)}</span>` : ''; };
+async function loadGrants() {
+  const box = SL.qs('#grants');
+  const { data, error } = await SL.sb.from('public_grants').select('id,title,pi,agency,mechanism,funding_type,amount,period_start,period_end,status,summary').order('period_start', { ascending: false, nullsFirst: false });
+  if (error) throw error;
+  if (!data || !data.length) { box.outerHTML = '<div class="empty">Publicly listed awards will appear here.</div>'; return; }
+  const rank = (g) => /active|current|funded/i.test(g.status || '') ? 0 : 1;
+  data.sort((a, b) => rank(a) - rank(b) || String(b.period_start || '').localeCompare(String(a.period_start || '')));
+  box.innerHTML = data.map((g) => `
+    <article class="card card-hover grant">
+      <div class="top"><h3>${SL.esc(g.title)}</h3>${typeTag(g.funding_type)}</div>
+      <div class="pi">PI: <b>${SL.esc(g.pi || '—')}</b></div>
+      <div class="agency">${[g.agency, g.mechanism].filter(Boolean).map(SL.esc).join(' · ')}</div>
+      ${g.summary ? `<p class="summary">${SL.esc(g.summary)}</p>` : '<p class="summary"></p>'}
+      <div class="foot"><span>${SL.esc(period(g.period_start, g.period_end))}${g.status ? ` · ${SL.esc(g.status)}` : ''}</span>${g.amount != null ? `<span class="amount">${fmtMoney(g.amount)}</span>` : ''}</div>
+    </article>`).join('');
+}
+loadGrants().catch((e) => { console.error(e); const b = SL.qs('#grants'); if (b) b.outerHTML = '<div class="empty">Publicly listed awards will appear here.</div>'; });
+load().catch((e) => { console.error(e); SL.qsa('.side-card').forEach((el) => el.innerHTML = '<div class="empty" style="padding:28px 10px">Could not load publications.</div>'); });
+</script>
+</body>
+</html>

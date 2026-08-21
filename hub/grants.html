@@ -1,0 +1,203 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grants &amp; Deadlines | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Grant portfolio and research deadlines for the Saint Luke's Neuroscience Research Hub.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+.tab-panel{display:none}.tab-panel.active{display:block}
+.totals{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.dl{display:flex;gap:16px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--line)}
+.dl:last-child{border-bottom:0}
+.dl .date{flex:none;width:64px;text-align:center;border:1px solid var(--line-2);border-radius:8px;padding:6px 4px;background:rgba(255,255,255,.04)}
+.dl .date .d{font-family:var(--font-head);font-size:1.4rem;line-height:1;color:var(--ink)}
+.dl .date .m{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.dl.past{opacity:.65}.dl.soon .date{border-color:var(--warn);background:var(--warn-bg)}
+.dl .body{flex:1;min-width:0}.dl .actions{display:flex;gap:4px;flex:none}
+.grid-2>.card{min-width:0}
+@media(max-width:520px){.dl{flex-wrap:wrap}.dl .actions{width:100%;justify-content:flex-end}}
+th.sortable{cursor:pointer;user-select:none}th.sortable:hover{color:var(--ink)}
+</style>
+</head><body>
+<main id="main">
+  <div class="page-head">
+    <div><h1>Grants &amp; Deadlines</h1><div class="sub">Funding portfolio and upcoming submission dates</div></div>
+    <div class="flex wrap"><button class="btn btn-outline btn-sm" id="btnCsv">Export CSV</button><button class="btn btn-primary btn-sm" id="btnAdd">Add grant</button></div>
+  </div>
+  <div class="tabs" id="tabs"><button data-tab="grants" class="active">Grants</button><button data-tab="deadlines">Deadlines</button></div>
+
+  <section class="tab-panel active" id="tab-grants">
+    <div class="totals" id="totals"></div>
+    <div class="filters">
+      <div class="search grow" style="min-width:220px"><input class="input" id="gq" placeholder="Search title, PI, agency, grant #"></div>
+      <select class="input" id="gStatus"><option value="">All statuses</option></select>
+      <select class="input" id="gAgency"><option value="">All agencies</option></select>
+      <select class="input" id="gPI"><option value="">All PIs</option></select>
+    </div>
+    <div class="table-wrap"><table class="table"><thead><tr><th class="sortable" data-s="title">Title</th><th class="sortable" data-s="pi">PI</th><th class="sortable" data-s="agency">Agency</th><th>Mechanism</th><th class="sortable num" data-s="amountNum">Amount</th><th class="sortable" data-s="period_start">Period</th><th class="sortable" data-s="status">Status</th><th>Grant #</th><th></th></tr></thead><tbody id="gBody"><tr><td colspan="9"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></td></tr></tbody></table></div>
+  </section>
+
+  <section class="tab-panel" id="tab-deadlines">
+    <div class="filters">
+      <div class="search grow" style="min-width:220px"><input class="input" id="dq" placeholder="Search deadlines"></div>
+      <select class="input" id="dType"><option value="">All types</option></select>
+      <label class="check"><input type="checkbox" id="dMine"> Only mine</label>
+    </div>
+    <div class="grid grid-2">
+      <div class="card"><h3 style="font-size:1.05rem">Upcoming</h3><div id="dUp"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+      <div class="card"><h3 style="font-size:1.05rem">Past</h3><div id="dPast"><div class="skeleton"></div></div></div>
+    </div>
+  </section>
+</main>
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'grants' });
+  const sb = SL.sb, esc = SL.esc, qs = SL.qs, qsa = SL.qsa;
+  qsa('.search').forEach((el) => { if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', SL.icons.search); });
+  const skel = (n) => Array.from({ length: n || 3 }, () => '<div class="skeleton"></div>').join('');
+  const empty = (m) => `<div class="empty">${SL.icons.award}<div>${esc(m)}</div></div>`;
+  const err = (e, fb) => SL.toast((e && e.message) || fb || 'Something went wrong', 'err');
+  const canEdit = (row) => SL.isAdmin() || row.created_by === me.id;
+  const STATUSES = ['Planned', 'Submitted', 'Under Review', 'Awarded', 'Active', 'No-Cost Extension', 'Completed', 'Not Funded'];
+  const STATUS_TAG = { Active: 'tag-ok', Awarded: 'tag-ok', Submitted: 'tag-info', 'Under Review': 'tag-info', Planned: 'tag-outline', 'No-Cost Extension': 'tag-warn', Completed: '', 'Not Funded': 'tag-danger' };
+  const FUNDING_TYPES = ['Federal', 'Foundation', 'Industry', 'Internal', 'Other'];
+  const DTYPES = ['Grant', 'IRB', 'Abstract', 'Conference', 'Manuscript', 'Other'];
+  const money = (n) => n == null ? '' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const parseAmt = (s) => { const n = parseFloat(String(s || '').replace(/[^0-9.\-]/g, '')); return isNaN(n) ? null : n; };
+  const today = new Date().toLocaleDateString('sv-SE');
+
+  // tabs
+  let tab = 'grants';
+  function showTab(k) { tab = k; qsa('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === k)); qsa('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + k)); qs('#btnAdd').textContent = k === 'grants' ? 'Add grant' : 'Add deadline'; history.replaceState(null, '', '#' + k); }
+  qsa('#tabs button').forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+  qs('#btnAdd').onclick = () => tab === 'grants' ? grantForm(null) : deadlineForm(null);
+  qs('#btnCsv').onclick = () => tab === 'grants'
+    ? SL.download(`grants_${today}.csv`, SL.csv(filteredGrants(), ['title', 'pi', 'agency', 'mechanism', 'funding_type', 'amount', 'period_start', 'period_end', 'status', 'grant_number', 'is_public', 'summary', 'created_at']), 'text/csv')
+    : SL.download(`deadlines_${today}.csv`, SL.csv(filteredDeadlines(), ['title', 'deadline_type', 'deadline_date', 'description', 'associated_item', 'created_at']), 'text/csv');
+
+  // ============ GRANTS ============
+  let grants = [], sortKey = 'period_start', sortDir = -1;
+  async function loadGrants() {
+    const { data, error } = await sb.from('grants').select('*').order('created_at', { ascending: false });
+    if (error) { qs('#gBody').innerHTML = `<tr><td colspan="9"><div class="alert alert-danger mb-0">${esc(error.message)}</div></td></tr>`; return; }
+    grants = (data || []).map((g) => Object.assign(g, { amountNum: parseAmt(g.amount) }));
+    const fill = (sel, vals, label) => { const el = qs(sel), cur = el.value; el.innerHTML = `<option value="">${label}</option>` + [...new Set(vals.filter(Boolean))].sort().map((v) => `<option>${esc(v)}</option>`).join(''); el.value = cur; };
+    fill('#gStatus', grants.map((g) => g.status).concat(STATUSES), 'All statuses'); fill('#gAgency', grants.map((g) => g.agency), 'All agencies'); fill('#gPI', grants.map((g) => g.pi), 'All PIs');
+    renderGrants();
+  }
+  function filteredGrants() {
+    const q = qs('#gq').value.trim().toLowerCase(), st = qs('#gStatus').value, ag = qs('#gAgency').value, pi = qs('#gPI').value;
+    const rows = grants.filter((g) => (!q || [g.title, g.pi, g.agency, g.mechanism, g.grant_number, g.funding_type].some((v) => (v || '').toLowerCase().includes(q))) && (!st || g.status === st) && (!ag || g.agency === ag) && (!pi || g.pi === pi));
+    rows.sort((a, b) => { const x = a[sortKey], y = b[sortKey]; if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y))) * sortDir; });
+    return rows;
+  }
+  function renderGrants() {
+    const rows = filteredGrants();
+    const byStatus = {}; grants.forEach((g) => { const k = g.status || 'Unspecified'; byStatus[k] = byStatus[k] || { n: 0, amt: 0 }; byStatus[k].n++; byStatus[k].amt += g.amountNum || 0; });
+    const totalAmt = grants.reduce((s, g) => s + (g.amountNum || 0), 0);
+    qs('#totals').innerHTML = `<div class="card stat"><div class="n">${grants.length}</div><div class="l">Grants · ${money(totalAmt)} total</div></div>` + Object.keys(byStatus).sort().map((k) => `<div class="card stat"><div class="n" style="font-size:1.5rem">${byStatus[k].n}</div><div class="l"><span class="tag ${STATUS_TAG[k] || ''}">${esc(k)}</span> ${money(byStatus[k].amt)}</div></div>`).join('');
+    qsa('th.sortable').forEach((th) => { th.textContent = th.textContent.replace(/ [▲▼]$/, ''); if (th.dataset.s === sortKey) th.textContent += sortDir > 0 ? ' ▲' : ' ▼'; });
+    const b = qs('#gBody');
+    if (!rows.length) { b.innerHTML = `<tr><td colspan="9">${empty(grants.length ? 'No grants match these filters.' : 'No grants recorded yet. Add the first one.')}</td></tr>`; return; }
+    b.innerHTML = rows.map((g) => `<tr><td style="font-weight:600;min-width:220px">${esc(g.title)}${g.is_public ? ' <span class="tag tag-teal" title="Shown on the public site">Public</span>' : ''}</td><td>${esc(g.pi || '')}</td><td>${esc(g.agency || '')}</td><td class="small">${esc(g.mechanism || '')}${g.funding_type ? `<div class="xs muted">${esc(g.funding_type)}</div>` : ''}</td><td class="num">${g.amountNum != null ? money(g.amountNum) : esc(g.amount || '')}</td><td class="small" style="white-space:nowrap">${g.period_start ? SL.fmtDate(g.period_start, { year: 'numeric', month: 'short' }) : ''}${g.period_end ? ' – ' + SL.fmtDate(g.period_end, { year: 'numeric', month: 'short' }) : ''}</td><td><span class="tag ${STATUS_TAG[g.status] || ''}">${esc(g.status || '')}</span></td><td class="xs mono">${esc(g.grant_number || '')}</td>
+      <td><div class="flex" style="gap:2px">${canEdit(g) ? `<button class="btn btn-ghost btn-sm btn-icon" data-edit="${g.id}" title="Edit">${SL.icons.edit}</button>` : ''}${SL.isAdmin() ? `<button class="btn btn-ghost btn-sm btn-icon" data-del="${g.id}" title="Delete">${SL.icons.trash}</button>` : ''}</div></td></tr>`).join('');
+    qsa('[data-edit]', b).forEach((x) => x.onclick = () => grantForm(grants.find((g) => String(g.id) === x.dataset.edit)));
+    qsa('[data-del]', b).forEach((x) => x.onclick = async () => { const g = grants.find((y) => String(y.id) === x.dataset.del); if (!await SL.confirm(`Delete grant "${g.title}"?`, 'Delete')) return; const { error } = await sb.from('grants').delete().eq('id', g.id); if (error) return err(error); SL.audit('deleted', 'grant', g.id, g.title); SL.toast('Grant deleted', 'ok'); loadGrants(); });
+  }
+  qsa('th.sortable').forEach((th) => th.onclick = () => { if (sortKey === th.dataset.s) sortDir *= -1; else { sortKey = th.dataset.s; sortDir = 1; } renderGrants(); });
+  ['#gq', '#gStatus', '#gAgency', '#gPI'].forEach((s) => qs(s).oninput = SL.debounce(renderGrants, 120));
+  function grantForm(g) {
+    g = g || {};
+    const inp = (n, l, v, t, ph) => `<div class="field"><label>${l}</label><input class="input" name="${n}" type="${t || 'text'}" value="${esc(v || '')}" placeholder="${esc(ph || '')}"></div>`;
+    SL.modal(`<div class="modal-head"><h3>${g.id ? 'Edit grant' : 'Add grant'}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="gForm"><div class="modal-body">
+      <div class="field"><label>Title</label><input class="input" name="title" required value="${esc(g.title || '')}"></div>
+      <div class="form-row">${inp('pi', 'Principal investigator', g.pi || (g.id ? '' : me.name))}${inp('agency', 'Funding agency', g.agency, 'text', 'NIH / NINDS, AHA, foundation…')}</div>
+      <div class="form-row">${inp('mechanism', 'Mechanism', g.mechanism, 'text', 'R01, K23, internal pilot…')}${inp('amount', 'Total amount (USD)', g.amount, 'text', '250000')}</div>
+      <div class="form-row">${inp('period_start', 'Period start', g.period_start, 'date')}${inp('period_end', 'Period end', g.period_end, 'date')}</div>
+      <div class="form-row"><div class="field"><label>Status</label><select class="input" name="status">${STATUSES.map((s) => `<option ${(g.status || 'Active') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>${inp('grant_number', 'Grant number', g.grant_number)}</div>
+      <div class="form-row"><div class="field"><label>Funding type</label><select class="input" name="funding_type"><option value="">—</option>${FUNDING_TYPES.map((t) => `<option ${g.funding_type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>Public site</label><label class="check" style="padding:10px 0"><input type="checkbox" name="is_public" ${g.is_public ? 'checked' : ''}> Show on public site</label><div class="help">Appears on the public research page (title, PI, agency, summary).</div></div></div>
+      <div class="field"><label>Public summary</label><textarea class="input" name="summary" rows="3" placeholder="One or two plain-language sentences about the project">${esc(g.summary || '')}</textarea></div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="gSave">Save</button></div></form>`);
+    qs('#gForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); qs('#gSave').disabled = true;
+      const row = {}; ['title', 'pi', 'agency', 'mechanism', 'amount', 'status', 'grant_number', 'funding_type', 'summary'].forEach((k) => row[k] = (fd.get(k) || '').trim() || null);
+      row.is_public = fd.get('is_public') === 'on';
+      row.period_start = fd.get('period_start') || null; row.period_end = fd.get('period_end') || null;
+      if (row.amount) { const n = parseAmt(row.amount); if (n != null) row.amount = String(n); }
+      if (!g.id) row.created_by = me.id;
+      const r = g.id ? await sb.from('grants').update(row).eq('id', g.id) : await sb.from('grants').insert(row).select().single();
+      if (r.error) { qs('#gSave').disabled = false; return err(r.error); }
+      SL.audit(g.id ? 'updated' : 'created', 'grant', g.id || (r.data && r.data.id), row.title);
+      SL.toast(g.id ? 'Grant updated' : 'Grant added', 'ok'); SL.closeModal(); loadGrants();
+    };
+  }
+
+  // ============ DEADLINES ============
+  let deadlines = [];
+  async function loadDeadlines() {
+    const { data, error } = await sb.from('deadlines').select('*').order('deadline_date', { ascending: true });
+    if (error) { qs('#dUp').innerHTML = `<div class="alert alert-danger">${esc(error.message)}</div>`; qs('#dPast').innerHTML = ''; return; }
+    deadlines = data || [];
+    const el = qs('#dType'), cur = el.value; el.innerHTML = '<option value="">All types</option>' + [...new Set(DTYPES.concat(deadlines.map((d) => d.deadline_type).filter(Boolean)))].map((t) => `<option>${esc(t)}</option>`).join(''); el.value = cur;
+    renderDeadlines();
+  }
+  function filteredDeadlines() {
+    const q = qs('#dq').value.trim().toLowerCase(), t = qs('#dType').value, mine = qs('#dMine').checked;
+    return deadlines.filter((d) => (!q || [d.title, d.description, d.associated_item].some((v) => (v || '').toLowerCase().includes(q))) && (!t || d.deadline_type === t) && (!mine || d.created_by === me.id));
+  }
+  const TYPE_TAG = { Grant: 'tag-gold', IRB: 'tag-info', Abstract: 'tag-teal', Conference: 'tag-teal', Manuscript: '', Other: 'tag-outline' };
+  function dlItem(d, past) {
+    const dt = new Date(d.deadline_date + 'T12:00:00'); const days = Math.round((dt - new Date()) / 864e5);
+    return `<div class="dl ${past ? 'past' : ''} ${!past && days <= 7 ? 'soon' : ''}"><div class="date"><div class="d">${dt.getDate()}</div><div class="m">${dt.toLocaleString('en-US', { month: 'short' })} ${String(dt.getFullYear()).slice(2)}</div></div>
+      <div class="body"><div style="font-weight:600;color:var(--ink)">${esc(d.title)}</div><div class="flex wrap xs mt-1" style="gap:6px"><span class="tag ${TYPE_TAG[d.deadline_type] || ''}">${esc(d.deadline_type || 'Other')}</span>${!past ? `<span class="muted">${days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : 'in ' + days + ' days'}</span>` : `<span class="muted">${SL.fmtDate(d.deadline_date)}</span>`}${d.associated_item ? `<span class="muted">· ${esc(d.associated_item)}</span>` : ''}</div>${d.description ? `<div class="small muted mt-1">${esc(d.description)}</div>` : ''}</div>
+      <div class="actions"><button class="btn btn-ghost btn-sm btn-icon" data-ics="${d.id}" title="Add to calendar">${SL.icons.cal}</button>${canEdit(d) ? `<button class="btn btn-ghost btn-sm btn-icon" data-dedit="${d.id}" title="Edit">${SL.icons.edit}</button>` : ''}${SL.isAdmin() ? `<button class="btn btn-ghost btn-sm btn-icon" data-ddel="${d.id}" title="Delete">${SL.icons.trash}</button>` : ''}</div></div>`;
+  }
+  function renderDeadlines() {
+    const rows = filteredDeadlines(); const up = rows.filter((d) => d.deadline_date >= today), past = rows.filter((d) => d.deadline_date < today).reverse();
+    qs('#dUp').innerHTML = up.length ? up.map((d) => dlItem(d, false)).join('') : empty('No upcoming deadlines.');
+    qs('#dPast').innerHTML = past.length ? past.slice(0, 50).map((d) => dlItem(d, true)).join('') : '<div class="empty" style="padding:24px">No past deadlines.</div>';
+    qsa('[data-ics]').forEach((b) => b.onclick = () => { const d = deadlines.find((x) => String(x.id) === b.dataset.ics); downloadIcs(d); });
+    qsa('[data-dedit]').forEach((b) => b.onclick = () => deadlineForm(deadlines.find((x) => String(x.id) === b.dataset.dedit)));
+    qsa('[data-ddel]').forEach((b) => b.onclick = async () => { const d = deadlines.find((x) => String(x.id) === b.dataset.ddel); if (!await SL.confirm(`Delete deadline "${d.title}"?`, 'Delete')) return; const { error } = await sb.from('deadlines').delete().eq('id', d.id); if (error) return err(error); SL.audit('deleted', 'deadline', d.id, d.title); SL.toast('Deadline deleted', 'ok'); loadDeadlines(); });
+  }
+  ['#dq', '#dType', '#dMine'].forEach((s) => { qs(s).oninput = SL.debounce(renderDeadlines, 120); qs(s).onchange = renderDeadlines; });
+  function downloadIcs(d) {
+    const ymd = d.deadline_date.replace(/-/g, ''); const next = new Date(d.deadline_date + 'T12:00:00'); next.setDate(next.getDate() + 1);
+    const nymd = next.toISOString().slice(0, 10).replace(/-/g, '');
+    const escI = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/[,;]/g, (c) => '\\' + c);
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Saint Lukes Neuroscience Research//Hub//EN', 'BEGIN:VEVENT', `UID:deadline-${d.id}@slresearchhub.com`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`, `DTSTART;VALUE=DATE:${ymd}`, `DTEND;VALUE=DATE:${nymd}`, `SUMMARY:${escI('[' + (d.deadline_type || 'Deadline') + '] ' + d.title)}`, `DESCRIPTION:${escI((d.description || '') + (d.associated_item ? '\nRelated: ' + d.associated_item : ''))}`, 'BEGIN:VALARM', 'TRIGGER:-P7D', 'ACTION:DISPLAY', `DESCRIPTION:${escI(d.title)} due in 7 days`, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    SL.download(`deadline-${d.id}.ics`, ics, 'text/calendar');
+  }
+  function deadlineForm(d) {
+    d = d || {};
+    SL.modal(`<div class="modal-head"><h3>${d.id ? 'Edit deadline' : 'Add deadline'}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="dForm"><div class="modal-body">
+      <div class="field"><label>Title</label><input class="input" name="title" required value="${esc(d.title || '')}"></div>
+      <div class="form-row"><div class="field"><label>Type</label><select class="input" name="deadline_type">${DTYPES.map((t) => `<option ${(d.deadline_type || 'Grant') === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div><div class="field"><label>Date</label><input class="input" type="date" name="deadline_date" required value="${esc(d.deadline_date || '')}"></div></div>
+      <div class="field"><label>Related item</label><input class="input" name="associated_item" value="${esc(d.associated_item || '')}" placeholder="Grant, project or conference name"></div>
+      <div class="field"><label>Description</label><textarea class="input" name="description" rows="3">${esc(d.description || '')}</textarea></div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="dSave">Save</button></div></form>`);
+    qs('#dForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); qs('#dSave').disabled = true;
+      const row = { title: fd.get('title').trim(), deadline_type: fd.get('deadline_type'), deadline_date: fd.get('deadline_date'), associated_item: (fd.get('associated_item') || '').trim() || null, description: (fd.get('description') || '').trim() || null };
+      if (!d.id) row.created_by = me.id;
+      const r = d.id ? await sb.from('deadlines').update(row).eq('id', d.id) : await sb.from('deadlines').insert(row).select().single();
+      if (r.error) { qs('#dSave').disabled = false; return err(r.error); }
+      SL.audit(d.id ? 'updated' : 'created', 'deadline', d.id || (r.data && r.data.id), row.title);
+      SL.toast(d.id ? 'Deadline updated' : 'Deadline added', 'ok'); SL.closeModal(); loadDeadlines();
+    };
+  }
+
+  loadGrants(); loadDeadlines();
+  if (location.hash === '#deadlines') showTab('deadlines');
+})();
+</script>
+</body></html>

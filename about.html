@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="About the Neurology and Neurosurgery research department at Saint Luke's Health System in Kansas City, Missouri: leadership, mission, how research works, request access and contact.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .page-hero{border-bottom:1px solid var(--line);padding:64px 0 48px}
+  .page-hero .container{display:grid;grid-template-columns:1.3fr 1fr;gap:48px;align-items:center}
+  @media (max-width:860px){.page-hero .container{grid-template-columns:1fr}}
+  .facts{display:grid;gap:12px}
+  .facts .card{display:flex;gap:14px;align-items:flex-start;padding:16px 18px}
+  .facts .icon{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,rgba(34,211,238,.18),rgba(139,92,246,.18));border:1px solid rgba(34,211,238,.3);color:var(--teal-600);display:grid;place-items:center;flex:none}
+  .facts .icon svg{width:20px;height:20px}
+  .facts .t{font-weight:600;color:#fff;font-size:.95rem} .facts .d{font-size:.88rem;color:var(--muted)}
+  section[id]{scroll-margin-top:calc(var(--nav-h) + 16px)}
+  .leaders{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  @media (max-width:960px){.leaders{grid-template-columns:1fr}}
+  .leader{display:flex;flex-direction:column;gap:12px;align-items:flex-start;color:inherit;padding:26px}
+  .leader:hover{text-decoration:none}
+  .leader .avatar{width:76px;height:76px;font-size:1.5rem;box-shadow:0 0 0 4px rgba(34,211,238,.12),0 0 24px rgba(139,92,246,.25)}
+  .leader .person-name{font-size:1.12rem}
+  .leader .role-tag{margin-top:2px}
+  .leader .person-title{font-size:.92rem;color:var(--ink-2)}
+  .leader .dept{font-size:.82rem;color:var(--muted)}
+  .leader-note{margin-top:22px;display:flex;gap:14px;align-items:flex-start;padding:18px 20px}
+  .leader-note .icon-badge{margin:0;width:40px;height:40px;flex:none}
+  .leader-note p{margin:0;font-size:.93rem;color:var(--ink-2)}
+  .values{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  @media (max-width:860px){.values{grid-template-columns:1fr}}
+  .values h3{font-size:1.05rem;font-family:var(--font-body);margin-bottom:6px}
+  .values p{color:var(--muted);font-size:.93rem;margin:0}
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;counter-reset:step}
+  @media (max-width:960px){.steps{grid-template-columns:repeat(2,1fr)}} @media (max-width:560px){.steps{grid-template-columns:1fr}}
+  .step{position:relative;padding-top:22px}
+  .step .num{position:absolute;top:-14px;left:18px;width:30px;height:30px;border-radius:50%;background:var(--grad);color:#06101a;box-shadow:0 0 14px rgba(34,211,238,.4);display:grid;place-items:center;font-weight:600;font-size:.85rem;font-family:var(--font-head)}
+  .step h3{font-size:1rem;font-family:var(--font-body);margin-bottom:6px} .step p{margin:0;font-size:.9rem;color:var(--muted)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+  @media (max-width:860px){.two{grid-template-columns:1fr}}
+  .contact-list{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+  .contact-list li{display:flex;gap:12px;align-items:flex-start}
+  .contact-list svg{width:20px;height:20px;color:var(--teal);flex:none;margin-top:2px}
+  .contact-list .k{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+  .req-card{padding:28px}
+  .req-card .help.err{color:var(--danger)}
+  .section-divided{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(255,255,255,.015)}
+</style>
+</head>
+<body>
+<main id="content">
+  <section class="page-hero">
+    <div class="container">
+      <div>
+        <div class="eyebrow">About the department</div>
+        <h1>Neurology &amp; Neurosurgery research <span class="grad-text">at Saint Luke's</span></h1>
+        <p class="lead">The research department serves the neurologists, neurosurgeons, advanced practice providers, trainees and staff of Saint Luke's Health System in Kansas City, Missouri. Our clinical programs are part of Saint Luke's Marion Bloch Neuroscience Institute, and our research office supports investigators from first idea through IRB approval, data collection, analysis and publication.</p>
+        <div class="hero-actions" style="margin-top:18px"><a class="btn btn-primary" href="#request-access">Request access</a><a class="btn btn-outline" href="#contact">Contact us</a></div>
+      </div>
+      <div class="facts" aria-label="At a glance">
+        <div class="card"><span class="icon" data-icon="globe"></span><div><div class="t">Kansas City, Missouri</div><div class="d">Saint Luke's Hospital of Kansas City main campus, Plaza area</div></div></div>
+        <div class="card"><span class="icon" data-icon="db"></span><div><div class="t">Three clinical registries</div><div class="d">Brain tumor, trauma/TBI and functional neurosurgery — IRB-governed</div></div></div>
+        <div class="card"><span class="icon" data-icon="graduation"></span><div><div class="t">Teaching &amp; mentorship</div><div class="d">Residents, fellows and medical students participate in active projects</div></div></div>
+        <div class="card"><span class="icon" data-icon="book"></span><div><div class="t">Publications library</div><div class="d">Synced nightly from PubMed for all department faculty</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="leadership" aria-labelledby="lead-title">
+    <div class="container">
+      <div class="section-head"><div><div class="eyebrow">Leadership</div><h2 id="lead-title">Department leadership</h2></div><a class="btn btn-ghost" href="/people.html">Full directory →</a></div>
+      <div class="leaders" id="leaders"><div class="card"><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:40%"></div></div><div class="card"><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:40%"></div></div><div class="card"><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:40%"></div></div></div>
+      <div class="card leader-note"><span class="icon-badge" data-icon="shield"></span><p>The three leaders above form the research leadership team and administer the Research Hub. <strong>Access requests go to this team, and any one administrator can approve them</strong> — you do not need sign-off from all three. Requests are usually reviewed within two business days.</p></div>
+    </div>
+  </section>
+
+  <section class="section section-divided" id="mission" aria-labelledby="mission-title">
+    <div class="container">
+      <div class="eyebrow">Mission &amp; values</div>
+      <h2 id="mission-title">Why we do this</h2>
+      <p class="lead" style="margin-bottom:32px">Our mission is to improve the lives of people with neurological and neurosurgical conditions by generating evidence from the care we deliver, sharing it openly, and training clinicians who think like scientists.</p>
+      <div class="values">
+        <div><h3>Rigor</h3><p>Prospective data, pre-specified analyses, IRB oversight and transparent reporting. Registries are designed before the first patient is enrolled.</p></div>
+        <div><h3>Patients first</h3><p>Research questions come from the clinic. We prioritize outcomes that matter to patients and families — function, independence and quality of life.</p></div>
+        <div><h3>Collaboration</h3><p>Neurology and neurosurgery work as one department, alongside nursing, rehabilitation, radiology, pathology, pharmacy and biostatistics.</p></div>
+        <div><h3>Mentorship</h3><p>Every project is a teaching opportunity. Trainees are authors, not observers, and learn the full arc of a study.</p></div>
+        <div><h3>Stewardship</h3><p>Patient data are handled under institutional policy and federal regulation, with access limited to approved personnel and protocols.</p></div>
+        <div><h3>Openness</h3><p>We publish what we learn, including negative results, and make our documentation and processes available to the whole department.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how" aria-labelledby="how-title">
+    <div class="container">
+      <div class="section-head"><div><div class="eyebrow">Process</div><h2 id="how-title">How research works here</h2></div><a class="btn btn-ghost" href="/docs.html?c=Onboarding">Onboarding guide →</a></div>
+      <div class="steps" style="margin-top:20px">
+        <div class="card step"><span class="num">1</span><h3>Idea</h3><p>An investigator proposes a question, identifies a mentor if needed, and drafts a short concept in the Research Hub.</p></div>
+        <div class="card step"><span class="num">2</span><h3>Admin review</h3><p>The research office checks feasibility, data sources, statistical support and any budget or contract needs.</p></div>
+        <div class="card step"><span class="num">3</span><h3>IRB</h3><p>The protocol and consent documents are prepared and submitted. Projects that qualify use an umbrella IRB for registry studies.</p></div>
+        <div class="card step"><span class="num">4</span><h3>Active → Publication</h3><p>Data collection and analysis proceed under the approved protocol, ending in presentation and peer-reviewed publication.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-divided" id="request-access" aria-labelledby="req-title">
+    <div class="container two">
+      <div>
+        <div class="eyebrow">Research Hub</div>
+        <h2 id="req-title">Request access</h2>
+        <p class="lead">The Research Hub is the department's internal workspace for project and IRB tracking, registries, grants, meetings and documentation. Access is limited to Saint Luke's and UMKC-affiliated personnel and is approved by the <a href="#leadership">research leadership team</a> — any one administrator can approve a request.</p>
+        <p class="muted small">Use your institutional email address. After review, you will receive an email with sign-in instructions. Already have an account? <a href="/login.html">Sign in</a>.</p>
+      </div>
+      <form class="card req-card" id="reqForm" novalidate>
+        <div class="form-row">
+          <div class="field"><label for="first">First name</label><input class="input" id="first" name="first" autocomplete="given-name" required></div>
+          <div class="field"><label for="last">Last name</label><input class="input" id="last" name="last" autocomplete="family-name" required></div>
+        </div>
+        <div class="field"><label for="email">Institutional email</label><input class="input" id="email" name="email" type="email" autocomplete="email" required aria-describedby="emailHelp"><div class="help" id="emailHelp">Allowed domains: @saintlukeskc.org, @saint-lukes.org, @saintlukes.org, @umkc.edu</div></div>
+        <div class="form-row">
+          <div class="field"><label for="role">Role</label><select class="input" id="role" name="role" required><option value="">Select…</option><option>Faculty</option><option>Resident</option><option>Medical Student</option><option>APP</option><option>NP</option><option>RN</option><option>PA</option><option>Research Fellow</option><option>CRC</option><option>Statistician</option><option>Other</option></select></div>
+          <div class="field"><label for="dept">Department</label><input class="input" id="dept" name="dept" placeholder="e.g., Neurosurgery" autocomplete="organization-title"></div>
+        </div>
+        <div class="field"><label for="reason">Reason for access</label><textarea class="input" id="reason" name="reason" placeholder="Briefly describe your role in research (project, mentor, registry work…)" required></textarea></div>
+        <div class="flex between wrap"><span class="xs muted">Reviewed by the research leadership team; one approval is enough.</span><button class="btn btn-primary" type="submit" id="reqBtn">Submit request</button></div>
+        <div id="reqResult" class="mt-2"></div>
+      </form>
+    </div>
+  </section>
+
+  <section class="section" id="contact" aria-labelledby="contact-title">
+    <div class="container two">
+      <div>
+        <div class="eyebrow">Contact</div>
+        <h2 id="contact-title">Research office</h2>
+        <p class="lead">Questions about a study, registry access, collaboration or student placements.</p>
+      </div>
+      <div class="card">
+        <ul class="contact-list">
+          <li><span data-icon="home"></span><div><div class="k">Address</div>Saint Luke's Hospital of Kansas City<br>4401 Wornall Rd<br>Kansas City, MO 64111</div></li>
+          <li><span data-icon="chat"></span><div><div class="k">Department research office (email)</div><a href="mailto:neuroresearch@saint-lukes.org">neuroresearch@saint-lukes.org</a></div></li>
+          <li><span data-icon="globe"></span><div><div class="k">Health system</div><a href="https://www.saintlukeskc.org" target="_blank" rel="noopener">saintlukeskc.org</a></div></li>
+          <li><span data-icon="shield"></span><div><div class="k">Patients</div>This site describes research activity. For appointments or medical questions please contact Saint Luke's directly; do not send personal health information through this site.</div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+SL.renderShell({ active: 'about' });
+SL.qsa('[data-icon]').forEach((el) => { el.innerHTML = SL.icons[el.dataset.icon] || ''; el.setAttribute('aria-hidden', 'true'); });
+
+/* ---- leadership ---- */
+const LEADERS = [
+  { name: 'Carlos A. Bagley, MD', title: 'Neuroscience Director & Chair', match: /bagley/i, role: 'Director & Chair' },
+  { name: 'Stephanie Kolakowsky-Hayner, PhD', title: 'Neuroscience Research Director', match: /kolakowsky/i, role: 'Research Director' },
+  { name: 'Ahmad Kareem Almekkawi, MD', title: 'Neuroscience Research Fellow', match: /almekkawi/i, role: 'Research Fellow' },
+];
+(async () => {
+  const box = SL.qs('#leaders');
+  let people = [];
+  try {
+    const { data } = await SL.sb.from('public_people').select('id,name,initials,title,credential,slug,photo_url,department,role').or('role.eq.Admin,title.ilike.%Director%,title.ilike.%Chair%,title.ilike.%Research Fellow%');
+    people = data || [];
+  } catch (e) { /* fall back to literal names */ }
+  const cards = LEADERS.map((L) => {
+    const p = people.find((x) => L.match.test(x.name || '')) || people.find((x) => (x.title || '').toLowerCase() === L.title.toLowerCase());
+    const name = p ? p.name : L.name, title = (p && p.title) || L.title;
+    const inner = `
+      <span class="avatar">${p && p.photo_url ? `<img src="${SL.esc(p.photo_url)}" alt="">` : SL.esc((p && p.initials) || SL.initials(name))}</span>
+      <div>
+        <div class="person-name">${SL.esc(name)}</div>
+        <div class="person-title">${SL.esc(title)}</div>
+        <div class="dept">${SL.esc((p && p.department) || 'Neurology & Neurosurgery')} · Research Hub administrator</div>
+      </div>
+      <span class="tag tag-teal role-tag">${SL.esc(L.role)}</span>`;
+    return p && p.slug ? `<a class="card card-hover leader" href="/people.html?s=${encodeURIComponent(p.slug)}">${inner}</a>` : `<div class="card leader">${inner}</div>`;
+  });
+  // Any additional directors/chairs from the directory who are not in the core three.
+  const extra = people.filter((x) => /director|chair/i.test(x.title || '') && !LEADERS.some((L) => L.match.test(x.name || '')));
+  box.innerHTML = cards.join('') + extra.map((p) => `
+    <a class="card card-hover leader" href="/people.html?s=${encodeURIComponent(p.slug)}">
+      <span class="avatar">${p.photo_url ? `<img src="${SL.esc(p.photo_url)}" alt="">` : SL.esc(p.initials || SL.initials(p.name))}</span>
+      <div><div class="person-name">${SL.esc(p.name)}</div><div class="person-title">${SL.esc(p.title || '')}</div>${p.department ? `<div class="dept">${SL.esc(p.department)}</div>` : ''}</div>
+    </a>`).join('');
+})();
+
+/* ---- request access ---- */
+const form = SL.qs('#reqForm');
+const emailHelp = SL.qs('#emailHelp');
+SL.qs('#email').addEventListener('input', (e) => { const ok = !e.target.value || SL.isValidEmail(e.target.value.trim()); emailHelp.classList.toggle('err', !ok); e.target.setAttribute('aria-invalid', String(!ok)); });
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const v = (id) => SL.qs('#' + id).value.trim();
+  const first = v('first'), last = v('last'), email = v('email').toLowerCase(), role = v('role'), dept = v('dept'), reason = v('reason');
+  if (!first || !last || !email || !role || !reason) { SL.toast('Please complete all required fields.', 'warn'); return; }
+  if (!SL.isValidEmail(email)) { emailHelp.classList.add('err'); SL.qs('#email').focus(); SL.toast('Please use an institutional email address.', 'err'); return; }
+  const btn = SL.qs('#reqBtn'); btn.disabled = true; btn.textContent = 'Submitting…';
+  const name = `${first} ${last}`;
+  const title = [dept, reason].filter(Boolean).join(' — ').slice(0, 500);
+  const message = `Access request: ${name} (${email}) · ${role}${dept ? ' · ' + dept : ''}`;
+  const subject = `Research Hub access request — ${name}`;
+  const body = `Name: ${name}\nEmail: ${email}\nRole: ${role}\nDepartment: ${dept || '—'}\n\nReason:\n${reason}`;
+  const mailto = `mailto:${SL.ADMIN_EMAILS.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const result = SL.qs('#reqResult');
+  try {
+    // SECURITY DEFINER RPC: validates the email domain, dedupes pending requests, notifies admins in-app.
+    const { data: r, error } = await SL.sb.rpc('request_access', { p_email: email, p_name: name, p_role: role === 'Other' ? null : role, p_title: (role === 'Other' ? 'Other · ' : '') + title });
+    if (error) throw error;
+    if (r === 'duplicate') { result.innerHTML = `<div class="alert alert-info" role="status">A request for <strong>${SL.esc(email)}</strong> is already pending review. You'll hear from the research office by email.</div>`; return; }
+    try { await SL.sendEmail(SL.ADMIN_EMAILS, subject, `<p>${SL.esc(body).replace(/\n/g, '<br>')}</p>`); } catch (e3) { /* edge function is auth-gated; in-app notification already created */ }
+    result.innerHTML = `<div class="alert alert-ok" role="status">Thank you — your request has been received. The research office will review it and email you at <strong>${SL.esc(email)}</strong>.</div>`;
+    form.reset(); SL.toast('Request submitted', 'ok');
+  } catch (err) {
+    // Network/RLS failure: fall back to a prefilled email to the administrators.
+    result.innerHTML = `<div class="alert alert-info" role="status">Online submission didn't go through${err && err.message ? ' (' + SL.esc(err.message) + ')' : ''}. Please send your request by email instead — the message is prefilled for you.<br><a class="btn btn-accent btn-sm mt-2" href="${mailto}">Open email to the research office</a></div>`;
+    SL.toast('Please send your request by email — we opened a prefilled message.', 'warn');
+    try { window.location.href = mailto; } catch (e4) { /* ignore */ }
+  } finally { btn.disabled = false; btn.textContent = 'Submit request'; }
+});
+</script>
+</body>
+</html>

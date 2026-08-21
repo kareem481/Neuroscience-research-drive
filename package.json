@@ -1,0 +1,26 @@
+{
+  "name": "research-database",
+  "version": "1.0.0",
+  "description": "A comprehensive, self-contained research operations platform for the **Neuroscience Research Department** (Neurology & Neurosurgery) at **Saint Luke's Health System**.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kareem481/Neuroscience-research-drive.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kareem481/Neuroscience-research-drive/issues"
+  },
+  "homepage": "https://github.com/kareem481/Neuroscience-research-drive#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.100.0",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0"
+  }
+}

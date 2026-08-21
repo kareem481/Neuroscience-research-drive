@@ -1,0 +1,428 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Documentation &amp; SOPs | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Standard operating procedures, IRB and regulatory guides, onboarding, policies, registry manuals and statistics primers for the Saint Luke's Neuroscience Research Department.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .docs-head{padding:56px 0 32px;border-bottom:1px solid var(--line)}
+  .docs-head h1{margin-bottom:6px}
+  .docs-body{padding:32px 0 24px}
+  .docs-side{position:sticky;top:calc(var(--nav-h) + 20px);align-self:start}
+  .cat-list{list-style:none;margin:14px 0 0;padding:0}
+  .cat-list button{display:flex;width:100%;justify-content:space-between;align-items:center;gap:8px;background:none;border:0;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--ink-2);font-size:.92rem;font-weight:500;text-align:left}
+  .cat-list button:hover{background:rgba(255,255,255,.05);color:#fff}
+  .cat-list button.active{background:linear-gradient(90deg,rgba(34,211,238,.16),rgba(139,92,246,.08));color:#fff;font-weight:600}
+  .cat-list .n{font-size:.75rem;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--line);padding:1px 7px;border-radius:999px;min-width:26px;text-align:center}
+  .cat-list button.active .n{background:rgba(34,211,238,.18);color:var(--teal-600);border-color:rgba(34,211,238,.3)}
+  .docs-mobile{display:none;margin-bottom:18px}
+  .doc-card{display:block;color:inherit;text-decoration:none;margin-bottom:14px}
+  .doc-card:hover{text-decoration:none}
+  .doc-card .card-title{font-size:1.08rem}
+  .doc-card .summary{color:var(--ink-2);font-size:.93rem;margin:0 0 10px}
+  .doc-card .meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted);align-items:center}
+  .doc-card .meta .tags{display:inline-flex}
+  .reader-head{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:8px}
+  .reader-head h1{font-size:clamp(1.6rem,3vw,2.2rem);margin-bottom:10px}
+  .reader-meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.85rem;color:var(--muted);align-items:center;margin-bottom:12px}
+  .reader-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .toc h4{font-family:var(--font-body);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin:0 0 8px}
+  .toc a.h3{padding-left:24px;font-size:.8rem}
+  .prose .heading-anchor{position:relative}
+  .prose h2,.prose h3{scroll-margin-top:calc(var(--nav-h) + 20px)}
+  .prose .table-scroll{overflow-x:auto}
+  .prose .file-cta{margin:1.2em 0}
+  /* editor */
+  .editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;min-height:420px}
+  .editor-grid textarea.input{min-height:420px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;line-height:1.5;resize:vertical}
+  .editor-preview{border:1px solid var(--line);border-radius:8px;padding:16px 18px;background:rgba(0,0,0,.25);overflow:auto;max-height:560px}
+  .editor-preview .prose{font-size:.93rem;max-width:none}
+  .toolbar{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+  .toolbar button{background:rgba(255,255,255,.04);border:1px solid var(--line-2);border-radius:6px;padding:4px 9px;font-size:.8rem;font-weight:600;color:var(--ink-2);cursor:pointer}
+  .toolbar button:hover{border-color:rgba(34,211,238,.6);color:#fff}
+  .vh-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .vh-row:last-child{border-bottom:0}
+  .sort-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .sort-row select.input{width:auto;max-width:100%}
+  .sort-row .flex{flex-wrap:wrap;min-width:0}
+  @media (max-width:960px){
+    .docs-side{display:none} .docs-mobile{display:block}
+    .editor-grid{grid-template-columns:1fr} .editor-grid textarea.input{min-height:260px}
+  }
+  @media print{
+    .docs-head,.docs-side,.docs-mobile,.toc,.reader-actions,.breadcrumb,#authNote,.utility-bar,header,footer{display:none!important}
+    .docs-layout,.docs-layout.with-toc{grid-template-columns:1fr!important;display:block}
+    .prose{max-width:none}
+  }
+</style>
+</head><body>
+<main>
+  <section class="docs-head">
+    <div class="container">
+      <div class="eyebrow">Resources</div>
+      <h1>Documentation <span class="grad-text">&amp; SOPs</span></h1>
+      <p class="lead" style="margin-bottom:0">Standard operating procedures, regulatory guides, onboarding checklists, policies and registry manuals for the Neuroscience Research Department.</p>
+    </div>
+  </section>
+  <section class="docs-body">
+    <div class="container">
+      <div id="authNote"></div>
+      <div class="docs-mobile">
+        <div class="form-row" style="gap:10px">
+          <div class="search">__SEARCH_ICON__<input class="input" id="qMobile" type="search" placeholder="Search documents…" aria-label="Search documents"></div>
+          <select class="input" id="catMobile" aria-label="Category"></select>
+        </div>
+      </div>
+      <div class="docs-layout with-toc" id="layout">
+        <aside class="docs-side" id="side">
+          <div class="search">__SEARCH_ICON__<input class="input" id="q" type="search" placeholder="Search documents…" aria-label="Search documents"></div>
+          <ul class="cat-list" id="catList"></ul>
+        </aside>
+        <div id="center" style="min-width:0"></div>
+        <nav class="toc" id="toc" aria-label="On this page"></nav>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+(async function () {
+  'use strict';
+  SL.renderShell({ active: 'docs' });
+
+  // Replace icon placeholders
+  document.querySelectorAll('.search').forEach((el) => { el.innerHTML = el.innerHTML.replace(/__SEARCH_ICON__/g, SL.icons.search); });
+
+  const CATEGORIES = ['SOPs', 'IRB & Regulatory', 'Onboarding', 'Policies', 'Guides', 'Forms & Templates', 'Registry Manuals', 'Statistics'];
+  const VIS_TAG = { public: '<span class="tag tag-ok">Public</span>', internal: '<span class="tag tag-info">Internal</span>', admin: '<span class="tag tag-warn">Admin</span>' };
+  const $center = SL.qs('#center'), $toc = SL.qs('#toc'), $catList = SL.qs('#catList'), $catMobile = SL.qs('#catMobile');
+  const $q = SL.qs('#q'), $qMobile = SL.qs('#qMobile');
+
+  const state = { docs: [], loaded: false, cat: SL.param('c') || '', slug: SL.param('d') || '', q: '', sort: 'order', me: null };
+
+  // ---------- helpers ----------
+  const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+  const canEdit = (d) => !!state.me && (SL.isAdmin() || (d && d.created_by === SL.user.id));
+  const mdToHtml = (md) => {
+    let html = '';
+    try { html = window.marked ? marked.parse(md || '', { gfm: true, breaks: false }) : SL.esc(md || '').replace(/\n/g, '<br>'); } catch (e) { html = SL.esc(md || ''); }
+    return window.DOMPurify ? DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, ADD_ATTR: ['target', 'rel'] }) : SL.esc(html);
+  };
+  const setUrl = (params, push) => {
+    const u = new URL(location.href); u.search = '';
+    Object.keys(params).forEach((k) => { if (params[k]) u.searchParams.set(k, params[k]); });
+    const href = u.pathname + (u.search || '') + (params.hash ? '#' + params.hash : '');
+    if (push) history.pushState(params, '', href); else history.replaceState(params, '', href);
+  };
+  const matches = (d, q) => {
+    if (!q) return true;
+    const hay = [d.title, d.summary, (d.tags || []).join(' '), d.category, d.body_md].join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w));
+  };
+  const fileName = (url) => { try { return decodeURIComponent(url.split('/').pop().replace(/^\d+_/, '')); } catch (e) { return 'file'; } };
+
+  // ---------- data ----------
+  async function loadDocs() {
+    const { data, error } = await SL.sb.from('documents').select('*').eq('published', true).order('sort_order', { ascending: true }).order('title', { ascending: true });
+    if (error) { console.error(error); SL.toast('Could not load documents', 'err'); state.docs = []; }
+    else state.docs = data || [];
+    state.loaded = true;
+  }
+  async function loadUnpublishedForEditors() {
+    // Editors also see their own drafts (RLS permitting).
+    if (!state.me) return;
+    const { data } = await SL.sb.from('documents').select('*').eq('published', false).order('updated_at', { ascending: false });
+    (data || []).forEach((d) => { if (!state.docs.some((x) => x.id === d.id)) state.docs.push(d); });
+  }
+
+  // ---------- sidebar ----------
+  function renderSidebar() {
+    const counts = {}; state.docs.forEach((d) => { counts[d.category] = (counts[d.category] || 0) + 1; });
+    const rows = [{ key: '', label: 'All documents', n: state.docs.length }].concat(CATEGORIES.map((c) => ({ key: c, label: c, n: counts[c] || 0 })));
+    $catList.innerHTML = rows.map((r) => `<li><button type="button" data-cat="${SL.esc(r.key)}" class="${state.cat === r.key ? 'active' : ''}"><span>${SL.esc(r.label)}</span><span class="n">${r.n}</span></button></li>`).join('');
+    SL.qsa('button', $catList).forEach((b) => b.onclick = () => { state.cat = b.dataset.cat; state.slug = ''; setUrl({ c: state.cat }, true); render(); });
+    $catMobile.innerHTML = rows.map((r) => `<option value="${SL.esc(r.key)}" ${state.cat === r.key ? 'selected' : ''}>${SL.esc(r.label)} (${r.n})</option>`).join('');
+  }
+  $catMobile.onchange = () => { state.cat = $catMobile.value; state.slug = ''; setUrl({ c: state.cat }, true); render(); };
+  const onSearch = SL.debounce((v) => { state.q = v.trim(); if ($q.value !== v) $q.value = v; if ($qMobile.value !== v) $qMobile.value = v; if (state.slug) { state.slug = ''; setUrl({ c: state.cat }, true); } renderList(); }, 200);
+  $q.oninput = () => onSearch($q.value); $qMobile.oninput = () => onSearch($qMobile.value);
+
+  // ---------- list ----------
+  function skeletonList() {
+    $center.innerHTML = Array.from({ length: 4 }).map(() => `<div class="card doc-card"><div class="skeleton" style="width:55%;height:18px"></div><div class="skeleton" style="width:90%"></div><div class="skeleton" style="width:70%"></div><div class="skeleton" style="width:40%;height:10px"></div></div>`).join('');
+    $toc.innerHTML = '';
+  }
+  function renderList() {
+    $toc.innerHTML = '';
+    let list = state.docs.filter((d) => (!state.cat || d.category === state.cat) && matches(d, state.q));
+    if (state.sort === 'title') list = list.slice().sort((a, b) => a.title.localeCompare(b.title));
+    else if (state.sort === 'updated') list = list.slice().sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    else list = list.slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.title.localeCompare(b.title));
+    const head = `<div class="sort-row">
+        <div><h2 style="margin:0;font-size:1.35rem">${SL.esc(state.cat || 'All documents')}</h2><div class="small muted">${list.length} document${list.length === 1 ? '' : 's'}${state.q ? ` matching “${SL.esc(state.q)}”` : ''}</div></div>
+        <div class="flex" style="gap:8px">
+          <select class="input" id="sortSel" aria-label="Sort"><option value="order" ${state.sort === 'order' ? 'selected' : ''}>Recommended order</option><option value="title" ${state.sort === 'title' ? 'selected' : ''}>Title A–Z</option><option value="updated" ${state.sort === 'updated' ? 'selected' : ''}>Recently updated</option></select>
+          ${SL.isAdmin() ? `<button class="btn btn-primary btn-sm" id="newDocBtn">${SL.icons.plus}New document</button>` : ''}
+        </div></div>`;
+    const body = list.length ? list.map(cardHtml).join('') : `<div class="empty card">${SL.icons.doc}<div>${state.q ? 'No documents match your search.' : state.me ? 'No documents in this category yet.' : 'No public documents here yet. Sign in to see internal SOPs and protocols.'}</div></div>`;
+    $center.innerHTML = head + body;
+    SL.qs('#sortSel').onchange = (e) => { state.sort = e.target.value; renderList(); };
+    const nb = SL.qs('#newDocBtn'); if (nb) nb.onclick = () => openEditor(null);
+    SL.qsa('a.doc-card', $center).forEach((a) => a.onclick = (e) => { e.preventDefault(); openDoc(a.dataset.slug, true); });
+  }
+  function cardHtml(d) {
+    return `<a class="card card-hover doc-card" href="/docs.html?d=${encodeURIComponent(d.slug)}" data-slug="${SL.esc(d.slug)}">
+      <div class="flex between wrap" style="gap:8px;align-items:flex-start"><h3 class="card-title" style="margin:0 0 6px">${SL.esc(d.title)}</h3><span class="tags">${VIS_TAG[d.visibility] || ''}${d.published === false ? '<span class="tag tag-warn">Draft</span>' : ''}</span></div>
+      ${d.summary ? `<p class="summary">${SL.esc(d.summary)}</p>` : ''}
+      <div class="meta"><span class="tag tag-outline">${SL.esc(d.category)}</span>
+        ${(d.tags || []).length ? `<span class="tags">${d.tags.slice(0, 5).map((t) => `<span class="tag tag-teal">${SL.esc(t)}</span>`).join('')}</span>` : ''}
+        <span>v${SL.esc(d.version || 1)}</span><span>Updated ${SL.fmtDate(d.updated_at)}</span>${d.file_url ? `<span class="flex" style="gap:4px">${SL.icons.download.replace('<svg', '<svg style="width:14px;height:14px"')} File attached</span>` : ''}
+      </div></a>`;
+  }
+
+  // ---------- reader ----------
+  async function openDoc(slug, push) {
+    state.slug = slug;
+    setUrl({ c: state.cat, d: slug }, push);
+    let d = state.docs.find((x) => x.slug === slug);
+    if (!d) {
+      $center.innerHTML = `<div class="skeleton" style="width:60%;height:28px"></div><div class="skeleton" style="width:40%"></div><div class="skeleton" style="width:95%;margin-top:24px"></div><div class="skeleton" style="width:90%"></div><div class="skeleton" style="width:85%"></div>`;
+      const { data } = await SL.sb.from('documents').select('*').eq('slug', slug).maybeSingle();
+      d = data;
+      if (d && !state.docs.some((x) => x.id === d.id)) state.docs.push(d);
+    }
+    if (!d) {
+      $toc.innerHTML = '';
+      $center.innerHTML = `<div class="breadcrumb"><a href="/docs.html">Documentation</a> › Not found</div><div class="empty card">${SL.icons.doc}<div>That document doesn't exist or you don't have access to it.${state.me ? '' : ' <a href="/login.html?next=' + encodeURIComponent('docs.html?d=' + slug) + '">Sign in</a> to view internal documents.'}</div></div>`;
+      return;
+    }
+    renderReader(d);
+    window.scrollTo({ top: 0 });
+  }
+  function renderReader(d) {
+    const html = mdToHtml(d.body_md);
+    const edit = canEdit(d);
+    $center.innerHTML = `
+      <div class="breadcrumb"><a href="/docs.html" data-nav="">Documentation</a> › <a href="/docs.html?c=${encodeURIComponent(d.category)}" data-nav="${SL.esc(d.category)}">${SL.esc(d.category)}</a></div>
+      <div class="reader-head">
+        <h1>${SL.esc(d.title)}</h1>
+        ${d.summary ? `<p class="lead" style="font-size:1.05rem;margin-bottom:10px">${SL.esc(d.summary)}</p>` : ''}
+        <div class="reader-meta">${VIS_TAG[d.visibility] || ''}${d.published === false ? '<span class="tag tag-warn">Draft</span>' : ''}<span class="tag tag-outline">${SL.esc(d.category)}</span><span>Version ${SL.esc(d.version || 1)}</span><span>Last updated ${SL.fmtDate(d.updated_at)}</span></div>
+        ${(d.tags || []).length ? `<div class="tags">${d.tags.map((t) => `<span class="tag tag-teal">${SL.esc(t)}</span>`).join('')}</div>` : ''}
+        <div class="reader-actions">
+          ${d.file_url ? `<a class="btn btn-accent btn-sm" href="${SL.esc(d.file_url)}" target="_blank" rel="noopener" download>${SL.icons.download}Download file</a>` : ''}
+          <button class="btn btn-outline btn-sm" id="printBtn">Print</button>
+          <button class="btn btn-outline btn-sm" id="copyBtn">Copy link</button>
+          ${edit ? `<button class="btn btn-outline btn-sm" id="editBtn">${SL.icons.edit}Edit</button><button class="btn btn-ghost btn-sm" id="histBtn">Version history</button>` : ''}
+        </div>
+      </div>
+      <article class="prose" id="prose">${html}</article>`;
+    SL.qsa('.breadcrumb a', $center).forEach((a) => a.onclick = (e) => { e.preventDefault(); state.cat = a.dataset.nav; state.slug = ''; setUrl({ c: state.cat }, true); render(); });
+    SL.qs('#printBtn').onclick = () => window.print();
+    SL.qs('#copyBtn').onclick = async () => { try { await navigator.clipboard.writeText(location.origin + '/docs.html?d=' + encodeURIComponent(d.slug)); SL.toast('Link copied', 'ok'); } catch (e) { SL.toast('Could not copy link', 'err'); } };
+    if (edit) { SL.qs('#editBtn').onclick = () => openEditor(d); SL.qs('#histBtn').onclick = () => openHistory(d); }
+    // wrap tables for horizontal scroll, open external links in new tab
+    SL.qsa('#prose table').forEach((t) => { const w = document.createElement('div'); w.className = 'table-scroll'; t.parentNode.insertBefore(w, t); w.appendChild(t); });
+    SL.qsa('#prose a[href^="http"]').forEach((a) => { a.target = '_blank'; a.rel = 'noopener'; });
+    buildToc();
+  }
+
+  // ---------- TOC + scroll spy ----------
+  let spyObserver = null;
+  function buildToc() {
+    if (spyObserver) { spyObserver.disconnect(); spyObserver = null; }
+    const heads = SL.qsa('#prose h2, #prose h3');
+    const used = {};
+    heads.forEach((h) => { let id = slugify(h.textContent) || 'section'; if (used[id]) id += '-' + (++used[id]); else used[id] = 1; h.id = id; });
+    if (!heads.length) { $toc.innerHTML = ''; return; }
+    $toc.innerHTML = `<h4>On this page</h4>` + heads.map((h) => `<a href="#${h.id}" class="${h.tagName === 'H3' ? 'h3' : ''}">${SL.esc(h.textContent)}</a>`).join('');
+    const links = SL.qsa('a', $toc);
+    links.forEach((a) => a.onclick = (e) => { e.preventDefault(); const t = document.getElementById(a.getAttribute('href').slice(1)); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', a.getAttribute('href')); } });
+    const setActive = (id) => links.forEach((a) => a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+    spyObserver = new IntersectionObserver((entries) => {
+      const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible.length) setActive(visible[0].target.id);
+    }, { rootMargin: '-80px 0px -65% 0px', threshold: [0, 1] });
+    heads.forEach((h) => spyObserver.observe(h));
+    setActive(heads[0].id);
+    if (location.hash) { const t = document.getElementById(location.hash.slice(1)); if (t) setTimeout(() => t.scrollIntoView(), 50); }
+  }
+
+  // ---------- editor ----------
+  function openEditor(d) {
+    const isNew = !d;
+    d = d || { title: '', slug: '', category: state.cat || 'SOPs', visibility: 'internal', summary: '', tags: [], sort_order: 100, published: true, body_md: '', file_url: '' };
+    SL.modal(`
+      <div class="modal-head"><h3>${isNew ? 'New document' : 'Edit document'}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="field"><label>Title</label><input class="input" id="eTitle" value="${SL.esc(d.title)}" placeholder="e.g. IRB Submission Guide"></div>
+          <div class="field"><label>Slug</label><input class="input mono" id="eSlug" value="${SL.esc(d.slug)}" placeholder="irb-submission-guide"><div class="help">URL: /docs.html?d=<span id="eSlugPreview">${SL.esc(d.slug)}</span></div></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Category</label><select class="input" id="eCat">${CATEGORIES.map((c) => `<option ${c === d.category ? 'selected' : ''}>${SL.esc(c)}</option>`).join('')}</select></div>
+          <div class="field"><label>Visibility</label><select class="input" id="eVis"><option value="public" ${d.visibility === 'public' ? 'selected' : ''}>Public — anyone can read</option><option value="internal" ${d.visibility === 'internal' ? 'selected' : ''}>Internal — signed-in members</option><option value="admin" ${d.visibility === 'admin' ? 'selected' : ''}>Admin only</option></select></div>
+        </div>
+        <div class="field"><label>Summary</label><input class="input" id="eSummary" value="${SL.esc(d.summary || '')}" placeholder="One or two sentences shown on the card"></div>
+        <div class="form-row">
+          <div class="field"><label>Tags (comma-separated)</label><input class="input" id="eTags" value="${SL.esc((d.tags || []).join(', '))}" placeholder="IRB, consent, HIPAA"></div>
+          <div class="form-row">
+            <div class="field"><label>Sort order</label><input class="input" id="eSort" type="number" value="${SL.esc(d.sort_order == null ? 100 : d.sort_order)}"></div>
+            <div class="field"><label>&nbsp;</label><label class="check" style="margin-top:10px"><input type="checkbox" id="ePub" ${d.published !== false ? 'checked' : ''}> Published</label></div>
+          </div>
+        </div>
+        <div class="field"><label>Attached file (optional)</label>
+          <div class="flex wrap" style="gap:10px"><input type="file" id="eFile" class="input" style="max-width:360px"><span id="eFileName" class="small muted">${d.file_url ? `Current: <a href="${SL.esc(d.file_url)}" target="_blank" rel="noopener">${SL.esc(fileName(d.file_url))}</a> · <a href="#" id="eFileClear">remove</a>` : 'No file attached'}</span></div>
+          <div class="help">Public documents upload to the public bucket; internal/admin documents upload to the internal research-files bucket.</div>
+        </div>
+        <div class="field"><label>Body (Markdown)</label>
+          <div class="toolbar" id="eToolbar">
+            <button type="button" data-md="h2">H2</button><button type="button" data-md="h3">H3</button><button type="button" data-md="bold"><b>B</b></button><button type="button" data-md="italic"><i>I</i></button><button type="button" data-md="link">Link</button><button type="button" data-md="ul">• List</button><button type="button" data-md="ol">1. List</button><button type="button" data-md="code">Code</button><button type="button" data-md="quote">Quote</button><button type="button" data-md="table">Table</button>
+          </div>
+          <div class="editor-grid">
+            <textarea class="input" id="eBody" spellcheck="true">${SL.esc(d.body_md || '')}</textarea>
+            <div class="editor-preview"><div class="xs muted" style="margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Preview</div><div class="prose" id="ePreview"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot"><span class="small muted grow" id="eStatus"></span><button class="btn btn-outline" data-close>Cancel</button><button class="btn btn-primary" id="eSave">${isNew ? 'Create document' : 'Save changes'}</button></div>`, { size: 'xl', dismissible: false });
+
+    const $t = SL.qs('#eTitle'), $s = SL.qs('#eSlug'), $b = SL.qs('#eBody'), $p = SL.qs('#ePreview');
+    let slugTouched = !!d.slug, fileUrl = d.file_url || '', clearFile = false;
+    const preview = SL.debounce(() => { $p.innerHTML = mdToHtml($b.value) || '<p class="muted">Nothing to preview yet.</p>'; }, 150);
+    preview();
+    $b.oninput = preview;
+    $t.oninput = () => { if (!slugTouched) { $s.value = slugify($t.value); SL.qs('#eSlugPreview').textContent = $s.value; } };
+    $s.oninput = () => { slugTouched = true; $s.value = slugify($s.value) || $s.value; SL.qs('#eSlugPreview').textContent = $s.value; };
+    const clr = SL.qs('#eFileClear'); if (clr) clr.onclick = (e) => { e.preventDefault(); clearFile = true; fileUrl = ''; SL.qs('#eFileName').textContent = 'File will be removed on save'; };
+
+    // toolbar
+    const wrapSel = (before, after, placeholder) => {
+      const a = $b.selectionStart, z = $b.selectionEnd, sel = $b.value.slice(a, z) || placeholder || '';
+      $b.setRangeText(before + sel + after, a, z, 'end'); $b.focus(); preview();
+    };
+    const linePrefix = (prefix) => {
+      const a = $b.selectionStart, z = $b.selectionEnd;
+      const start = $b.value.lastIndexOf('\n', a - 1) + 1;
+      const block = $b.value.slice(start, z);
+      const out = block.split('\n').map((l, i) => (typeof prefix === 'function' ? prefix(i) : prefix) + l).join('\n');
+      $b.setRangeText(out, start, z, 'end'); $b.focus(); preview();
+    };
+    SL.qsa('#eToolbar button').forEach((btn) => btn.onclick = () => {
+      const k = btn.dataset.md;
+      if (k === 'h2') linePrefix('## ');
+      else if (k === 'h3') linePrefix('### ');
+      else if (k === 'bold') wrapSel('**', '**', 'bold text');
+      else if (k === 'italic') wrapSel('_', '_', 'italic text');
+      else if (k === 'link') wrapSel('[', '](https://)', 'link text');
+      else if (k === 'ul') linePrefix('- ');
+      else if (k === 'ol') linePrefix((i) => `${i + 1}. `);
+      else if (k === 'code') wrapSel('`', '`', 'code');
+      else if (k === 'quote') linePrefix('> ');
+      else if (k === 'table') wrapSel('\n| Column A | Column B | Column C |\n|---|---|---|\n| Row 1 | … | … |\n| Row 2 | … | … |\n', '', '');
+    });
+
+    SL.qs('#eSave').onclick = async () => {
+      const title = $t.value.trim(), slug = slugify($s.value);
+      const vis = SL.qs('#eVis').value;
+      if (!title) return SL.toast('Title is required', 'warn');
+      if (!slug) return SL.toast('Slug is required', 'warn');
+      if (!$b.value.trim()) return SL.toast('Body cannot be empty', 'warn');
+      if (vis === 'admin' && !SL.isAdmin()) return SL.toast('Only admins can create admin-only documents', 'warn');
+      const btn = SL.qs('#eSave'); btn.disabled = true; const status = SL.qs('#eStatus');
+      try {
+        const f = SL.qs('#eFile').files[0];
+        if (f) {
+          status.textContent = 'Uploading file…';
+          fileUrl = await SL.upload(vis === 'public' ? 'public-assets' : 'research-files', 'docs', f);
+        }
+        status.textContent = 'Saving…';
+        const row = {
+          title, slug, category: SL.qs('#eCat').value, visibility: vis, summary: SL.qs('#eSummary').value.trim() || null,
+          tags: SL.qs('#eTags').value.split(',').map((t) => t.trim()).filter(Boolean),
+          sort_order: parseInt(SL.qs('#eSort').value, 10) || 0, published: SL.qs('#ePub').checked,
+          body_md: $b.value, file_url: clearFile && !f ? null : (fileUrl || null), updated_by: SL.user.id,
+        };
+        let saved;
+        if (isNew) {
+          row.created_by = SL.user.id;
+          const { data, error } = await SL.sb.from('documents').insert(row).select().single();
+          if (error) throw error; saved = data;
+          SL.audit('document_created', 'document', saved.id, { slug, title });
+        } else {
+          const { data, error } = await SL.sb.from('documents').update(row).eq('id', d.id).select().single();
+          if (error) throw error; saved = data;
+          SL.audit('document_updated', 'document', saved.id, { slug, title, version: saved.version });
+        }
+        const i = state.docs.findIndex((x) => x.id === saved.id);
+        if (i >= 0) state.docs[i] = saved; else state.docs.push(saved);
+        SL.closeModal(); SL.toast(isNew ? 'Document created' : 'Document saved', 'ok');
+        renderSidebar(); openDoc(saved.slug, isNew || saved.slug !== d.slug);
+      } catch (e) {
+        console.error(e);
+        SL.toast(/duplicate|unique/i.test(e.message || '') ? 'That slug is already in use' : (e.message || 'Save failed'), 'err');
+        btn.disabled = false; status.textContent = '';
+      }
+    };
+  }
+
+  // ---------- version history ----------
+  async function openHistory(d) {
+    SL.modal(`<div class="modal-head"><h3>Version history</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div><div class="modal-body" id="vhBody"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:60%"></div></div>`, { size: 'lg' });
+    const { data, error } = await SL.sb.from('document_versions').select('*').eq('document_id', d.id).order('version', { ascending: false });
+    const body = SL.qs('#vhBody'); if (!body) return;
+    if (error) { body.innerHTML = `<div class="alert alert-danger">${SL.esc(error.message)}</div>`; return; }
+    const versions = data || [];
+    body.innerHTML = `<div class="vh-row"><div><strong>Version ${SL.esc(d.version || 1)}</strong> <span class="tag tag-ok">Current</span><div class="xs muted">Updated ${SL.fmtDateTime(d.updated_at)}</div></div></div>` +
+      (versions.length ? versions.map((v, i) => `<div class="vh-row"><div><strong>Version ${SL.esc(v.version)}</strong><div class="xs muted">${SL.esc(v.title)} · saved ${SL.fmtDateTime(v.saved_at)}</div></div><div class="flex" style="gap:6px"><button class="btn btn-outline btn-sm" data-view="${i}">View</button><button class="btn btn-ghost btn-sm" data-restore="${i}">Restore this version</button></div></div>`).join('')
+        : `<div class="empty" style="padding:24px">No earlier versions yet. A snapshot is stored automatically every time the document is saved.</div>`);
+    SL.qsa('[data-view]', body).forEach((b) => b.onclick = () => {
+      const v = versions[+b.dataset.view];
+      SL.modal(`<div class="modal-head"><h3>${SL.esc(v.title)} — v${SL.esc(v.version)}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div><div class="modal-body" style="max-height:70vh;overflow:auto"><div class="prose" style="max-width:none">${mdToHtml(v.body_md)}</div></div><div class="modal-foot"><button class="btn btn-outline" id="vhBack">Back to history</button><button class="btn btn-primary" id="vhRestore">Restore this version</button></div>`, { size: 'lg' });
+      SL.qs('#vhBack').onclick = () => openHistory(d);
+      SL.qs('#vhRestore').onclick = () => restore(d, v);
+    });
+    SL.qsa('[data-restore]', body).forEach((b) => b.onclick = () => restore(d, versions[+b.dataset.restore]));
+  }
+  async function restore(d, v) {
+    SL.closeModal();
+    if (!(await SL.confirm(`Restore version ${v.version}? The current content will be kept in the version history.`, 'Restore'))) return;
+    const { data, error } = await SL.sb.from('documents').update({ body_md: v.body_md, title: v.title, file_url: v.file_url || d.file_url || null, updated_by: SL.user.id }).eq('id', d.id).select().single();
+    if (error) return SL.toast(error.message, 'err');
+    SL.audit('document_restored', 'document', d.id, { slug: d.slug, restored_version: v.version });
+    const i = state.docs.findIndex((x) => x.id === data.id); if (i >= 0) state.docs[i] = data;
+    SL.toast(`Restored version ${v.version}`, 'ok');
+    renderReader(data);
+  }
+
+  // ---------- routing ----------
+  function render() {
+    renderSidebar();
+    if (state.slug) openDoc(state.slug, false); else renderList();
+  }
+  window.addEventListener('popstate', () => {
+    const p = new URLSearchParams(location.search);
+    state.cat = p.get('c') || ''; state.slug = p.get('d') || '';
+    render();
+  });
+
+  // ---------- boot ----------
+  skeletonList();
+  $catList.innerHTML = Array.from({ length: 6 }).map(() => '<li><div class="skeleton" style="margin:10px"></div></li>').join('');
+  state.me = await SL.loadProfile();
+  if (!state.me) {
+    SL.qs('#authNote').innerHTML = `<div class="alert alert-info flex wrap" style="gap:8px">${SL.icons.info.replace('<svg', '<svg style="width:18px;height:18px;flex:none"')}<span>Internal SOPs and protocols are visible after signing in.</span> <a href="/login.html?next=docs.html" style="font-weight:600">Sign in →</a></div>`;
+  }
+  await loadDocs();
+  await loadUnpublishedForEditors();
+  if (state.cat && !CATEGORIES.includes(state.cat)) state.cat = '';
+  setUrl({ c: state.cat, d: state.slug }, false);
+  render();
+})();
+</script>
+</body></html>

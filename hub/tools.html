@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research Tools | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Sample-size calculator, REDCap form builder, document templates and citation tools for the Saint Luke's Neuroscience Research Hub.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+  .panel{display:none} .panel.on{display:block}
+  .tool-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}
+  @media(max-width:960px){.tool-grid{grid-template-columns:1fr}}
+  .result{background:linear-gradient(135deg,rgba(34,211,238,.16),rgba(139,92,246,.2));border:1px solid var(--line-2);color:#fff;border-radius:var(--radius);padding:22px;backdrop-filter:blur(12px)}
+  .result .big{font-family:var(--font-head);font-size:2.4rem;line-height:1;margin-bottom:6px}
+  .result .big{background:var(--grad-text);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .result .sub{color:var(--ink-2);font-size:.9rem}
+  .result .sentence{background:rgba(255,255,255,.08);border-radius:8px;padding:12px 14px;margin-top:14px;font-size:.92rem;line-height:1.5}
+  .formula{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;background:rgba(0,0,0,.3);color:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto}
+  .notes li{margin:.3em 0;font-size:.88rem;color:var(--ink-2)}
+  .var-row td code{background:var(--navy-100);padding:2px 6px;border-radius:4px;font-size:.8rem}
+  .tpl{display:flex;flex-direction:column;gap:10px}
+  .tpl p{flex:1;font-size:.9rem;color:var(--ink-2);margin:0}
+  .tpl .ic{width:40px;height:40px;border-radius:10px;background:var(--teal-100);color:var(--teal-600);display:grid;place-items:center} .tpl .ic svg{width:22px;height:22px}
+  .cite{font-size:.98rem;line-height:1.6;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.04)}
+  .drop{border:2px dashed var(--line-2);border-radius:var(--radius);padding:22px;text-align:center;color:var(--muted);cursor:pointer;background:rgba(255,255,255,.03)}
+  .drop.over{border-color:var(--teal);background:var(--teal-100)}
+  .preview .field label code{font-weight:400;color:var(--muted);font-size:.75rem;margin-left:6px}
+</style>
+</head>
+<body>
+<main id="main">
+  <div class="page-head"><div><h1>Research tools</h1><div class="sub">Planning, data capture, documents and citations — all run in your browser.</div></div>
+    <div class="flex wrap" id="regLinks"></div></div>
+  <div class="tabs" id="tabs">
+    <button data-t="samplesize">Sample size calculator</button>
+    <button data-t="redcap">REDCap form builder</button>
+    <button data-t="templates">Templates</button>
+    <button data-t="citations">Citation tools</button>
+  </div>
+
+  <!-- ================= SAMPLE SIZE ================= -->
+  <section class="panel" id="p-samplesize">
+    <div class="tool-grid">
+      <div class="card">
+        <h3>Study parameters</h3>
+        <div class="field"><label>Test</label><select class="input" id="ssType">
+          <option value="ttest">Two-sample t-test (independent means)</option>
+          <option value="paired">Paired t-test (within-subject change)</option>
+          <option value="anova">One-way ANOVA (k group means)</option>
+          <option value="chi2">Chi-square test (Cohen's w)</option>
+          <option value="prop">Two proportions (z-test)</option>
+          <option value="corr">Correlation (Pearson r)</option>
+          <option value="regr">Multiple regression (Cohen's f²)</option>
+          <option value="surv">Survival — log-rank (hazard ratio)</option>
+        </select></div>
+        <div id="ssFields"></div>
+        <div class="form-row">
+          <div class="field"><label>Significance level (α)</label><select class="input" id="ssAlpha"><option value="0.05" selected>0.05</option><option value="0.01">0.01</option><option value="0.10">0.10</option><option value="0.025">0.025</option></select></div>
+          <div class="field"><label>Power (1 − β)</label><select class="input" id="ssPower"><option value="0.80" selected>80%</option><option value="0.85">85%</option><option value="0.90">90%</option><option value="0.95">95%</option></select></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Sidedness</label><select class="input" id="ssSided"><option value="2" selected>Two-sided</option><option value="1">One-sided</option></select></div>
+          <div class="field"><label>Expected attrition / drop-out</label><select class="input" id="ssDrop"><option value="0">0%</option><option value="0.1">10%</option><option value="0.15">15%</option><option value="0.2">20%</option><option value="0.3">30%</option></select></div>
+        </div>
+        <button class="btn btn-primary" id="ssCalc">Calculate</button>
+      </div>
+      <div>
+        <div class="result" id="ssResult"><div class="sub">Choose a test and parameters, then calculate.</div></div>
+        <div class="card mt-2"><h4 style="margin-bottom:8px">Formula &amp; notes</h4><div id="ssNotes"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= REDCAP ================= -->
+  <section class="panel" id="p-redcap">
+    <div class="tool-grid">
+      <div>
+        <div class="card mb-2">
+          <h3>Instrument</h3>
+          <div class="form-row"><div class="field"><label>Form / instrument name</label><input class="input" id="rcForm" placeholder="e.g. baseline_demographics"></div><div class="field"><label>Import data dictionary (CSV)</label><input type="file" id="rcFile" accept=".csv,text/csv" class="input"></div></div>
+          <div class="drop" id="rcDrop">Drop a REDCap data dictionary CSV here — columns: Variable / Field Name, Field Type, Field Label, Choices…</div>
+        </div>
+        <div class="card">
+          <h3>Add variable</h3>
+          <form id="rcAdd">
+            <div class="form-row"><div class="field"><label>Variable name</label><input class="input" name="name" required placeholder="age_at_dx" pattern="[A-Za-z][A-Za-z0-9_ ]*"></div><div class="field"><label>Field type</label><select class="input" name="type"><option value="text">Text</option><option value="number">Number (text + integer/number validation)</option><option value="date">Date (text + date_ymd)</option><option value="notes">Notes (paragraph)</option><option value="dropdown">Dropdown</option><option value="radio">Radio</option><option value="checkbox">Checkbox</option><option value="yesno">Yes / No</option><option value="truefalse">True / False</option><option value="calc">Calculated</option><option value="file">File upload</option><option value="slider">Slider</option></select></div></div>
+            <div class="field"><label>Field label</label><input class="input" name="label" placeholder="Age at diagnosis (years)"></div>
+            <div class="form-row"><div class="field"><label>Choices / calculation</label><input class="input" name="choices" placeholder="1, Male | 2, Female | 3, Other"></div><div class="field"><label>Options</label><div class="flex wrap" style="padding-top:8px"><label class="check"><input type="checkbox" name="required"> Required</label><label class="check"><input type="checkbox" name="identifier"> Identifier (PHI)</label></div></div></div>
+            <div class="field"><label>Field note / branching logic (optional)</label><input class="input" name="note" placeholder="[sex] = '2'"></div>
+            <button class="btn btn-primary btn-sm">Add variable</button>
+          </form>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flex between wrap mb-2"><h3 style="margin:0">Variables <span class="tag" id="rcCount">0</span></h3><div class="flex wrap"><button class="btn btn-outline btn-sm" id="rcPreview">Preview form</button><button class="btn btn-outline btn-sm" id="rcExportDict">Export data dictionary</button><button class="btn btn-outline btn-sm" id="rcExportData">Blank data CSV</button><button class="btn btn-ghost btn-sm" id="rcClear">Clear</button></div></div>
+        <div id="rcList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TEMPLATES ================= -->
+  <section class="panel" id="p-templates">
+    <p class="lead" style="font-size:1rem;margin-bottom:20px">Starter documents in Word-compatible format. Fill in the fields and export a .doc, or download the blank template with section headings and guidance text.</p>
+    <div class="grid grid-4" id="tplGrid"></div>
+  </section>
+
+  <!-- ================= CITATIONS ================= -->
+  <section class="panel" id="p-citations">
+    <div class="tool-grid">
+      <div class="card">
+        <h3>Look up a reference</h3>
+        <form id="citeForm">
+          <div class="field"><label>PMID or DOI</label><input class="input" id="citeQ" required placeholder="e.g. 36069906 or 10.1056/NEJMoa2107038"></div>
+          <div class="flex wrap"><button class="btn btn-primary">Fetch citation</button><span class="xs muted">Uses NCBI E-utilities (PubMed) and Crossref, directly from your browser.</span></div>
+        </form>
+        <div class="mt-3 small muted">Tip: paste several PMIDs separated by commas to build a reference list.</div>
+      </div>
+      <div id="citeOut"><div class="empty card">Results will appear here.</div></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'tools' });
+  const h = SL.esc, I = SL.icons;
+
+  // ---------- tabs (hash routed) ----------
+  const tabs = SL.qsa('#tabs button');
+  function show(t) { if (!SL.qs('#p-' + t)) t = 'samplesize'; tabs.forEach((b) => b.classList.toggle('active', b.dataset.t === t)); SL.qsa('.panel').forEach((p) => p.classList.toggle('on', p.id === 'p-' + t)); if (location.hash !== '#' + t) history.replaceState(null, '', '#' + t); }
+  tabs.forEach((b) => b.onclick = () => show(b.dataset.t));
+  window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+  show(location.hash.slice(1) || 'samplesize');
+  SL.qs('#regLinks').innerHTML = [['/hub/registries/index.html', 'Clinical registries'], ['/hub/registries/btr.html', 'Brain Tumor Registry']].map(([href, l], i) => `<a class="btn ${i ? 'btn-ghost' : 'btn-outline'} btn-sm" href="${href}">${i ? '' : I.db}${l}</a>`).join('');
+  const copy = async (text, msg) => { try { await navigator.clipboard.writeText(text); SL.toast(msg || 'Copied', 'ok'); } catch (e) { SL.toast('Copy failed — select the text manually', 'warn'); } };
+
+  /* =====================================================================
+     SAMPLE SIZE
+     ===================================================================== */
+  // Inverse normal CDF (Acklam's rational approximation, |error| < 1.2e-9)
+  function zq(p) {
+    if (p <= 0) return -Infinity; if (p >= 1) return Infinity;
+    const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+    const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+    const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+    const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+    const pl = 0.02425, ph = 1 - pl; let q, r;
+    if (p < pl) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+    if (p > ph) { q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+    q = p - 0.5; r = q * q;
+    return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+  }
+  const effectSel = (label, opts, sel) => `<div class="form-row"><div class="field"><label>${label}</label><select class="input" id="ssEffect">${opts.map(([v, l]) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${l}</option>`).join('')}<option value="custom">Custom…</option></select></div><div class="field"><label>Custom value</label><input class="input" type="number" id="ssCustom" step="0.01" min="0.01" placeholder="e.g. 0.35" disabled></div></div>`;
+  const num = (id, label, val, extra) => `<div class="field"><label>${label}</label><input class="input" type="number" id="${id}" value="${val}" ${extra || 'step="0.01"'}></div>`;
+  const FIELDS = {
+    ttest: () => effectSel("Effect size (Cohen's d)", [['0.2', 'Small (0.2)'], ['0.5', 'Medium (0.5)'], ['0.8', 'Large (0.8)']], '0.5') + num('ssRatio', 'Allocation ratio (n₂ / n₁)', 1, 'step="0.1" min="0.1"'),
+    paired: () => effectSel("Effect size of the change (Cohen's d_z)", [['0.2', 'Small (0.2)'], ['0.5', 'Medium (0.5)'], ['0.8', 'Large (0.8)']], '0.5'),
+    anova: () => effectSel("Effect size (Cohen's f)", [['0.1', 'Small (0.10)'], ['0.25', 'Medium (0.25)'], ['0.4', 'Large (0.40)']], '0.25') + num('ssGroups', 'Number of groups (k)', 3, 'step="1" min="2" max="20"'),
+    chi2: () => effectSel("Effect size (Cohen's w)", [['0.1', 'Small (0.1)'], ['0.3', 'Medium (0.3)'], ['0.5', 'Large (0.5)']], '0.3') + num('ssDf', 'Degrees of freedom', 1, 'step="1" min="1"'),
+    prop: () => `<div class="form-row">${num('ssP1', 'Proportion in group 1 (p₁)', 0.5, 'step="0.01" min="0.01" max="0.99"')}${num('ssP2', 'Proportion in group 2 (p₂)', 0.3, 'step="0.01" min="0.01" max="0.99"')}</div>` + num('ssRatio', 'Allocation ratio (n₂ / n₁)', 1, 'step="0.1" min="0.1"'),
+    corr: () => num('ssR', 'Expected correlation (r)', 0.3, 'step="0.01" min="0.01" max="0.99"'),
+    regr: () => effectSel("Effect size (Cohen's f²)", [['0.02', 'Small (0.02)'], ['0.15', 'Medium (0.15)'], ['0.35', 'Large (0.35)']], '0.15') + num('ssPred', 'Number of predictors tested (u)', 3, 'step="1" min="1"'),
+    surv: () => `<div class="form-row">${num('ssHR', 'Hazard ratio (HR)', 0.7, 'step="0.01" min="0.01"')}${num('ssEv', 'Overall probability of event during follow-up', 0.5, 'step="0.01" min="0.01" max="1"')}</div>` + num('ssRatio', 'Allocation ratio (n₂ / n₁)', 1, 'step="0.1" min="0.1"'),
+  };
+  const NOTES = {
+    ttest: ['n₁ = (z₁₋α/₂ + z₁₋β)² · (1 + 1/r) / d²   ;   n₂ = r · n₁', 'd = (μ₁ − μ₂) / σ (pooled SD). Normal approximation; add 1–2 per group for the t-distribution correction at small n.', 'Reference: Cohen J. Statistical Power Analysis for the Behavioral Sciences. 2nd ed. 1988.'],
+    paired: ['n = (z₁₋α/₂ + z₁₋β)² / d_z²', 'd_z = mean difference / SD of the differences (not of the raw scores). d_z ≈ d / √(2(1−ρ)) for correlation ρ between pairs.', 'Result is the number of pairs (subjects).'],
+    anova: ['n per group ≈ (z₁₋α/₂ + z₁₋β)² / f²   (large-sample approximation; exact method uses the noncentral F distribution)', 'f = σ_means / σ_within. f = 0.10 / 0.25 / 0.40 ≈ small / medium / large. η² = f² / (1 + f²).', 'Planned post-hoc comparisons usually need more than this omnibus estimate.'],
+    chi2: ['N = (z₁₋α/₂ + z₁₋β)² / w²   (df = 1; for df > 1 a noncentral χ² is required and N grows modestly)', 'w = √Σ((p₁ᵢ − p₀ᵢ)² / p₀ᵢ) across cells. For a 2×2 table w equals the phi coefficient.', 'For two independent proportions use the dedicated “Two proportions” option.'],
+    prop: ['n₁ = [ z₁₋α/₂ · √((1+1/r) p̄ q̄) + z₁₋β · √(p₁q₁ + p₂q₂ / r) ]² / (p₁ − p₂)²', 'p̄ = (p₁ + r·p₂)/(1 + r). Without continuity correction (Fleiss); add ≈ 2/|p₁−p₂| per group for the corrected version.', 'Reference: Fleiss JL, Levin B, Paik MC. Statistical Methods for Rates and Proportions. 3rd ed. 2003.'],
+    corr: ['N = (z₁₋α/₂ + z₁₋β)² / z_r² + 3   with Fisher z_r = ½ ln((1 + r)/(1 − r))', 'Tests H₀: ρ = 0. For comparing two correlations or ρ ≠ 0 under H₀ a different formula applies.'],
+    regr: ['N ≈ (z₁₋α/₂ + z₁₋β)² / f² + u + 1   (approximation to the noncentral F with u numerator df)', 'f² = R²/(1 − R²) for the full model, or (R²_full − R²_reduced)/(1 − R²_full) for a subset of predictors.', 'Rules of thumb (e.g. 10–15 subjects per predictor) are not a substitute for this calculation.'],
+    surv: ['Events E = (1 + r)² · (z₁₋α/₂ + z₁₋β)² / (r · [ln HR]²)   ;   N = E / P(event)', 'Schoenfeld (1983) formula for the log-rank test under proportional hazards. P(event) is the pooled probability of observing the event during follow-up.', 'The number of events, not subjects, drives power — plan accrual and follow-up accordingly.'],
+  };
+  const ssType = SL.qs('#ssType'), ssFields = SL.qs('#ssFields');
+  function renderFields() {
+    ssFields.innerHTML = FIELDS[ssType.value]();
+    SL.qs('#ssNotes').innerHTML = `<div class="formula">${h(NOTES[ssType.value][0])}</div><ul class="notes">${NOTES[ssType.value].slice(1).map((n) => `<li>${h(n)}</li>`).join('')}</ul>`;
+    const e = SL.qs('#ssEffect'), c = SL.qs('#ssCustom'); if (e) e.onchange = () => { c.disabled = e.value !== 'custom'; if (!c.disabled) c.focus(); };
+  }
+  ssType.onchange = renderFields; renderFields();
+  const gv = (id) => parseFloat((SL.qs('#' + id) || {}).value);
+  const effect = () => { const e = SL.qs('#ssEffect'); return e.value === 'custom' ? gv('ssCustom') : parseFloat(e.value); };
+  SL.qs('#ssCalc').onclick = () => {
+    const alpha = gv('ssAlpha'), power = gv('ssPower'), sided = +SL.qs('#ssSided').value, drop = gv('ssDrop');
+    const za = zq(1 - alpha / sided), zb = zq(power), k2 = (za + zb) ** 2;
+    const t = ssType.value; let big = '', detail = '', sentence = '', per = '';
+    const bad = (m) => { SL.toast(m, 'err'); return null; };
+    const pw = Math.round(power * 100), sd = sided === 2 ? 'two-sided' : 'one-sided';
+    let N = 0;
+    if (t === 'ttest') { const d = effect(), r = gv('ssRatio') || 1; if (!(d > 0)) return bad('Enter a valid effect size'); const n1 = Math.ceil(k2 * (1 + 1 / r) / d ** 2), n2 = Math.ceil(n1 * r); N = n1 + n2; big = `${N} participants`; detail = `${n1} in group 1 and ${n2} in group 2 (ratio ${r}:1)`; sentence = `A total sample of ${N} participants (${n1} and ${n2} per group) provides ${pw}% power to detect a standardized mean difference of d = ${d} between two independent groups, using a ${sd} two-sample t-test at α = ${alpha}.`; }
+    else if (t === 'paired') { const d = effect(); if (!(d > 0)) return bad('Enter a valid effect size'); N = Math.ceil(k2 / d ** 2); big = `${N} pairs`; detail = `subjects measured twice (or matched pairs)`; sentence = `A sample of ${N} paired observations provides ${pw}% power to detect a standardized within-pair difference of d_z = ${d}, using a ${sd} paired t-test at α = ${alpha}.`; }
+    else if (t === 'anova') { const f = effect(), k = Math.max(2, Math.round(gv('ssGroups') || 3)); if (!(f > 0)) return bad('Enter a valid effect size'); const n = Math.ceil(k2 / f ** 2); N = n * k; big = `${N} participants`; detail = `${n} per group across ${k} groups`; sentence = `A total of ${N} participants (${n} per group, ${k} groups) provides approximately ${pw}% power to detect an effect of f = ${f} among group means with a one-way ANOVA at α = ${alpha}.`; }
+    else if (t === 'chi2') { const w = effect(), df = Math.max(1, Math.round(gv('ssDf') || 1)); if (!(w > 0)) return bad('Enter a valid effect size'); N = Math.ceil(k2 / w ** 2 * (1 + 0.08 * (df - 1))); big = `${N} observations`; detail = `chi-square with ${df} df`; sentence = `A sample of ${N} observations provides approximately ${pw}% power to detect an association of w = ${w} using a chi-square test with ${df} degree${df > 1 ? 's' : ''} of freedom at α = ${alpha}.`; }
+    else if (t === 'prop') { const p1 = gv('ssP1'), p2 = gv('ssP2'), r = gv('ssRatio') || 1; if (!(p1 > 0 && p1 < 1 && p2 > 0 && p2 < 1) || p1 === p2) return bad('Enter two different proportions between 0 and 1'); const pb = (p1 + r * p2) / (1 + r), qb = 1 - pb; const n1 = Math.ceil((za * Math.sqrt((1 + 1 / r) * pb * qb) + zb * Math.sqrt(p1 * (1 - p1) + p2 * (1 - p2) / r)) ** 2 / (p1 - p2) ** 2), n2 = Math.ceil(n1 * r); N = n1 + n2; big = `${N} participants`; detail = `${n1} in group 1 and ${n2} in group 2`; sentence = `A total sample of ${N} participants (${n1} and ${n2} per group) provides ${pw}% power to detect a difference in proportions of ${Math.round(p1 * 100)}% versus ${Math.round(p2 * 100)}%, using a ${sd} z-test for two independent proportions at α = ${alpha}.`; }
+    else if (t === 'corr') { const r = gv('ssR'); if (!(r > 0 && r < 1)) return bad('Enter a correlation between 0 and 1'); const zr = 0.5 * Math.log((1 + r) / (1 - r)); N = Math.ceil(k2 / zr ** 2) + 3; big = `${N} participants`; detail = `to test ρ = 0 against r = ${r}`; sentence = `A sample of ${N} participants provides ${pw}% power to detect a correlation of r = ${r} (${sd} test of ρ = 0, Fisher z transformation) at α = ${alpha}.`; }
+    else if (t === 'regr') { const f2 = effect(), u = Math.max(1, Math.round(gv('ssPred') || 1)); if (!(f2 > 0)) return bad('Enter a valid effect size'); N = Math.ceil(k2 / f2) + u + 1; big = `${N} participants`; detail = `${u} predictor${u > 1 ? 's' : ''} tested`; sentence = `A sample of ${N} participants provides approximately ${pw}% power to detect an effect of f² = ${f2} for ${u} predictor${u > 1 ? 's' : ''} in a multiple linear regression at α = ${alpha}.`; }
+    else if (t === 'surv') { const hr = gv('ssHR'), pe = gv('ssEv'), r = gv('ssRatio') || 1; if (!(hr > 0) || hr === 1) return bad('Enter a hazard ratio other than 1'); if (!(pe > 0 && pe <= 1)) return bad('Event probability must be between 0 and 1'); const E = Math.ceil((1 + r) ** 2 * k2 / (r * Math.log(hr) ** 2)); N = Math.ceil(E / pe); const n1 = Math.ceil(N / (1 + r)); big = `${N} participants`; detail = `${E} events required · ${n1} + ${N - n1} per arm`; sentence = `A total of ${N} participants (${E} observed events) provides ${pw}% power to detect a hazard ratio of ${hr} with a ${sd} log-rank test at α = ${alpha}, assuming ${Math.round(pe * 100)}% of participants experience the event during follow-up.`; }
+    if (!N) return;
+    const inflated = drop > 0 ? Math.ceil(N / (1 - drop)) : N;
+    if (drop > 0) sentence += ` Allowing for ${Math.round(drop * 100)}% attrition, ${inflated} participants should be enrolled.`;
+    SL.qs('#ssResult').innerHTML = `<div class="big">${big}</div><div class="sub">${h(detail)}${drop > 0 ? ` · <strong style="color:#fff">${inflated} to enrol</strong> with ${Math.round(drop * 100)}% attrition` : ''}</div><div class="sub mt-1">α = ${alpha} (${sd}) · power ${pw}% · z<sub>α</sub> = ${za.toFixed(3)}, z<sub>β</sub> = ${zb.toFixed(3)}</div><div class="sentence" id="ssSentence">${h(sentence)}</div><div class="mt-2 flex wrap"><button class="btn btn-accent btn-sm" id="ssCopy">Copy summary sentence</button><span class="xs" style="color:var(--ink-2)">Paste into the protocol's statistical section.</span></div>`;
+    SL.qs('#ssCopy').onclick = () => copy(sentence, 'Summary copied');
+  };
+
+  /* =====================================================================
+     REDCAP FORM BUILDER
+     ===================================================================== */
+  let vars = []; try { vars = JSON.parse(localStorage.getItem('sl_redcap_vars') || '[]'); } catch (e) { vars = []; }
+  const rcFormName = SL.qs('#rcForm'); rcFormName.value = localStorage.getItem('sl_redcap_form') || '';
+  rcFormName.oninput = () => localStorage.setItem('sl_redcap_form', rcFormName.value);
+  const persist = () => localStorage.setItem('sl_redcap_vars', JSON.stringify(vars));
+  const TYPE_MAP = { text: 'text', number: 'number', date: 'date', notes: 'notes', textarea: 'notes', dropdown: 'dropdown', radio: 'radio', checkbox: 'checkbox', yesno: 'yesno', truefalse: 'truefalse', calc: 'calc', file: 'file', slider: 'slider', descriptive: 'text', sql: 'text' };
+  function renderVars() {
+    SL.qs('#rcCount').textContent = vars.length;
+    SL.qs('#rcList').innerHTML = vars.length ? `<div class="table-wrap"><table class="table"><thead><tr><th></th><th>Variable</th><th>Type</th><th>Label</th><th></th></tr></thead><tbody>${vars.map((v, i) => `<tr class="var-row"><td class="xs muted">${i + 1}</td><td><code>${h(v.name)}</code>${v.required ? ' <span class="tag tag-warn" style="font-size:.62rem">req</span>' : ''}${v.identifier ? ' <span class="tag tag-danger" style="font-size:.62rem">PHI</span>' : ''}</td><td class="xs">${h(v.type)}</td><td>${h(v.label)}${v.choices ? `<div class="xs muted">${h(v.choices)}</div>` : ''}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm btn-icon" data-up="${i}" title="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="btn btn-ghost btn-sm btn-icon" data-dn="${i}" title="Move down" ${i === vars.length - 1 ? 'disabled' : ''}>↓</button><button class="btn btn-ghost btn-sm btn-icon" data-rm="${i}" title="Remove">${I.trash}</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">No variables yet. Add one on the left or import a data dictionary.</div>';
+    SL.qsa('[data-rm]').forEach((b) => b.onclick = () => { vars.splice(+b.dataset.rm, 1); persist(); renderVars(); });
+    SL.qsa('[data-up]').forEach((b) => b.onclick = () => { const i = +b.dataset.up; [vars[i - 1], vars[i]] = [vars[i], vars[i - 1]]; persist(); renderVars(); });
+    SL.qsa('[data-dn]').forEach((b) => b.onclick = () => { const i = +b.dataset.dn; [vars[i + 1], vars[i]] = [vars[i], vars[i + 1]]; persist(); renderVars(); });
+  }
+  renderVars();
+  SL.qs('#rcAdd').onsubmit = (e) => {
+    e.preventDefault(); const f = e.target;
+    const name = f.name.value.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    if (!name) return SL.toast('Enter a variable name', 'err');
+    if (vars.some((v) => v.name === name)) return SL.toast('That variable name already exists', 'err');
+    vars.push({ name, type: f.type.value, label: f.label.value.trim() || name, choices: f.choices.value.trim(), required: f.required.checked, identifier: f.identifier.checked, note: f.note.value.trim() });
+    persist(); renderVars(); f.reset(); f.name.focus();
+  };
+  SL.qs('#rcClear').onclick = async () => { if (!vars.length || !await SL.confirm('Remove all variables?', 'Clear')) return; vars = []; persist(); renderVars(); };
+  function importCSV(file) {
+    if (!file) return;
+    if (!window.Papa) return SL.toast('CSV parser failed to load (offline?)', 'err');
+    Papa.parse(file, { header: true, skipEmptyLines: true, complete: (res) => {
+      const find = (row, cands) => { const keys = Object.keys(row); for (const c of cands) { const k = keys.find((x) => x.toLowerCase().trim().includes(c)); if (k) return row[k]; } return ''; };
+      const out = [];
+      res.data.forEach((row) => {
+        const name = (find(row, ['variable / field name', 'variable', 'field_name', 'field name']) || '').trim(); if (!name) return;
+        const rawType = (find(row, ['field type', 'field_type', 'type']) || 'text').trim().toLowerCase();
+        const valid = (find(row, ['text validation type', 'validation']) || '').toLowerCase();
+        let type = TYPE_MAP[rawType] || 'text'; if (type === 'text' && /date/.test(valid)) type = 'date'; if (type === 'text' && /integer|number/.test(valid)) type = 'number';
+        out.push({ name, type, label: (find(row, ['field label', 'field_label', 'label']) || name).trim(), choices: (find(row, ['choices', 'calculations']) || '').trim(), required: /^y/i.test(find(row, ['required'])), identifier: /^y/i.test(find(row, ['identifier'])), note: (find(row, ['branching']) || find(row, ['field note']) || '').trim(), form: (find(row, ['form name', 'form_name']) || '').trim() });
+      });
+      if (!out.length) return SL.toast('No variables found — check the CSV has a "Variable / Field Name" column', 'err');
+      vars = out; if (out[0].form && !rcFormName.value) { rcFormName.value = out[0].form; localStorage.setItem('sl_redcap_form', out[0].form); }
+      persist(); renderVars(); SL.toast(`${out.length} variables imported from ${file.name}`, 'ok');
+    }, error: (err) => SL.toast('Could not parse CSV: ' + err.message, 'err') });
+  }
+  SL.qs('#rcFile').onchange = (e) => importCSV(e.target.files[0]);
+  const dz = SL.qs('#rcDrop');
+  dz.onclick = () => SL.qs('#rcFile').click();
+  ['dragenter', 'dragover'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', (e) => importCSV(e.dataTransfer.files[0]));
+  const choiceLabels = (c) => c.split('|').map((x) => x.trim()).filter(Boolean).map((x) => x.includes(',') ? x.split(',').slice(1).join(',').trim() : x);
+  SL.qs('#rcPreview').onclick = () => {
+    if (!vars.length) return SL.toast('Add at least one variable first', 'err');
+    const name = rcFormName.value.trim() || 'Untitled instrument';
+    SL.modal(`<div class="modal-head"><h3>${h(name)}</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div><div class="modal-body preview" style="max-height:70vh;overflow:auto">${vars.map((v) => { let ctl = '';
+      switch (v.type) {
+        case 'number': ctl = '<input class="input" type="number">'; break; case 'date': ctl = '<input class="input" type="date">'; break; case 'notes': ctl = '<textarea class="input" style="min-height:80px"></textarea>'; break;
+        case 'yesno': ctl = '<select class="input"><option value="">Select…</option><option>Yes</option><option>No</option></select>'; break; case 'truefalse': ctl = '<select class="input"><option value="">Select…</option><option>True</option><option>False</option></select>'; break;
+        case 'dropdown': ctl = `<select class="input"><option value="">Select…</option>${choiceLabels(v.choices).map((c) => `<option>${h(c)}</option>`).join('')}</select>`; break;
+        case 'radio': case 'checkbox': ctl = `<div class="flex wrap">${choiceLabels(v.choices).map((c) => `<label class="check"><input type="${v.type}" name="${h(v.name)}"> ${h(c)}</label>`).join('') || '<span class="xs muted">No choices defined</span>'}</div>`; break;
+        case 'calc': ctl = `<input class="input" readonly placeholder="Calculated: ${h(v.choices)}">`; break; case 'file': ctl = '<input class="input" type="file">'; break; case 'slider': ctl = '<input type="range" min="0" max="100" style="width:100%">'; break;
+        default: ctl = '<input class="input" type="text">';
+      }
+      return `<div class="field"><label>${h(v.label)}${v.required ? ' *' : ''}<code>[${h(v.name)}]</code></label>${ctl}${v.note ? `<div class="help">${h(v.note)}</div>` : ''}</div>`; }).join('')}</div><div class="modal-foot"><span class="xs muted" style="margin-right:auto">Preview only — data is not saved.</span><button class="btn btn-primary btn-sm" data-close>Close</button></div>`, { size: 'lg' });
+  };
+  SL.qs('#rcExportDict').onclick = () => {
+    if (!vars.length) return SL.toast('Nothing to export', 'err');
+    const form = (rcFormName.value.trim() || 'form_1').toLowerCase().replace(/\s+/g, '_');
+    const cols = ['Variable / Field Name', 'Form Name', 'Section Header', 'Field Type', 'Field Label', 'Choices, Calculations, OR Slider Labels', 'Field Note', 'Text Validation Type OR Show Slider Number', 'Text Validation Min', 'Text Validation Max', 'Identifier?', 'Branching Logic (Show field only if...)', 'Required Field?', 'Custom Alignment', 'Question Number (surveys only)', 'Matrix Group Name', 'Matrix Ranking?', 'Field Annotation'];
+    const rows = vars.map((v) => { const isBranch = /\[.+\]/.test(v.note || ''); const ft = v.type === 'number' || v.type === 'date' ? 'text' : v.type; const val = v.type === 'number' ? 'number' : v.type === 'date' ? 'date_ymd' : ''; return [v.name, form, '', ft, v.label, v.choices, isBranch ? '' : v.note, val, '', '', v.identifier ? 'y' : '', isBranch ? v.note : '', v.required ? 'y' : '', '', '', '', '', '']; });
+    SL.download(`${form}_DataDictionary_${new Date().toISOString().slice(0, 10)}.csv`, Papa.unparse({ fields: cols, data: rows }), 'text/csv'); SL.toast('Data dictionary exported — import it in REDCap → Designer → Upload', 'ok');
+  };
+  SL.qs('#rcExportData').onclick = () => { if (!vars.length) return SL.toast('Nothing to export', 'err'); SL.download(`data_template_${new Date().toISOString().slice(0, 10)}.csv`, Papa.unparse({ fields: ['record_id'].concat(vars.map((v) => v.name)), data: [[]] }), 'text/csv'); };
+
+  /* =====================================================================
+     TEMPLATES
+     ===================================================================== */
+  const TEMPLATES = {
+    protocol: { title: 'Research protocol', file: 'Research_Protocol', icon: I.doc, desc: 'Background, aims, design, population, outcomes, statistical plan, data management and timeline.', head: [['Protocol title', 'text'], ['Principal investigator', 'text'], ['Version / date', 'text']], sections: [['1. Background & significance', 'Summarize current knowledge, gaps and clinical relevance.'], ['2. Specific aims & hypotheses', 'State primary and secondary aims with testable hypotheses.'], ['3. Study design', 'Design type, setting, duration, blinding/randomization where applicable.'], ['4. Study population', 'Source, recruitment, inclusion and exclusion criteria, sample size justification.'], ['5. Procedures & interventions', 'Visit schedule, assessments, interventions, follow-up.'], ['6. Outcome measures', 'Primary and secondary endpoints with timing and definitions.'], ['7. Statistical analysis plan', 'Analysis populations, methods for each aim, missing data, interim analyses.'], ['8. Data collection & management', 'Instruments (REDCap), storage, security, quality control.'], ['9. Ethical considerations', 'IRB, consent, risks/benefits, confidentiality, adverse event reporting.'], ['10. Timeline & milestones', ''], ['11. References', '']] },
+    consent: { title: 'Informed consent form', file: 'Informed_Consent_Form', icon: I.shield, desc: 'Required elements per 45 CFR 46.116: purpose, procedures, risks, benefits, alternatives, confidentiality, contacts.', head: [['Study title', 'text'], ['Principal investigator', 'text'], ['IRB protocol number', 'text']], sections: [['Key information', 'Concise summary a reasonable person would want before deciding.'], ['1. Purpose of the study', 'You are being asked to take part in a research study. The purpose is…'], ['2. What will happen if you take part', 'Procedures, visits, duration, what is experimental.'], ['3. Risks and discomforts', ''], ['4. Possible benefits', ''], ['5. Alternatives to participation', ''], ['6. Confidentiality', 'Who will see your information, how it is protected, HIPAA language.'], ['7. Costs and compensation', ''], ['8. Voluntary participation & withdrawal', ''], ['9. Contact information', 'Research team and Saint Luke’s IRB contact details.'], ['Signatures', 'Participant / legally authorized representative, person obtaining consent, date.']] },
+    crf: { title: 'Case report form', file: 'Case_Report_Form', icon: I.grid, desc: 'Paper CRF skeleton: identifiers, eligibility, demographics, baseline, visits, adverse events and completion.', head: [['Study title', 'text'], ['Site / investigator', 'text'], ['Subject ID', 'text'], ['Visit', 'text']], sections: [['Eligibility checklist', 'List each inclusion/exclusion criterion with Yes/No boxes.'], ['Demographics', 'Date of birth / age, sex, race/ethnicity, handedness.'], ['Medical history', 'Relevant diagnoses, prior treatments, medications.'], ['Baseline assessments', 'Vital signs, neurological exam, imaging, scales (e.g. mRS, NIHSS, GCS).'], ['Study procedures / interventions', ''], ['Outcome assessments', 'Primary and secondary measures with date/time and assessor.'], ['Adverse events', 'Description, onset, severity, relatedness, action taken, outcome.'], ['Protocol deviations', ''], ['Form completion', 'Completed by, date, investigator signature.']] },
+    dua: { title: 'Data use agreement', file: 'Data_Use_Agreement', icon: I.db, desc: 'Limited data set / de-identified data sharing agreement outline consistent with HIPAA 45 CFR 164.514(e).', head: [['Agreement title', 'text'], ['Data provider (Covered Entity)', 'text'], ['Data recipient', 'text'], ['Effective date', 'text']], sections: [['1. Purpose and permitted uses', 'Research, public health or health-care operations only; describe the project.'], ['2. Description of the data', 'Data elements, limited data set identifiers retained (dates, city/state/ZIP, ages), format, volume.'], ['3. Restrictions on use and disclosure', 'No re-identification or contact of individuals; no use beyond this agreement.'], ['4. Safeguards', 'Administrative, physical and technical safeguards; access controls; encryption.'], ['5. Reporting', 'Report any use or disclosure not permitted by the agreement promptly.'], ['6. Agents and subcontractors', 'Same restrictions flow down to anyone the recipient provides the data to.'], ['7. Term, termination and data destruction', ''], ['8. Publication and acknowledgement', ''], ['9. Signatures', 'Authorized representatives of both parties.']] },
+  };
+  SL.qs('#tplGrid').innerHTML = Object.entries(TEMPLATES).map(([k, t]) => `<div class="card tpl"><div class="ic">${t.icon}</div><h4 style="margin:0">${t.title}</h4><p>${t.desc}</p><div class="flex wrap"><button class="btn btn-primary btn-sm" data-fill="${k}">${I.edit} Fill in</button><button class="btn btn-outline btn-sm" data-blank="${k}">${I.download} Blank .doc</button></div></div>`).join('');
+  function docHtml(title, headRows, sections, name) {
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${h(title)}</title><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.5;margin:1in}h1{font-size:18pt;color:#0b2545;margin-bottom:4pt}h2{font-size:13pt;color:#0b2545;border-bottom:1px solid #ccd3db;padding-bottom:3pt;margin-top:18pt}p{margin:6pt 0}.meta{color:#5b6573}table{border-collapse:collapse;width:100%}td{border:1px solid #ccd3db;padding:6pt;vertical-align:top}td.k{width:32%;background:#f6f7f9;font-weight:bold}.g{color:#8a94a3;font-style:italic}</style></head><body><h1>${h(title)}</h1><p class="meta">Saint Luke's Neuroscience Research Department · Generated ${new Date().toLocaleDateString()}${name ? ' by ' + h(name) : ''}</p>`;
+    if (headRows.length) html += `<table>${headRows.map(([k, v]) => `<tr><td class="k">${h(k)}</td><td>${h(v) || '&nbsp;'}</td></tr>`).join('')}</table>`;
+    sections.forEach(([k, v, guide]) => { html += `<h2>${h(k)}</h2>${v ? `<p>${h(v).replace(/\n/g, '<br>')}</p>` : guide ? `<p class="g">${h(guide)}</p><p>&nbsp;</p>` : '<p>&nbsp;</p>'}`; });
+    return html + '</body></html>';
+  }
+  const dl = (t, html) => { SL.download(`${t.file}_${new Date().toISOString().slice(0, 10)}.doc`, html, 'application/msword'); SL.toast('Template downloaded', 'ok'); };
+  SL.qsa('[data-blank]').forEach((b) => b.onclick = () => { const t = TEMPLATES[b.dataset.blank]; dl(t, docHtml(t.title, t.head.map(([k]) => [k, '']), t.sections.map(([k, g]) => [k, '', g]), me.name)); });
+  SL.qsa('[data-fill]').forEach((b) => b.onclick = () => {
+    const t = TEMPLATES[b.dataset.fill];
+    SL.modal(`<div class="modal-head"><h3>${t.title}</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div><form id="tplForm"><div class="modal-body" style="max-height:65vh;overflow:auto"><div class="form-row">${t.head.map(([k], i) => `<div class="field"><label>${h(k)}</label><input class="input" name="h${i}" ${i === 0 ? 'required' : ''}></div>`).join('')}</div>${t.sections.map(([k, g], i) => `<div class="field"><label>${h(k)}</label><textarea class="input" name="s${i}" placeholder="${h(g)}" style="min-height:${i < 3 ? 110 : 80}px"></textarea></div>`).join('')}</div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button class="btn btn-primary">${I.download} Export .doc</button></div></form>`, { size: 'lg' });
+    SL.qs('#tplForm').onsubmit = (e) => { e.preventDefault(); const f = e.target; dl(t, docHtml(f.h0.value.trim() || t.title, t.head.map(([k], i) => [k, f.elements['h' + i].value.trim()]), t.sections.map(([k, g], i) => [k, f.elements['s' + i].value.trim(), g]), me.name)); SL.closeModal(); };
+  });
+
+  /* =====================================================================
+     CITATION TOOLS
+     ===================================================================== */
+  const EUTILS = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
+  async function pubmedSummary(pmid) {
+    const r = await fetch(`${EUTILS}esummary.fcgi?db=pubmed&id=${encodeURIComponent(pmid)}&retmode=json`); if (!r.ok) throw new Error('PubMed request failed');
+    const j = await r.json(); const d = j.result && j.result[pmid]; if (!d || d.error) throw new Error('PMID not found');
+    const doi = (d.articleids || []).find((x) => x.idtype === 'doi'); const pmc = (d.articleids || []).find((x) => x.idtype === 'pmc');
+    return { pmid, doi: doi ? doi.value : '', pmcid: pmc ? pmc.value : '', title: (d.title || '').replace(/\.$/, ''), authors: (d.authors || []).filter((a) => a.authtype === 'Author').map((a) => a.name), journal: d.fulljournalname || d.source, journal_abbrev: d.source, year: (d.pubdate || '').slice(0, 4), volume: d.volume, issue: d.issue, pages: d.pages, epub: d.epubdate, url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` };
+  }
+  async function pubmedByDoi(doi) {
+    const r = await fetch(`${EUTILS}esearch.fcgi?db=pubmed&term=${encodeURIComponent(doi + '[doi]')}&retmode=json`); const j = await r.json(); const id = j.esearchresult && j.esearchresult.idlist && j.esearchresult.idlist[0]; return id ? pubmedSummary(id) : null;
+  }
+  async function crossref(doi) {
+    const r = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`); if (!r.ok) throw new Error('DOI not found in PubMed or Crossref');
+    const m = (await r.json()).message; const dt = (m.issued && m.issued['date-parts'] && m.issued['date-parts'][0]) || [];
+    return { pmid: '', doi: m.DOI, title: (m.title || [''])[0], authors: (m.author || []).map((a) => `${a.family || ''} ${(a.given || '').split(/[\s-]+/).map((x) => x[0] || '').join('')}`.trim()), journal: (m['container-title'] || [''])[0], journal_abbrev: (m['short-container-title'] || m['container-title'] || [''])[0], year: String(dt[0] || ''), volume: m.volume, issue: m.issue, pages: m.page, url: m.URL, type: m.type };
+  }
+  const ama = (c) => { const a = c.authors.length > 6 ? c.authors.slice(0, 3).join(', ') + ', et al' : c.authors.join(', '); const vol = c.volume ? `;${c.volume}${c.issue ? `(${c.issue})` : ''}` : ''; const pg = c.pages ? `:${c.pages}` : ''; return `${a}. ${c.title}. ${c.journal_abbrev || c.journal}. ${c.year}${vol}${pg}.${c.doi ? ` doi:${c.doi}` : ''}`; };
+  const vancouver = (c) => { const a = c.authors.length > 6 ? c.authors.slice(0, 6).join(', ') + ', et al' : c.authors.join(', '); return `${a}. ${c.title}. ${c.journal_abbrev || c.journal}. ${c.year}${c.volume ? ';' + c.volume : ''}${c.issue ? '(' + c.issue + ')' : ''}${c.pages ? ':' + c.pages : ''}.${c.pmid ? ' PMID: ' + c.pmid + '.' : ''}`; };
+  const apa = (c) => { const names = c.authors.map((n) => { const parts = n.split(' '); const ini = (parts.pop() || '').split('').join('. ') + '.'; return `${parts.join(' ')}, ${ini}`; }); const a = names.length > 1 ? names.slice(0, -1).join(', ') + ', & ' + names.slice(-1) : names[0] || ''; return `${a} (${c.year}). ${c.title}. ${c.journal}${c.volume ? ', ' + c.volume : ''}${c.issue ? '(' + c.issue + ')' : ''}${c.pages ? ', ' + c.pages : ''}.${c.doi ? ' https://doi.org/' + c.doi : ''}`; };
+  const bibtex = (c) => { const key = ((c.authors[0] || 'ref').split(' ')[0] || 'ref').toLowerCase().replace(/[^a-z]/g, '') + c.year; return `@article{${key},\n  title={${c.title}},\n  author={${c.authors.map((n) => { const p = n.split(' '); const ini = p.pop(); return `${p.join(' ')}, ${ini}`; }).join(' and ')}},\n  journal={${c.journal}},\n  year={${c.year}},\n  volume={${c.volume || ''}},\n  number={${c.issue || ''}},\n  pages={${c.pages || ''}},\n  doi={${c.doi || ''}}${c.pmid ? `,\n  pmid={${c.pmid}}` : ''}\n}`; };
+  SL.qs('#citeForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const raw = SL.qs('#citeQ').value.trim(); if (!raw) return;
+    const out = SL.qs('#citeOut'); out.innerHTML = '<div class="card"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:60%"></div></div>';
+    const ids = raw.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean).slice(0, 20);
+    const results = [];
+    for (const id of ids) {
+      try {
+        let c;
+        if (/^\d{4,9}$/.test(id)) c = await pubmedSummary(id);
+        else { const doi = id.replace(/^https?:\/\/(dx\.)?doi\.org\//i, '').replace(/^doi:/i, ''); if (!/^10\.\d{4,9}\//.test(doi)) throw new Error(`"${id}" is not a PMID or DOI`); c = await pubmedByDoi(doi) || await crossref(doi); }
+        results.push({ ok: true, c });
+      } catch (err) { results.push({ ok: false, id, err: err.message || String(err) }); }
+      if (ids.length > 1) await new Promise((r) => setTimeout(r, 350));
+    }
+    const good = results.filter((r) => r.ok).map((r) => r.c);
+    out.innerHTML = results.map((r, i) => r.ok ? `<div class="card mb-2"><div class="flex between wrap mb-1"><strong class="small">${results.length > 1 ? (i + 1) + '. ' : ''}${r.c.pmid ? `PMID <a href="${h(r.c.url)}" target="_blank" rel="noopener">${h(r.c.pmid)}</a>` : 'Crossref'}${r.c.doi ? ` · <a href="https://doi.org/${h(r.c.doi)}" target="_blank" rel="noopener">doi:${h(r.c.doi)}</a>` : ''}</strong><span class="tags">${['AMA', 'Vancouver', 'APA', 'BibTeX'].map((s) => `<button class="chip" data-style="${s}" data-i="${i}">${s}</button>`).join('')}</span></div><div class="cite" id="cite${i}">${h(ama(r.c))}</div><div class="mt-1"><button class="btn btn-outline btn-sm" data-copy="${i}">Copy</button></div></div>`
+      : `<div class="alert alert-danger">${h(r.id)}: ${h(r.err)}</div>`).join('') + (good.length > 1 ? `<div class="flex wrap mt-2"><button class="btn btn-primary btn-sm" id="copyAll">Copy all (AMA, numbered)</button><button class="btn btn-outline btn-sm" id="dlBib">Download .bib</button></div>` : '');
+    const FMT = { AMA: ama, Vancouver: vancouver, APA: apa, BibTeX: bibtex };
+    SL.qsa('[data-style]', out).forEach((b) => b.onclick = () => { const c = results[+b.dataset.i].c; const el = SL.qs('#cite' + b.dataset.i); el.textContent = FMT[b.dataset.style](c); el.style.whiteSpace = b.dataset.style === 'BibTeX' ? 'pre' : ''; el.style.fontFamily = b.dataset.style === 'BibTeX' ? 'ui-monospace,monospace' : ''; SL.qsa(`[data-i="${b.dataset.i}"]`, out).forEach((x) => x.classList.toggle('active', x === b)); });
+    SL.qsa('[data-copy]', out).forEach((b) => b.onclick = () => copy(SL.qs('#cite' + b.dataset.copy).textContent, 'Citation copied'));
+    const ca = SL.qs('#copyAll'); if (ca) ca.onclick = () => copy(good.map((c, i) => `${i + 1}. ${ama(c)}`).join('\n'), 'Reference list copied');
+    const db = SL.qs('#dlBib'); if (db) db.onclick = () => SL.download('references.bib', good.map(bibtex).join('\n\n'), 'application/x-bibtex');
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Publications Manager | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Internal publications manager — curate PubMed-synced and manually added outputs for the Saint Luke's Neuroscience Research Department.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+  .panel{display:none} .panel.on{display:block}
+  .filters .search{flex:1;min-width:220px} .filters .search .input{width:100%}
+  .table .t{font-weight:600;color:var(--ink);max-width:520px}
+  .table .t a{color:inherit}
+  .table tr.hiddenrow td{opacity:.55}
+  .sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:.8rem;color:var(--muted);white-space:nowrap}
+  .sw input{accent-color:var(--teal)}
+  .act{display:flex;gap:2px;justify-content:flex-end}
+  .mstats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  @media(max-width:900px){.mstats{grid-template-columns:repeat(2,1fr)}}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(6,16,26,.3);border-top-color:#06101a;border-radius:50%;animation:rot .8s linear infinite;vertical-align:-3px}
+  @keyframes rot{to{transform:rotate(360deg)}}
+  .fac td input.input{padding:6px 8px;font-size:.85rem}
+  .people{max-height:200px;overflow:auto;border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;background:rgba(255,255,255,.04);display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+  @media(max-width:640px){.people{grid-template-columns:1fr}}
+  .people label{font-size:.86rem;display:flex;gap:6px;align-items:center}
+  .pub-abs{font-size:.88rem;color:var(--ink-2);max-height:160px;overflow:auto;background:var(--surface-2);padding:10px 12px;border-radius:8px}
+  .grid-2>.card{min-width:0}
+  .extlinks a{display:inline-flex;align-items:center;gap:4px;font-weight:600} .extlinks svg{width:14px;height:14px}
+  .or{display:flex;align-items:center;gap:12px;color:var(--faint);font-size:.8rem;margin:14px 0} .or::before,.or::after{content:"";flex:1;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<main id="main">
+  <div class="page-head">
+    <div><h1>Publications</h1><div class="sub">Curate what appears on the public site; add presentations, posters, patents and chapters.</div></div>
+    <div class="flex wrap"><button class="btn btn-outline btn-sm" id="exportBtn"></button><button class="btn btn-primary" id="addBtn"></button></div>
+  </div>
+  <div class="tabs" id="tabs"><button data-t="all">All publications</button><button data-t="mine">My publications</button><button data-t="sync" class="hidden" id="syncTab">PubMed sync</button></div>
+
+  <!-- ALL -->
+  <section class="panel" id="p-all">
+    <div class="filters">
+      <div class="search"><span id="sIcon"></span><input class="input" id="fQ" type="search" placeholder="Search title, authors, journal, PMID, DOI…" aria-label="Search publications"></div>
+      <select class="input" id="fYear"><option value="">All years</option></select>
+      <select class="input" id="fType"><option value="">All types</option></select>
+      <select class="input" id="fSource"><option value="">PubMed + manual</option><option value="pubmed">PubMed only</option><option value="manual">Manual only</option></select>
+      <select class="input" id="fVis"><option value="">Visible + hidden</option><option value="1">Visible</option><option value="0">Hidden</option><option value="f">Featured</option><option value="r">Needs review</option></select>
+    </div>
+    <div id="summary" class="small muted mb-2"></div>
+    <div id="list"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:60%"></div></div>
+    <div class="flex mt-2 hidden" id="moreWrap" style="justify-content:center"><button class="btn btn-outline btn-sm" id="moreBtn">Show more</button></div>
+  </section>
+
+  <!-- MINE -->
+  <section class="panel" id="p-mine">
+    <div class="alert alert-info">Publications linked to your profile by the nightly PubMed author-name match. If one is not yours, click <strong>Not me</strong> to remove the link. If no other faculty is linked it is also hidden from the public site.</div>
+    <div id="mineList"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div>
+  </section>
+
+  <!-- SYNC (admin) -->
+  <section class="panel" id="p-sync">
+    <div class="mstats" id="syncStats"></div>
+    <div class="grid grid-2 mb-2" style="align-items:start">
+      <div class="card">
+        <h3>Run a sync</h3>
+        <p class="small muted">Queries PubMed for every enabled faculty member, inserts new records and refreshes existing ones. Takes about a minute; the nightly job runs at 07:15 UTC.</p>
+        <div class="flex wrap"><button class="btn btn-primary" id="syncNow"></button><span id="syncStatus" class="small muted"></span></div>
+        <div id="syncResult" class="mt-2"></div>
+      </div>
+      <div class="card"><h3>Recent sync log</h3><div id="syncLog"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div></div>
+    </div>
+    <div class="card">
+      <div class="flex between wrap mb-2"><h3 style="margin:0">Faculty settings</h3><span class="xs muted">Author terms are PubMed [Author] queries, e.g. “Smith JA, Smith J”. Edit, then Save on the row.</span></div>
+      <div id="facTable"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'publications' });
+  const h = SL.esc, I = SL.icons, isAdmin = SL.isAdmin();
+  const PUB_TYPES = ['Journal Article', 'Review', 'Case Report', 'Clinical Trial', 'Systematic Review / Meta-Analysis', 'Editorial / Letter', 'Conference Presentation', 'Poster', 'Abstract', 'Book Chapter', 'Patent', 'Preprint', 'Other'];
+  const PAGE = 60;
+  SL.qs('#sIcon').innerHTML = I.search; SL.qs('#exportBtn').innerHTML = I.download + ' CSV'; SL.qs('#addBtn').innerHTML = I.plus + ' Add manually'; SL.qs('#syncNow').innerHTML = I.upload + ' Sync now';
+  SL.qs('#fType').innerHTML += PUB_TYPES.map((t) => `<option>${t}</option>`).join('');
+  if (isAdmin) SL.qs('#syncTab').classList.remove('hidden');
+
+  // ---------- tabs ----------
+  const tabs = SL.qsa('#tabs button');
+  function show(t) { if (!SL.qs('#p-' + t) || (t === 'sync' && !isAdmin)) t = 'all'; tabs.forEach((b) => b.classList.toggle('active', b.dataset.t === t)); SL.qsa('.panel').forEach((p) => p.classList.toggle('on', p.id === 'p-' + t)); history.replaceState(null, '', '#' + t); if (t === 'mine') loadMine(); if (t === 'sync') loadSync(); }
+  tabs.forEach((b) => b.onclick = () => show(b.dataset.t));
+
+  // ---------- people (for author linking) ----------
+  let people = [];
+  SL.sb.from('profiles').select('id,name,role,credential').in('role', ['Faculty', 'Admin', 'Resident', 'Research Fellow']).order('name').then(({ data }) => { people = data || []; });
+
+  // ---------- ALL publications ----------
+  let all = [], shown = PAGE;
+  const F = { q: SL.qs('#fQ'), year: SL.qs('#fYear'), type: SL.qs('#fType'), source: SL.qs('#fSource'), vis: SL.qs('#fVis') };
+  Object.values(F).forEach((el) => el.addEventListener('input', () => { shown = PAGE; render(); }));
+  async function loadAll() {
+    const { data, error } = await SL.sb.from('publications').select('id,pmid,doi,title,authors,author_string,journal,journal_abbrev,volume,issue,pages,year,pub_date,pub_type,source,url,pdf_url,visible,featured,notes,created_by,created_at').order('year', { ascending: false, nullsFirst: false }).order('pub_date', { ascending: false, nullsFirst: false }).limit(2000);
+    if (error) SL.toast(error.message, 'err');
+    all = data || [];
+    const years = [...new Set(all.map((p) => p.year).filter(Boolean))].sort((a, b) => b - a);
+    const cur = F.year.value; F.year.innerHTML = '<option value="">All years</option>' + years.map((y) => `<option ${String(y) === cur ? 'selected' : ''}>${y}</option>`).join('');
+    render();
+  }
+  function filtered() {
+    const q = F.q.value.trim().toLowerCase();
+    return all.filter((p) => (!F.year.value || String(p.year) === F.year.value) && (!F.type.value || p.pub_type === F.type.value) && (!F.source.value || p.source === F.source.value)
+      && (F.vis.value === '' || (F.vis.value === '1' && p.visible) || (F.vis.value === '0' && !p.visible) || (F.vis.value === 'f' && p.featured) || (F.vis.value === 'r' && !p.visible && p.notes))
+      && (!q || [p.title, p.author_string, p.journal, p.journal_abbrev, p.pmid, p.doi].filter(Boolean).join(' ').toLowerCase().includes(q)));
+  }
+  const mayEdit = (p) => isAdmin || p.created_by === me.id;
+  function render() {
+    const rows = filtered(); let nr = 0;
+    SL.qs('#summary').innerHTML = `${rows.length} of ${all.length} publications · ${all.filter((p) => p.visible).length} visible on the public site · ${all.filter((p) => p.source === 'manual').length} manual${(nr = all.filter((p) => !p.visible && p.notes).length) ? ` · <a href="#" id="nrLink">${nr} need review</a>` : ''}`;
+    const nl = SL.qs('#nrLink'); if (nl) nl.onclick = (e) => { e.preventDefault(); F.vis.value = 'r'; shown = PAGE; render(); };
+    const box = SL.qs('#list');
+    if (!rows.length) { box.innerHTML = '<div class="empty card">No publications match.</div>'; SL.qs('#moreWrap').classList.add('hidden'); return; }
+    box.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>Publication</th><th>Year</th><th>Type</th><th>Source</th><th>Visible</th><th>Featured</th><th></th></tr></thead><tbody>${rows.slice(0, shown).map((p) => `<tr class="${p.visible ? '' : 'hiddenrow'}" data-id="${p.id}">
+      <td><div class="t"><a href="?id=${p.id}" data-open="${p.id}">${h(p.title)}</a></div><div class="xs muted">${h((p.author_string || '').slice(0, 120))}${(p.author_string || '').length > 120 ? '…' : ''}</div><div class="xs muted">${h(p.journal_abbrev || p.journal || '')}${p.pmid ? ` · PMID ${h(p.pmid)}` : ''}${p.pdf_url ? ' · PDF' : ''}</div></td>
+      <td>${p.year || ''}</td><td class="xs">${h(p.pub_type || '')}</td><td><span class="tag ${p.source === 'manual' ? 'tag-gold' : 'tag-teal'}">${h(p.source || '')}</span></td>
+      <td><label class="sw"><input type="checkbox" data-vis="${p.id}" ${p.visible ? 'checked' : ''} ${mayEdit(p) ? '' : 'disabled'}></label></td>
+      <td><label class="sw"><input type="checkbox" data-feat="${p.id}" ${p.featured ? 'checked' : ''} ${mayEdit(p) ? '' : 'disabled'}></label></td>
+      <td><div class="act">${mayEdit(p) ? `<button class="btn btn-ghost btn-sm btn-icon" title="Edit" data-edit="${p.id}">${I.edit}</button>` : ''}${isAdmin ? `<button class="btn btn-ghost btn-sm btn-icon" title="Delete" data-del="${p.id}">${I.trash}</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div>`;
+    SL.qs('#moreWrap').classList.toggle('hidden', rows.length <= shown);
+    SL.qsa('[data-open]', box).forEach((a) => a.onclick = (e) => { e.preventDefault(); openDetail(a.dataset.open); });
+    SL.qsa('[data-vis]', box).forEach((c) => c.onchange = () => setFlag(c.dataset.vis, 'visible', c.checked));
+    SL.qsa('[data-feat]', box).forEach((c) => c.onchange = () => setFlag(c.dataset.feat, 'featured', c.checked));
+    SL.qsa('[data-edit]', box).forEach((b) => b.onclick = () => openForm(all.find((p) => p.id === b.dataset.edit)));
+    SL.qsa('[data-del]', box).forEach((b) => b.onclick = () => del(b.dataset.del));
+  }
+  SL.qs('#moreBtn').onclick = () => { shown += PAGE; render(); };
+  async function setFlag(id, field, val) {
+    const { error } = await SL.sb.from('publications').update({ [field]: val }).eq('id', id);
+    if (error) { SL.toast(error.message, 'err'); render(); return; }
+    const p = all.find((x) => x.id === id); if (p) p[field] = val; SL.audit(field + '_' + (val ? 'on' : 'off'), 'publication', id); render();
+  }
+  async function del(id) {
+    const p = all.find((x) => x.id === id); if (!await SL.confirm(`Delete "${p ? p.title : id}" permanently? Prefer hiding unless it is a duplicate or error.`, 'Delete')) return;
+    await SL.sb.from('publication_authors').delete().eq('publication_id', id); await SL.sb.from('project_publications').delete().eq('publication_id', id);
+    const { error } = await SL.sb.from('publications').delete().eq('id', id); if (error) return SL.toast(error.message, 'err');
+    SL.audit('deleted', 'publication', id, { title: p && p.title }); SL.toast('Publication deleted', 'ok'); loadAll();
+  }
+  SL.qs('#exportBtn').onclick = () => { const rows = filtered().map((p) => ({ pmid: p.pmid, doi: p.doi, title: p.title, authors: p.author_string, journal: p.journal, year: p.year, volume: p.volume, issue: p.issue, pages: p.pages, pub_type: p.pub_type, source: p.source, visible: p.visible, featured: p.featured, url: p.url, pdf_url: p.pdf_url })); SL.download(`publications_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv(rows, Object.keys(rows[0] || { title: 1 })), 'text/csv'); };
+
+  // ---------- detail ----------
+  async function openDetail(id) {
+    const { data: p } = await SL.sb.from('publications').select('*').eq('id', id).maybeSingle(); if (!p) return SL.toast('Publication not found', 'err');
+    const [{ data: links }, { data: plinks }] = await Promise.all([SL.sb.from('publication_authors').select('profile_id, profiles(name)').eq('publication_id', id), SL.sb.from('project_publications').select('id, project_id, projects(title)').eq('publication_id', id)]);
+    history.replaceState(null, '', `?id=${id}`);
+    SL.modal(`<div class="modal-head" style="align-items:flex-start"><div><div class="tags mb-1"><span class="tag ${p.source === 'manual' ? 'tag-gold' : 'tag-teal'}">${h(p.source)}</span>${p.pub_type ? `<span class="tag tag-outline">${h(p.pub_type)}</span>` : ''}${p.visible ? '<span class="tag tag-ok">Visible</span>' : '<span class="tag">Hidden</span>'}${p.featured ? '<span class="tag tag-gold">Featured</span>' : ''}</div><h3 style="font-size:1.15rem">${h(p.title)}</h3></div><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
+      <div class="modal-body" style="max-height:65vh;overflow:auto">
+        <p class="small">${h(SL.pubCitation(p))}</p>
+        <div class="flex wrap small mb-2 extlinks">${p.pmid ? `<a href="https://pubmed.ncbi.nlm.nih.gov/${h(p.pmid)}/" target="_blank" rel="noopener">PubMed ${I.external}</a>` : ''}${p.doi ? `<a href="https://doi.org/${h(p.doi)}" target="_blank" rel="noopener">DOI ${I.external}</a>` : ''}${p.url && !p.pmid ? `<a href="${h(p.url)}" target="_blank" rel="noopener">Link ${I.external}</a>` : ''}${p.pdf_url ? `<a href="${h(p.pdf_url)}" target="_blank" rel="noopener">PDF ${I.external}</a>` : ''}</div>
+        ${p.abstract ? `<div class="pub-abs mb-2">${h(p.abstract)}</div>` : ''}
+        <dl class="small" style="display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0"><dt class="muted">Linked faculty</dt><dd style="margin:0">${(links || []).length ? links.map((l) => h(l.profiles && l.profiles.name)).join(', ') : '—'}</dd>${p.keywords && p.keywords.length ? `<dt class="muted">Keywords</dt><dd style="margin:0">${p.keywords.map(h).join(', ')}</dd>` : ''}${p.notes ? `<dt class="muted">Notes</dt><dd style="margin:0">${h(p.notes)}</dd>` : ''}<dt class="muted">Added</dt><dd style="margin:0">${SL.fmtDateTime(p.created_at)}</dd></dl>
+        <hr class="rule" style="margin:16px 0">
+        <h4 style="margin-bottom:8px">Linked projects</h4>
+        <div id="projLinks">${(plinks || []).length ? plinks.map((l) => `<div class="flex between small" style="padding:6px 0;border-bottom:1px solid var(--line)"><a href="/hub/projects.html?id=${l.project_id}">${h((l.projects && l.projects.title) || 'Project #' + l.project_id)}</a>${mayEdit(p) ? `<button class="btn btn-ghost btn-sm btn-icon" data-unlink="${l.id}" title="Unlink">${I.trash}</button>` : ''}</div>`).join('') : '<div class="xs muted">Not linked to any project.</div>'}</div>
+        ${mayEdit(p) ? `<div class="flex wrap mt-2"><select class="input" id="projSel" style="flex:1;min-width:200px"><option value="">Link to a project…</option></select><button class="btn btn-outline btn-sm" id="projLink">Link</button></div>` : ''}
+      </div>
+      <div class="modal-foot"><button class="btn btn-outline btn-sm" id="copyCite">Copy citation</button><button class="btn btn-outline btn-sm" id="copyBib">BibTeX</button>${mayEdit(p) ? `<button class="btn btn-primary btn-sm" id="editBtn">${I.edit} Edit</button>` : ''}<button class="btn btn-ghost btn-sm" data-close>Close</button></div>`, { size: 'lg' });
+    SL.qs('#slModal .modal-head [data-close]').addEventListener('click', () => history.replaceState(null, '', location.pathname + location.hash));
+    SL.qs('#copyCite').onclick = () => navigator.clipboard.writeText(SL.pubCitation(p)).then(() => SL.toast('Citation copied', 'ok'));
+    SL.qs('#copyBib').onclick = () => navigator.clipboard.writeText(SL.pubBibtex(p)).then(() => SL.toast('BibTeX copied', 'ok'));
+    const eb = SL.qs('#editBtn'); if (eb) eb.onclick = () => openForm(p, (links || []).map((l) => l.profile_id));
+    const ps = SL.qs('#projSel');
+    if (ps) {
+      SL.sb.from('projects').select('id,title').order('title').then(({ data }) => { const have = new Set((plinks || []).map((l) => l.project_id)); ps.innerHTML = '<option value="">Link to a project…</option>' + (data || []).filter((x) => !have.has(x.id)).map((x) => `<option value="${x.id}">${h(x.title)}</option>`).join(''); });
+      SL.qs('#projLink').onclick = async () => { const pid = +ps.value; if (!pid) return SL.toast('Choose a project', 'warn'); const { error } = await SL.sb.from('project_publications').insert({ project_id: pid, publication_id: id, title: p.title }); if (error) return SL.toast(error.message, 'err'); SL.audit('publication_linked', 'project', pid, { publication_id: id }); SL.toast('Linked to project', 'ok'); openDetail(id); };
+      SL.qsa('[data-unlink]').forEach((b) => b.onclick = async () => { if (!await SL.confirm('Unlink this publication from the project?', 'Unlink')) return; const { error } = await SL.sb.from('project_publications').delete().eq('id', b.dataset.unlink); if (error) return SL.toast(error.message, 'err'); openDetail(id); });
+    }
+  }
+
+  // ---------- add / edit form ----------
+  const EUTILS = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
+  async function fetchPubmed(pmid) {
+    const r = await fetch(`${EUTILS}esummary.fcgi?db=pubmed&id=${pmid}&retmode=json`); const j = await r.json(); const d = j.result && j.result[pmid]; if (!d || d.error) throw new Error('PMID not found');
+    let abstract = '';
+    try { const x = await (await fetch(`${EUTILS}efetch.fcgi?db=pubmed&id=${pmid}&retmode=xml`)).text(); abstract = [...x.matchAll(/<AbstractText[^>]*?(?:Label="([^"]*)")?[^>]*>([\s\S]*?)<\/AbstractText>/g)].map((m) => (m[1] ? m[1] + ': ' : '') + m[2].replace(/<[^>]+>/g, '')).join('\n'); } catch (e) { /* ignore */ }
+    const doi = (d.articleids || []).find((x) => x.idtype === 'doi'); const pmc = (d.articleids || []).find((x) => x.idtype === 'pmc');
+    const authors = (d.authors || []).filter((a) => a.authtype === 'Author').map((a) => { const parts = a.name.split(' '); const ini = parts.length > 1 ? parts.pop() : ''; return { name: a.name, last: parts.join(' '), initials: ini }; });
+    return { pmid, doi: doi ? doi.value : '', pmcid: pmc ? pmc.value : '', title: (d.title || '').replace(/\.$/, ''), authors, author_string: authors.map((a) => a.name).join(', '), journal: d.fulljournalname || d.source, journal_abbrev: d.source, volume: d.volume, issue: d.issue, pages: d.pages, year: +(d.pubdate || '').slice(0, 4) || null, pub_date: d.sortpubdate ? d.sortpubdate.slice(0, 10).replace(/\//g, '-') : null, abstract, pub_types: d.pubtype || [], pub_type: (d.pubtype || []).some((t) => /Review/.test(t)) ? 'Review' : (d.pubtype || []).some((t) => /Case Reports/.test(t)) ? 'Case Report' : 'Journal Article', url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` };
+  }
+  async function fetchDoi(doi) {
+    // 1) PubMed by DOI
+    try { const j = await (await fetch(`${EUTILS}esearch.fcgi?db=pubmed&term=${encodeURIComponent(doi + '[doi]')}&retmode=json`)).json(); const id = j.esearchresult && j.esearchresult.idlist && j.esearchresult.idlist[0]; if (id) return fetchPubmed(id); } catch (e) { /* fall through */ }
+    // 2) doi.org content negotiation (Crossref / DataCite)
+    const r = await fetch(`https://doi.org/${encodeURIComponent(doi).replace(/%2F/g, '/')}`, { headers: { Accept: 'application/vnd.citationstyles.csl+json' } });
+    if (!r.ok) throw new Error('DOI not found in PubMed or doi.org');
+    const m = await r.json(); const dp = (m.issued && m.issued['date-parts'] && m.issued['date-parts'][0]) || [];
+    const authors = (m.author || []).map((a) => { const last = a.family || a.name || '', ini = (a.given || '').split(/[\s-]+/).map((x) => x[0] || '').join('').toUpperCase(); return { name: `${last}${ini ? ' ' + ini : ''}`.trim(), last, initials: ini }; });
+    const type = /proceedings|posted-content/.test(m.type || '') ? 'Conference Presentation' : m.type === 'book-chapter' ? 'Book Chapter' : m.type === 'posted-content' ? 'Preprint' : 'Journal Article';
+    return { pmid: '', doi: m.DOI || doi, pmcid: '', title: Array.isArray(m.title) ? m.title[0] : (m.title || ''), authors, author_string: authors.map((a) => a.name).join(', '), journal: Array.isArray(m['container-title']) ? m['container-title'][0] : (m['container-title'] || ''), journal_abbrev: Array.isArray(m['short-container-title']) ? m['short-container-title'][0] : (m['short-container-title'] || ''), volume: m.volume || '', issue: m.issue || '', pages: m.page || '', year: dp[0] || null, pub_date: dp[0] ? `${dp[0]}-${String(dp[1] || 1).padStart(2, '0')}-${String(dp[2] || 1).padStart(2, '0')}` : null, abstract: String(m.abstract || '').replace(/<[^>]+>/g, ''), pub_types: [m.type || ''], pub_type: type, url: m.URL || `https://doi.org/${doi}`, source: 'manual' };
+  }
+  function parseAuthors(s) { return s.split(/[,;]\s*(?![A-Z]{1,3}(?:[,;]|$))/).map((x) => x.trim()).filter(Boolean).map((n) => { const parts = n.split(/\s+/); const ini = parts.length > 1 && /^[A-Z]{1,3}$/.test(parts[parts.length - 1]) ? parts.pop() : ''; return { name: n, last: parts.join(' '), initials: ini }; }); }
+  function openForm(p, linked) {
+    p = p || {}; const isNew = !p.id; linked = linked || [];
+    SL.modal(`<div class="modal-head"><h3>${isNew ? 'Add publication' : 'Edit publication'}</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
+      <form id="pubForm"><div class="modal-body" style="max-height:70vh;overflow:auto">
+        ${isNew ? `<div class="card" style="background:var(--surface-2);box-shadow:none;padding:14px"><div class="form-row" style="align-items:end"><div class="field mb-0"><label>Look up by PMID or DOI</label><input class="input" id="lookupPmid" placeholder="e.g. 36069906 or 10.1056/NEJMoa2107038"></div><div class="field mb-0"><button type="button" class="btn btn-outline" id="lookupBtn">Look up</button></div></div><div class="xs muted mt-1">PMIDs are fetched from NCBI E-utilities; DOIs are resolved via PubMed first, then doi.org (Crossref/DataCite metadata). Enter presentations, posters, patents and chapters manually.</div></div><div class="or">or enter manually</div>` : ''}
+        <div class="field"><label>Title *</label><input class="input" name="title" required value="${h(p.title || '')}"></div>
+        <div class="field"><label>Authors (Last FM, Last FM, …)</label><input class="input" name="author_string" value="${h(p.author_string || '')}"></div>
+        <div class="form-row"><div class="field"><label>Type *</label><select class="input" name="pub_type">${PUB_TYPES.map((t) => `<option ${(p.pub_type || 'Journal Article') === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div><div class="field"><label>Year *</label><input class="input" name="year" type="number" min="1950" max="2100" required value="${h(p.year || new Date().getFullYear())}"></div></div>
+        <div class="form-row"><div class="field"><label>Journal / venue / conference</label><input class="input" name="journal" value="${h(p.journal || '')}"></div><div class="field"><label>Abbreviation</label><input class="input" name="journal_abbrev" value="${h(p.journal_abbrev || '')}"></div></div>
+        <div class="form-row"><div class="field"><label>Volume</label><input class="input" name="volume" value="${h(p.volume || '')}"></div><div class="field"><label>Issue</label><input class="input" name="issue" value="${h(p.issue || '')}"></div></div>
+        <div class="form-row"><div class="field"><label>Pages / patent no. / location</label><input class="input" name="pages" value="${h(p.pages || '')}"></div><div class="field"><label>DOI</label><input class="input" name="doi" value="${h(p.doi || '')}" placeholder="10.xxxx/…"></div></div>
+        <div class="form-row"><div class="field"><label>PMID</label><input class="input" name="pmid" value="${h(p.pmid || '')}"></div><div class="field"><label>URL</label><input class="input" name="url" type="url" value="${h(p.url || '')}"></div></div>
+        <div class="field"><label>Abstract</label><textarea class="input" name="abstract" style="min-height:90px">${h(p.abstract || '')}</textarea></div>
+        <div class="form-row"><div class="field"><label>PDF${p.pdf_url ? ` (<a href="${h(p.pdf_url)}" target="_blank" rel="noopener">current</a>)` : ''}</label><input class="input" type="file" name="pdf" accept="application/pdf"></div><div class="field"><label>Notes (internal)</label><input class="input" name="notes" value="${h(p.notes || '')}"></div></div>
+        <div class="field"><label>Linked faculty / authors</label><div class="people" id="peopleBox">${people.length ? people.map((x) => `<label><input type="checkbox" name="link" value="${x.id}" ${linked.includes(x.id) ? 'checked' : ''}> ${h(x.name)}<span class="xs muted">${x.role !== 'Faculty' ? ' · ' + h(x.role) : ''}</span></label>`).join('') : '<span class="xs muted">Loading people…</span>'}</div></div>
+        <div class="flex wrap"><label class="check"><input type="checkbox" name="visible" ${(isNew ? true : p.visible) ? 'checked' : ''}> Visible on public site</label><label class="check"><input type="checkbox" name="featured" ${p.featured ? 'checked' : ''}> Featured</label></div>
+      </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button class="btn btn-primary" id="saveBtn">${isNew ? 'Add publication' : 'Save changes'}</button></div></form>`, { size: 'lg', dismissible: false });
+    const f = SL.qs('#pubForm'); let fetched = null;
+    const lb = SL.qs('#lookupBtn'); if (lb) lb.onclick = async () => {
+      const raw = SL.qs('#lookupPmid').value.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, ''); if (!raw) return SL.toast('Enter a PMID or DOI', 'err');
+      const isPmid = /^\d{4,9}$/.test(raw), isDoi = /^10\.\d{4,9}\/\S+$/.test(raw);
+      if (!isPmid && !isDoi) return SL.toast('That does not look like a PMID or DOI', 'err');
+      lb.disabled = true; lb.textContent = 'Fetching…';
+      try {
+        const { data: dup } = await (isPmid ? SL.sb.from('publications').select('id,title').eq('pmid', raw) : SL.sb.from('publications').select('id,title').ilike('doi', raw)).limit(1).maybeSingle();
+        if (dup) { SL.toast('Already in the database — opening it', 'warn'); SL.closeModal(); return openDetail(dup.id); }
+        fetched = isPmid ? await fetchPubmed(raw) : await fetchDoi(raw);
+        ['title', 'author_string', 'journal', 'journal_abbrev', 'volume', 'issue', 'pages', 'doi', 'pmid', 'url', 'abstract', 'year'].forEach((k) => { if (f.elements[k]) f.elements[k].value = fetched[k] || ''; });
+        f.pub_type.value = fetched.pub_type;
+        // pre-tick faculty whose last name appears among authors
+        const lasts = new Set(fetched.authors.map((a) => a.last.toLowerCase()));
+        SL.qsa('[name=link]', f).forEach((c) => { const per = people.find((x) => x.id === c.value); const ln = (per && per.name || '').replace(/,.*$/, '').trim().split(/\s+/).pop().toLowerCase(); if (ln && lasts.has(ln)) c.checked = true; });
+        SL.toast(fetched.pmid ? 'Fields filled from PubMed' : 'Fields filled from doi.org', 'ok');
+      } catch (e) { SL.toast(e.message || 'Lookup failed', 'err'); } finally { lb.disabled = false; lb.textContent = 'Look up'; }
+    };
+    f.onsubmit = async (e) => {
+      e.preventDefault(); const btn = SL.qs('#saveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const v = (k) => f.elements[k].value.trim();
+        const row = { title: v('title'), author_string: v('author_string'), authors: fetched && fetched.author_string === v('author_string') ? fetched.authors : parseAuthors(v('author_string')), pub_type: v('pub_type'), year: +v('year') || null, journal: v('journal'), journal_abbrev: v('journal_abbrev'), volume: v('volume'), issue: v('issue'), pages: v('pages'), doi: v('doi') || null, pmid: v('pmid') || null, url: v('url') || null, abstract: v('abstract'), notes: v('notes'), visible: f.visible.checked, featured: f.featured.checked };
+        if (fetched && isNew) Object.assign(row, { pmcid: fetched.pmcid || null, pub_date: fetched.pub_date, pub_types: fetched.pub_types, source: fetched.pmid ? 'pubmed' : 'manual' });
+        if (isNew && !fetched) { row.source = 'manual'; row.pub_date = row.year ? `${row.year}-01-01` : null; }
+        if (f.pdf.files[0]) row.pdf_url = await SL.upload('public-assets', 'pubs', f.pdf.files[0]);
+        let id = p.id, error;
+        if (isNew) { row.created_by = me.id; const res = await SL.sb.from('publications').insert(row).select('id').single(); error = res.error; id = res.data && res.data.id; }
+        else ({ error } = await SL.sb.from('publications').update(row).eq('id', id));
+        if (error) throw error;
+        const want = SL.qsa('[name=link]:checked', f).map((c) => c.value);
+        const add = want.filter((x) => !linked.includes(x)), rm = linked.filter((x) => !want.includes(x));
+        if (rm.length) await SL.sb.from('publication_authors').delete().eq('publication_id', id).in('profile_id', rm);
+        if (add.length) await SL.sb.from('publication_authors').insert(add.map((pid) => ({ publication_id: id, profile_id: pid, matched_term: 'manual' })));
+        SL.audit(isNew ? 'created' : 'updated', 'publication', id, { title: row.title }); SL.closeModal(); SL.toast(isNew ? 'Publication added' : 'Saved', 'ok'); loadAll();
+      } catch (err) { SL.toast(err.message || 'Save failed', 'err'); btn.disabled = false; btn.textContent = isNew ? 'Add publication' : 'Save changes'; }
+    };
+  }
+  SL.qs('#addBtn').onclick = () => openForm(null);
+
+  // ---------- MINE ----------
+  async function loadMine() {
+    const box = SL.qs('#mineList');
+    const { data, error } = await SL.sb.from('publication_authors').select('publication_id, matched_term, publications(*)').eq('profile_id', me.id);
+    if (error) { box.innerHTML = `<div class="alert alert-danger">${h(error.message)}</div>`; return; }
+    const rows = (data || []).filter((r) => r.publications).sort((a, b) => (b.publications.year || 0) - (a.publications.year || 0));
+    box.innerHTML = rows.length ? `<div class="card">${rows.map((r) => { const p = r.publications; return `<div class="pub"><div class="flex between wrap" style="align-items:flex-start"><div style="min-width:0;flex:1"><div class="pub-title"><a href="?id=${p.id}" data-open="${p.id}">${h(p.title)}</a></div><div class="pub-authors">${SL.highlightAuthors(p, [(me.name || '').replace(/,.*$/, '').split(/\s+/).pop()])}</div><div class="pub-meta">${h(p.journal_abbrev || p.journal || '')}${p.year ? ' · ' + p.year : ''}${r.matched_term ? ` · matched “${h(r.matched_term)}”` : ''}${p.visible ? '' : ' · <span class="tag">hidden</span>'}</div></div><button class="btn btn-outline btn-sm" data-notme="${p.id}" data-title="${h(p.title)}">Not me</button></div></div>`; }).join('')}</div>` : '<div class="empty card">No publications are linked to your profile yet. Admins can adjust your PubMed author terms under PubMed sync.</div>';
+    SL.qsa('[data-open]', box).forEach((a) => a.onclick = (e) => { e.preventDefault(); openDetail(a.dataset.open); });
+    SL.qsa('[data-notme]', box).forEach((b) => b.onclick = async () => {
+      if (!await SL.confirm(`Remove "${b.dataset.title}" from your publications?`, 'Not me')) return;
+      const id = b.dataset.notme;
+      const { error } = await SL.sb.from('publication_authors').delete().eq('publication_id', id).eq('profile_id', me.id); if (error) return SL.toast(error.message, 'err');
+      const { count } = await SL.sb.from('publication_authors').select('profile_id', { count: 'exact', head: true }).eq('publication_id', id);
+      if (!count) { const { data: cur } = await SL.sb.from('publications').select('notes').eq('id', id).maybeSingle(); await SL.sb.from('publications').update({ visible: false, notes: ((cur && cur.notes) ? cur.notes + '\n' : '') + `Hidden ${new Date().toISOString().slice(0, 10)}: ${me.name} marked "not me" and no other faculty linked.` }).eq('id', id); }
+      SL.audit('author_unlinked', 'publication', id, { hidden: !count }); SL.toast(count ? 'Link removed' : 'Link removed and publication hidden', 'ok'); loadMine();
+    });
+  }
+
+  // ---------- SYNC (admin) ----------
+  let syncLoaded = false;
+  async function loadSync() {
+    if (!isAdmin) return;
+    const [logR, facR] = await Promise.all([
+      SL.sb.from('pubmed_sync_log').select('*').order('started_at', { ascending: false }).limit(10),
+      SL.sb.from('faculty_profiles').select('id,user_id,pubmed_enabled,pubmed_author_terms,pubmed_affiliation_filter,pubmed_extra_query,last_pubmed_sync,profiles(name,role)').order('user_id'),
+    ]);
+    const logs = logR.data || [], fac = (facR.data || []).sort((a, b) => ((a.profiles && a.profiles.name) || '').localeCompare((b.profiles && b.profiles.name) || ''));
+    const last = logs[0];
+    SL.qs('#syncStats').innerHTML = [[last ? SL.fmtDateTime(last.started_at) : '—', 'Last sync'], [last ? (last.status || 'running') : '—', 'Status'], [fac.filter((f) => f.pubmed_enabled).length + ' / ' + fac.length, 'Faculty enabled'], [all.filter((p) => p.source === 'pubmed').length, 'PubMed records']].map(([n, l]) => `<div class="card stat"><div class="n" style="font-size:${String(n).length > 8 ? '1.1rem' : '2.1rem'};padding-top:${String(n).length > 8 ? '8px' : 0}">${h(n)}</div><div class="l">${l}</div></div>`).join('');
+    SL.qs('#syncLog').innerHTML = logs.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Started</th><th>Status</th><th class="num">Found</th><th class="num">New</th><th class="num">Upd.</th></tr></thead><tbody>${logs.map((l) => `<tr title="${h(l.error || '')}"><td class="xs">${SL.fmtDateTime(l.started_at)}${l.finished_at ? `<div class="muted">${Math.round((new Date(l.finished_at) - new Date(l.started_at)) / 1000)}s</div>` : ''}</td><td><span class="tag ${l.status === 'ok' ? 'tag-ok' : l.status === 'error' ? 'tag-danger' : 'tag-warn'}">${h(l.status || 'running')}</span>${l.error ? `<div class="xs" style="color:var(--danger);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(l.error)}</div>` : ''}</td><td class="num">${l.found ?? ''}</td><td class="num">${l.inserted ?? ''}</td><td class="num">${l.updated ?? ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">No sync runs logged yet.</div>';
+    SL.qs('#facTable').innerHTML = fac.length ? `<div class="table-wrap"><table class="table fac"><thead><tr><th>Faculty</th><th>On</th><th>Author terms (comma-separated)</th><th title="Require Saint Luke's / Kansas City affiliation">Affil.</th><th>Extra query</th><th>Last sync</th><th></th></tr></thead><tbody>${fac.map((f) => `<tr data-uid="${f.user_id}"><td><strong>${h(f.profiles && f.profiles.name || f.user_id)}</strong><div class="xs muted">${h(f.profiles && f.profiles.role || '')}</div></td><td><input type="checkbox" name="en" ${f.pubmed_enabled ? 'checked' : ''}></td><td><input class="input" name="terms" value="${h((f.pubmed_author_terms || []).join(', '))}" placeholder="Smith JA, Smith J" style="min-width:180px"></td><td><input type="checkbox" name="aff" ${f.pubmed_affiliation_filter ? 'checked' : ''}></td><td><input class="input" name="xq" value="${h(f.pubmed_extra_query || '')}" placeholder="e.g. neurosurgery[ad]" style="min-width:140px"></td><td class="xs muted">${f.last_pubmed_sync ? SL.fmtDate(f.last_pubmed_sync) : '—'}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-save="${f.id}">Save</button> <button class="btn btn-ghost btn-sm" data-one="${f.user_id}" title="Sync this faculty only">${I.upload}</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">No faculty profiles found.</div>';
+    SL.qsa('[data-save]').forEach((b) => b.onclick = async () => {
+      const tr = b.closest('tr'); const terms = tr.querySelector('[name=terms]').value.split(',').map((s) => s.trim()).filter(Boolean);
+      const upd = { pubmed_enabled: tr.querySelector('[name=en]').checked, pubmed_author_terms: terms, pubmed_affiliation_filter: tr.querySelector('[name=aff]').checked, pubmed_extra_query: tr.querySelector('[name=xq]').value.trim() || null };
+      b.disabled = true; const { error } = await SL.sb.from('faculty_profiles').update(upd).eq('id', b.dataset.save); b.disabled = false;
+      if (error) return SL.toast(error.message, 'err'); SL.audit('updated', 'faculty_profile', b.dataset.save, { pubmed: upd }); SL.toast('Settings saved', 'ok');
+    });
+    SL.qsa('[data-one]').forEach((b) => b.onclick = () => runSync([b.dataset.one], b));
+    syncLoaded = true;
+  }
+  async function runSync(ids, btn) {
+    const main = SL.qs('#syncNow'), st = SL.qs('#syncStatus'), out = SL.qs('#syncResult');
+    if (main.disabled) return SL.toast('A sync is already running', 'warn');
+    main.disabled = true; main.innerHTML = '<span class="spin"></span> Syncing…'; if (btn) btn.disabled = true;
+    st.textContent = ids ? 'Syncing one faculty member…' : 'Querying PubMed for all enabled faculty (about 60 s)…'; out.innerHTML = '';
+    const t0 = Date.now();
+    try {
+      const { data, error } = await SL.sb.functions.invoke('sync-pubmed', { body: ids ? { faculty_ids: ids } : {} });
+      if (error) throw error;
+      const secs = Math.round((Date.now() - t0) / 1000);
+      if (data && data.ok) { out.innerHTML = `<div class="alert alert-ok mb-0"><strong>Sync complete in ${secs}s.</strong> ${data.faculty} faculty · ${data.found} records found · ${data.inserted} new · ${data.updated} updated.${(data.details || []).length ? `<details class="mt-1"><summary class="xs">Per-faculty detail</summary><ul class="xs" style="margin:6px 0 0;padding-left:18px">${data.details.map((d) => `<li>${h(d.faculty || '?')}: ${d.error ? '<span style="color:var(--danger)">' + h(d.error) + '</span>' : d.count + ' PMIDs'}</li>`).join('')}</ul></details>` : ''}</div>`; SL.toast('PubMed sync finished', 'ok'); }
+      else out.innerHTML = `<div class="alert alert-danger mb-0">Sync failed: ${h((data && data.error) || 'unknown error')}</div>`;
+      SL.audit('pubmed_sync', 'publications', '', { faculty_ids: ids || 'all', result: data });
+    } catch (e) { out.innerHTML = `<div class="alert alert-danger mb-0">${h(e.message || String(e))}</div>`; }
+    main.disabled = false; main.innerHTML = I.upload + ' Sync now'; st.textContent = ''; if (btn) btn.disabled = false;
+    await loadAll(); loadSync();
+  }
+  SL.qs('#syncNow').onclick = () => runSync(null);
+
+  // ---------- boot ----------
+  await loadAll();
+  const qp = new URLSearchParams(location.search);
+  show((location.hash || '#all').slice(1));
+  if (qp.get('id')) openDetail(qp.get('id'));
+})();
+</script>
+</body>
+</html>

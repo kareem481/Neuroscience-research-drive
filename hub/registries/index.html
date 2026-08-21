@@ -1,0 +1,56 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Clinical Registries | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="IRB-governed clinical registries: Brain Tumor, Trauma/TBI and Functional Neurosurgery.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<link rel="stylesheet" href="/hub/registries/registry.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<script src="/hub/registries/registry-common.js"></script>
+</head><body>
+<main class="main" id="main">
+  <div class="breadcrumb"><a href="/hub/index.html">Hub</a> › Clinical Registries</div>
+  <div class="page-head"><div><h1>Clinical Registries</h1><div class="sub">Prospective, IRB-approved limited data sets maintained by the Neuroscience Research Department.</div></div><div id="roleTag"></div></div>
+  <div id="phi"></div>
+  <div class="grid grid-3 mt-3" id="regCards"></div>
+
+  <section class="mt-4">
+    <h2 style="font-size:1.35rem">About the registries</h2>
+    <div class="grid grid-3">
+      <div class="card"><h4>Governance</h4><p class="small muted" style="margin:0">Each registry operates under an umbrella IRB protocol as a <strong>limited data set</strong>. Access is role-based: clinical and research staff may enter data; students, IRB and administrative staff have read-only access. Every view, query, edit and export is written to the audit log.</p></div>
+      <div class="card"><h4>Inclusion</h4><p class="small muted" style="margin:0"><strong>BTR</strong> — adults and children with a histologically or radiographically confirmed CNS tumour treated at Saint Luke's. <strong>TBI</strong> — traumatic brain injury, subdural / epidural haematoma, traumatic SAH and skull fracture admissions. <strong>FNR</strong> — epilepsy surgery, deep brain stimulation, neuromodulation for pain and spasticity.</p></div>
+      <div class="card"><h4>Data dictionary &amp; manuals</h4><p class="small muted">Variable definitions, coding rules (WHO CNS5, GCS, Marshall, GOS-E, Engel, UPDRS, VAS, Ashworth) and entry SOPs live in the documentation library.</p><a class="btn btn-outline btn-sm" href="/docs.html?c=Registry%20Manuals">Open Registry Manuals</a></div>
+    </div>
+  </section>
+  <div class="alert alert-warn mt-3"><strong>PHI reminder.</strong> Never record names, MRNs, dates of birth, addresses, phone numbers or free-text that could identify a patient. Use the study ID and the approved key held by the research office to re-identify when clinically necessary.</div>
+</main>
+<script>
+(async () => {
+  await SL.requireAuth();
+  SL.renderHubShell({ active: 'registries' });
+  REG.canWrite = SL.hasRole.apply(null, REG.WRITE_ROLES);
+  SL.qs('#roleTag').innerHTML = REG.tag(REG.canWrite ? 'Read / write' : 'Read-only', REG.canWrite ? 'teal' : 'outline');
+  SL.qs('#phi').innerHTML = REG.phiNotice();
+  const REGS = [
+    { key: 'btr', table: 'btr_patients', href: '/hub/registries/btr.html', icon: 'brain', title: 'Brain Tumor Registry', desc: 'WHO CNS5 pathology, molecular markers (IDH, MGMT, 1p/19q, TERT, EGFR), surgery, radiation, chemotherapy, imaging volumetrics, RANO, survival, clinical trials, biobank and tumour board.' },
+    { key: 'tbi', table: 'tbi_patients', href: '/hub/registries/tbi.html', icon: 'shield', title: 'Trauma / TBI Registry', desc: 'Acute TBI, subdural and epidural haematoma, traumatic SAH and skull fracture: GCS, pupils, Marshall/Rotterdam CT scores, ICP monitoring, ICU course, GOS / GOS-E / DRS / Rancho outcomes.' },
+    { key: 'fnr', table: 'fnr_patients', href: '/hub/registries/fnr.html', icon: 'chart', title: 'Functional Neurosurgery Registry', desc: 'Epilepsy surgery (Engel), deep brain stimulation (UPDRS), neuromodulation for pain (VAS) and spasticity (Ashworth), implanted devices, programming sessions, seizure logs and medications.' },
+  ];
+  const cards = SL.qs('#regCards');
+  cards.innerHTML = REGS.map((r) => `<div class="card card-hover reg-card"><div class="icon-badge">${SL.icons[r.icon]}</div><div><h3 style="margin-bottom:6px">${SL.esc(r.title)}</h3><p class="small muted" style="margin:0">${SL.esc(r.desc)}</p></div>
+    <div class="kpis" id="kpi_${r.key}"><div><div class="n"><span class="skeleton" style="display:inline-block;width:40px;height:22px;margin:0"></span></div><div class="l">Patients</div></div><div><div class="n" style="font-size:1.05rem;padding-top:6px">…</div><div class="l">Last entry</div></div></div>
+    <a class="btn btn-primary" href="${r.href}">Open registry</a></div>`).join('');
+  for (const r of REGS) {
+    const [{ count, error }, last] = await Promise.all([
+      SL.sb.from(r.table).select('id', { count: 'exact', head: true }),
+      SL.sb.from(r.table).select('created_at').order('created_at', { ascending: false }).limit(1),
+    ]);
+    const lastDate = last.data && last.data[0] && last.data[0].created_at ? SL.fmtDate(last.data[0].created_at) : (last.error ? 'n/a' : '—');
+    SL.qs('#kpi_' + r.key).innerHTML = `<div><div class="n">${error ? '—' : (count || 0)}</div><div class="l">Patients</div></div><div><div class="n" style="font-size:1.05rem;padding-top:6px">${SL.esc(lastDate)}</div><div class="l">Last entry</div></div>`;
+  }
+})();
+</script>
+</body></html>

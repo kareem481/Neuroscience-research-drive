@@ -1,9 +1,8 @@
 node_modules/
-package.json
 package-lock.json
 seed-users.js
-nul
-.claude/
-
-.vercel
 seed-btr-patients.js
+.vercel
+.claude/
+nul
+.DS_Store

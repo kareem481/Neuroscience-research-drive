@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Projects &amp; IRB | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Research project pipeline, IRB workflow and manuscript tools for the Saint Luke's Neuroscience Research Hub.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+  .view-toggle{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden;background:rgba(255,255,255,.04)}
+  .view-toggle button{border:0;background:none;padding:7px 12px;font-weight:600;font-size:.85rem;color:var(--muted);cursor:pointer;display:flex;gap:6px;align-items:center}
+  .view-toggle button svg{width:16px;height:16px} .view-toggle button.active{background:var(--grad);color:#06101a}
+  .filters .search{flex:1;min-width:200px} .filters .search .input{width:100%}
+  /* pipeline */
+  .pipeline{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(250px,1fr);gap:14px;overflow-x:auto;padding-bottom:10px;align-items:start}
+  .col{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);padding:10px;min-height:140px}
+  .col h4{display:flex;justify-content:space-between;align-items:center;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:4px 4px 10px}
+  .col h4 .tag{font-size:.7rem}
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:.15s;box-shadow:var(--shadow-sm)}
+  .pcard:hover{border-color:rgba(34,211,238,.4);box-shadow:var(--shadow),0 0 18px rgba(34,211,238,.1)}
+  .pcard .t{font-weight:600;color:var(--ink);font-size:.9rem;line-height:1.3;margin-bottom:4px}
+  .pcard .m{font-size:.78rem;color:var(--muted)}
+  .pcard .progress{margin-top:8px}
+  .pcard.locked{opacity:.55}
+  /* grid cards */
+  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+  .pcard-lg{cursor:pointer;display:flex;flex-direction:column;gap:8px}
+  .pcard-lg .abs{font-size:.88rem;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .pcard-lg .t{font-family:var(--font-head);font-size:1.12rem;font-weight:600;color:var(--ink);line-height:1.3}
+  .irb-ok{color:var(--ok)} .irb-pend{color:var(--warn)}
+  /* wizard */
+  .wsteps{display:flex;gap:4px;margin-bottom:20px;overflow-x:auto}
+  .wsteps div{flex:1;min-width:96px;text-align:center;font-size:.78rem;font-weight:600;color:var(--muted);padding:8px 4px;border-bottom:3px solid var(--line)}
+  .wsteps div.on{color:#fff;border-image:var(--grad) 1} .wsteps div.done{color:var(--teal);border-color:var(--teal)}
+  .wpanel{display:none} .wpanel.on{display:block}
+  .budget td input{width:100%;padding:6px 8px;border:1px solid var(--line-2);border-radius:6px;font-size:.85rem;background:rgba(255,255,255,.04);color:var(--ink)} .budget td select.input{width:100%;padding:6px 30px 6px 8px;border-radius:6px;font-size:.85rem;min-width:150px}
+  input[type=file].input{color-scheme:dark}
+  .budget td{padding:6px 6px} .budget th{padding:8px 6px}
+  .budget .tot{font-weight:600;text-align:right;white-space:nowrap}
+  .review dl{display:grid;grid-template-columns:160px 1fr;gap:6px 16px;font-size:.9rem;margin:0} .review dt{color:var(--muted)} .review dd{margin:0}
+  /* detail */
+  .detail-body{max-height:70vh;overflow:auto}
+  .kv{display:grid;grid-template-columns:170px 1fr;gap:8px 16px;font-size:.92rem;margin:0}
+  .kv dt{color:var(--muted)} .kv dd{margin:0;white-space:pre-line}
+  @media(max-width:640px){.kv{grid-template-columns:1fr}.kv dt{margin-top:8px;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}}
+  .sec{margin-bottom:22px} .sec h4{margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .frow{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:rgba(255,255,255,.03)}
+  .frow svg{width:18px;height:18px;color:var(--teal);flex:none}
+  .ms-grid textarea.input{min-height:130px;font-family:var(--font-head);font-size:1rem;line-height:1.6}
+  .drop-list{position:absolute;left:0;right:0;top:100%;background:var(--surface-solid);border:1px solid var(--line-2);border-radius:8px;box-shadow:var(--shadow-lg);z-index:5;max-height:260px;overflow:auto}
+  .drop-list button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 12px;font-size:.88rem;cursor:pointer} .drop-list button:hover{background:rgba(34,211,238,.1)}
+</style>
+</head>
+<body>
+<main id="main">
+  <div class="page-head">
+    <div><h1>Projects &amp; IRB</h1><div class="sub">Research pipeline, protocol &amp; IRB workflow, manuscripts</div></div>
+    <div class="flex wrap">
+      <button class="btn btn-outline btn-sm" id="exportBtn"></button>
+      <button class="btn btn-primary" id="newBtn"></button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <div class="search"><span id="sIcon"></span><input class="input" id="fSearch" type="search" placeholder="Search title, PI, disease focus…" aria-label="Search projects"></div>
+    <select class="input" id="fStatus"><option value="">All statuses</option></select>
+    <select class="input" id="fPillar"><option value="">All pillars</option><option>Translational</option><option>Clinical</option><option>Computational</option></select>
+    <select class="input" id="fType"><option value="">All study types</option></select>
+    <label class="check"><input type="checkbox" id="fMine"> Mine only</label>
+    <div class="view-toggle" id="viewToggle" style="margin-left:auto"></div>
+  </div>
+  <div id="summary" class="small muted mb-2"></div>
+  <div id="list"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:60%"></div></div>
+</main>
+
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'projects' });
+  const h = SL.esc, I = SL.icons;
+  const isAdmin = SL.isAdmin(), isIRB = SL.hasRole('IRB');
+  const STATUSES = ['Pre-submission', 'Admin Review', 'IRB Review', 'Active', 'Data Collection', 'Analysis', 'Publication', 'Completed'];
+  const EXTRA_STATUSES = ['On Hold', 'Archived'];
+  const STUDY_TYPES = ['Prospective Cohort', 'Retrospective Cohort', 'Randomized Controlled Trial', 'Case-Control', 'Cross-Sectional', 'Case Series / Case Report', 'Systematic Review / Meta-Analysis', 'Translational / Bench-to-Bedside', 'Computational / AI / ML', 'Quality Improvement', 'Other'];
+  const STATUS_TAG = { 'Active': 'tag-ok', 'Data Collection': 'tag-teal', 'Analysis': 'tag-info', 'Publication': 'tag-gold', 'Completed': 'tag-outline', 'IRB Review': 'tag-warn', 'Admin Review': 'tag-warn', 'On Hold': 'tag-danger', 'Archived': 'tag-outline' };
+  const PROTOCOL_LABELS = { background: 'Background & significance', objectives: 'Objectives / specific aims', aims: 'Specific aims', design: 'Study design', methods: 'Design & methods', population: 'Study population', inclusion: 'Inclusion criteria', exclusion: 'Exclusion criteria', outcomes: 'Outcome measures', statPlan: 'Statistical analysis plan', dataCollection: 'Data collection & management', timeline: 'Timeline' };
+  const IRB_LABELS = { submissionType: 'IRB submission type', irbType: 'IRB submission type', consent: 'Informed consent', hipaa: 'HIPAA authorization', consentPurpose: 'Consent — purpose', consentProc: 'Consent — procedures', consentRisks: 'Consent — risks', consentBenefits: 'Consent — benefits', consentConfid: 'Consent — confidentiality', notes: 'Notes' };
+
+  let all = [], profiles = [], view = localStorage.getItem('sl_proj_view') || 'pipeline';
+  const myName = (me.name || '').trim().toLowerCase();
+  const myLast = myName.split(/[\s,]+/).filter(Boolean).pop() || '';
+
+  SL.qs('#sIcon').innerHTML = I.search;
+  SL.qs('#exportBtn').innerHTML = I.download + ' CSV';
+  SL.qs('#newBtn').innerHTML = I.plus + ' New project';
+  SL.qs('#fStatus').innerHTML += STATUSES.concat(EXTRA_STATUSES).map((s) => `<option>${s}</option>`).join('');
+  SL.qs('#fType').innerHTML += STUDY_TYPES.map((s) => `<option>${s}</option>`).join('');
+
+  // ---------- permissions ----------
+  const canEdit = (p) => isAdmin || p.created_by === me.id;
+  const canIRB = () => isAdmin || isIRB;
+  const isMine = (p) => {
+    if (p.created_by === me.id) return true;
+    const hay = [p.pi, p.co_investigators].concat(p.irb_personnel || []).filter(Boolean).join(' | ').toLowerCase();
+    return !!myName && (hay.includes(myName) || (myLast.length > 3 && hay.includes(myLast)));
+  };
+  const canAccess = (p) => {
+    if (isAdmin || isIRB || p.created_by === me.id) return true;
+    const irb = p.irb_consent || {};
+    if (irb.na) return true;
+    if (!p.irb_approved) return isMine(p);
+    const ppl = p.irb_personnel || [];
+    if (!ppl.length) return true;
+    const em = (me.email || '').toLowerCase();
+    return ppl.some((x) => { x = String(x).toLowerCase(); return (myName && x.includes(myName)) || (em && x.includes(em)) || (myLast.length > 3 && x.includes(myLast)); });
+  };
+  const irbBadge = (p) => { const irb = p.irb_consent || {}; return irb.na ? '<span class="xs muted">No IRB needed</span>' : p.irb_approved ? `<span class="xs irb-ok">IRB ${h(p.irb_protocol_number || 'approved')}</span>` : '<span class="xs irb-pend">IRB pending</span>'; };
+  const statusTag = (s) => `<span class="tag ${STATUS_TAG[s] || ''}">${h(s || 'Pre-submission')}</span>`;
+  const filesArr = (p) => {
+    const f = p.files;
+    if (Array.isArray(f)) return f;
+    if (f && typeof f === 'object') return Object.entries(f).filter(([k, v]) => typeof v === 'string' && /^https?:/.test(v)).map(([k, v]) => ({ name: k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()), url: v, irb_only: /consent|irb/i.test(k), legacy: true }));
+    return [];
+  };
+  const adminEmails = () => { const e = profiles.filter((x) => x.role === 'Admin').map((x) => x.email).filter(Boolean); return e.length ? e : SL.ADMIN_EMAILS; };
+  const irbEmails = () => profiles.filter((x) => x.role === 'IRB').map((x) => x.email).filter(Boolean);
+  const creatorEmails = (p) => { const s = new Set(); const c = profiles.find((x) => x.id === p.created_by); if (c && c.email) s.add(c.email); const pi = profiles.find((x) => x.name && p.pi && x.name.toLowerCase() === p.pi.toLowerCase()); if (pi && pi.email) s.add(pi.email); return [...s]; };
+  async function notifyAll(recipients, type, message, p, subject) {
+    if (!recipients.length) return;
+    try { await SL.notify(recipients, type, message, { project_id: p.id, project_title: p.title }); } catch (e) { console.warn(e); }
+    try { await SL.sendEmail(recipients, subject || message, `<p>${h(message)}</p><p><a href="${location.origin}/hub/projects.html?id=${p.id}">Open project in Research Hub</a></p>`); } catch (e) { console.warn('email failed', e); }
+  }
+
+  // ---------- data ----------
+  async function load() {
+    const [pr, pf] = await Promise.all([
+      SL.sb.from('projects').select('*, project_members(*)').order('created_at', { ascending: false }),
+      profiles.length ? Promise.resolve({ data: profiles }) : SL.sb.from('profiles').select('id,name,email,role,department,credential').order('name'),
+    ]);
+    if (pr.error) SL.toast(pr.error.message, 'err');
+    all = pr.data || []; profiles = pf.data || [];
+    render();
+  }
+
+  // ---------- filters & render ----------
+  const F = { q: SL.qs('#fSearch'), status: SL.qs('#fStatus'), pillar: SL.qs('#fPillar'), type: SL.qs('#fType'), mine: SL.qs('#fMine') };
+  const qp = new URLSearchParams(location.search);
+  if (qp.get('status')) F.status.value = qp.get('status');
+  if (qp.get('mine')) F.mine.checked = true;
+  Object.values(F).forEach((el) => el.addEventListener('input', SL.debounce(render, 120)));
+  function filtered() {
+    const q = F.q.value.trim().toLowerCase();
+    return all.filter((p) => (!F.status.value || p.status === F.status.value) && (!F.pillar.value || p.pillar === F.pillar.value) && (!F.type.value || p.study_type === F.type.value)
+      && (!F.mine.checked || isMine(p)) && (qp.get('pending') !== 'admin' || !p.admin_approved)
+      && (!q || [p.title, p.pi, p.disease_focus, p.co_investigators, p.irb_protocol_number].filter(Boolean).join(' ').toLowerCase().includes(q)));
+  }
+  const VIEWS = [['pipeline', I.chart, 'Pipeline'], ['grid', I.grid, 'Grid'], ['list', I.menu, 'List']];
+  function renderToggle() { SL.qs('#viewToggle').innerHTML = VIEWS.map(([k, ic, l]) => `<button class="${view === k ? 'active' : ''}" data-v="${k}">${ic}<span class="hide-sm">${l}</span></button>`).join(''); SL.qsa('#viewToggle button').forEach((b) => b.onclick = () => { view = b.dataset.v; localStorage.setItem('sl_proj_view', view); render(); }); }
+  function render() {
+    renderToggle();
+    const rows = filtered();
+    SL.qs('#summary').textContent = `${rows.length} of ${all.length} projects${qp.get('pending') === 'admin' ? ' · awaiting admin review' : ''}`;
+    const box = SL.qs('#list');
+    if (!all.length) { box.innerHTML = `<div class="empty card">${I.flask}<div>No projects yet.</div><button class="btn btn-primary btn-sm mt-2" id="emptyNew">Create the first project</button></div>`; SL.qs('#emptyNew').onclick = openWizard; return; }
+    if (!rows.length) { box.innerHTML = '<div class="empty card">No projects match these filters.</div>'; return; }
+    if (view === 'pipeline') {
+      const cols = STATUSES.slice(); const other = rows.filter((p) => !STATUSES.includes(p.status)); if (other.length) cols.push('Other');
+      box.innerHTML = `<div class="pipeline">${cols.map((s) => { const items = s === 'Other' ? other : rows.filter((p) => p.status === s); return `<div class="col"><h4><span>${h(s)}</span><span class="tag">${items.length}</span></h4>${items.map((p) => `
+        <div class="pcard ${canAccess(p) ? '' : 'locked'}" data-id="${p.id}"><div class="t">${h(p.title || 'Untitled')}</div><div class="m">${h(p.pi || 'No PI')}${p.pillar ? ' · ' + h(p.pillar) : ''}</div><div class="m" style="margin-top:4px">${irbBadge(p)}</div><div class="progress"><span style="width:${p.progress || 0}%"></span></div></div>`).join('') || '<div class="xs muted" style="padding:8px 4px">—</div>'}</div>`; }).join('')}</div>`;
+    } else if (view === 'grid') {
+      box.innerHTML = `<div class="pgrid">${rows.map((p) => `<div class="card card-hover pcard-lg ${canAccess(p) ? '' : 'locked'}" data-id="${p.id}">
+        <div class="flex between"><span class="tag tag-teal">${h(p.pillar || 'Unassigned')}</span>${statusTag(p.status)}</div>
+        <div class="t">${h(p.title || 'Untitled')}</div>
+        <div class="small muted">${h(p.pi || 'No PI')}${p.department ? ' · ' + h(p.department) : ''}</div>
+        ${canAccess(p) && p.abstract ? `<div class="abs">${h(p.abstract)}</div>` : ''}
+        <div class="tags">${p.disease_focus ? `<span class="tag tag-outline">${h(p.disease_focus)}</span>` : ''}${p.study_type ? `<span class="tag tag-outline">${h(p.study_type)}</span>` : ''}</div>
+        <div class="flex between xs muted" style="margin-top:auto">${irbBadge(p)}<span>${(p.project_members || []).length} members · ${p.progress || 0}%</span></div>
+        <div class="progress"><span style="width:${p.progress || 0}%"></span></div></div>`).join('')}</div>`;
+    } else {
+      box.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>Title</th><th>PI</th><th>Pillar</th><th>Type</th><th>Status</th><th>IRB</th><th class="num">Progress</th><th>Created</th></tr></thead><tbody>${rows.map((p) => `<tr data-id="${p.id}" style="cursor:pointer"><td><strong>${h(p.title || 'Untitled')}</strong>${p.disease_focus ? `<div class="xs muted">${h(p.disease_focus)}</div>` : ''}</td><td>${h(p.pi || '')}</td><td>${h(p.pillar || '')}</td><td>${h(p.study_type || '')}</td><td>${statusTag(p.status)}</td><td>${irbBadge(p)}</td><td class="num">${p.progress || 0}%</td><td class="xs muted">${SL.fmtDate(p.created_at)}</td></tr>`).join('')}</tbody></table></div>`;
+    }
+    SL.qsa('[data-id]', box).forEach((el) => el.onclick = () => openDetail(+el.dataset.id));
+  }
+  SL.qs('#exportBtn').onclick = () => {
+    const rows = filtered().map((p) => ({ id: p.id, title: p.title, pi: p.pi, co_investigators: p.co_investigators, pillar: p.pillar, study_type: p.study_type, department: p.department, disease_focus: p.disease_focus, status: p.status, progress: p.progress, irb_approved: p.irb_approved, irb_protocol_number: p.irb_protocol_number, admin_approved: p.admin_approved, created_at: p.created_at }));
+    SL.download(`projects_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv(rows, Object.keys(rows[0] || { id: 1 })), 'text/csv');
+  };
+
+  /* =====================================================================
+     NEW PROJECT WIZARD
+     ===================================================================== */
+  const BUDGET_PRESETS = { consult_10: [10, 150], consult_20: [20, 150], consult_40: [40, 150], consult_custom: [0, 150], redcap: [1, 0], spss: [1, 1200], stata: [1, 1800], sas: [1, 8800], matlab: [1, 2150], r_free: [1, 0], python_free: [1, 0], software_other: [1, 0], crc_part: [12, 2500], crc_full: [12, 5000], ra_part: [12, 2000], personnel_other: [0, 0] };
+  const BUDGET_ROWS = [
+    { cat: 'Statistical support', opts: { consult_10: 'Consultation (10 hrs)', consult_20: 'Consultation (20 hrs)', consult_40: 'Full analysis (40 hrs)', consult_custom: 'Custom hours' }, qty: 0, unit: 150 },
+    { cat: 'Software', opts: { redcap: 'REDCap (free)', spss: 'SPSS license', stata: 'Stata license', sas: 'SAS license', matlab: 'MATLAB license', r_free: 'R / RStudio (free)', python_free: 'Python (free)', software_other: 'Other software' }, qty: 1, unit: 0 },
+    { cat: 'Hardware / equipment', qty: 0, unit: 0 },
+    { cat: 'Personnel / CRC', opts: { crc_part: 'CRC part-time (10 hrs/wk)', crc_full: 'CRC full-time', ra_part: 'Research assistant part-time', personnel_other: 'Other' }, qty: 0, unit: 0, unitNote: 'months' },
+    { cat: 'Other costs', qty: 0, unit: 0 },
+  ];
+  const txt = (name, label, ph, req, rows) => `<div class="field"><label>${label}${req ? ' *' : ''}</label><textarea class="input" name="${name}" rows="${rows || 3}" placeholder="${h(ph || '')}" style="min-height:${(rows || 3) * 26 + 20}px"></textarea></div>`;
+  function budgetRow(r, i) {
+    const opts = r.opts ? `<select class="input" data-preset><option value="">Select…</option>${Object.entries(r.opts).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>` : `<input type="text" name="item" placeholder="Describe item…">`;
+    return `<tr><td>${r.cat ? h(r.cat) : '<input type="text" name="cat" placeholder="Category…">'}</td><td>${opts}</td><td><input type="text" name="detail" placeholder="Notes / link…"></td><td><input type="number" name="qty" min="0" value="${r.qty}" style="width:70px">${r.unitNote ? `<div class="xs muted">${r.unitNote}</div>` : ''}</td><td><input type="number" name="unit" min="0" value="${r.unit}" style="width:90px"></td><td class="tot">$0</td></tr>`;
+  }
+  function openWizard() {
+    const facultyOpts = profiles.filter((p) => ['Faculty', 'Admin'].includes(p.role) && p.name).map((p) => `<option value="${h(p.name)}" ${p.id === me.id ? 'selected' : ''}>${h(p.name)}${p.credential ? ', ' + h(p.credential) : ''}</option>`).join('');
+    SL.modal(`<div class="modal-head"><h3>New research project</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
+    <form id="wiz"><div class="modal-body">
+      <div class="wsteps">${['Details', 'Protocol', 'IRB / Consent', 'Budget', 'Review'].map((s, i) => `<div data-step="${i + 1}" class="${i === 0 ? 'on' : ''}">${i + 1}. ${s}</div>`).join('')}</div>
+      <!-- 1 Details -->
+      <div class="wpanel on" data-panel="1">
+        <div class="field"><label>Project title *</label><input class="input" name="title" required placeholder="e.g. Neural biomarkers in early Alzheimer's disease"></div>
+        <div class="form-row">
+          <div class="field"><label>Study type *</label><select class="input" name="study_type" required><option value="">Select…</option>${STUDY_TYPES.map((s) => `<option>${s}</option>`).join('')}</select></div>
+          <div class="field"><label>Research pillar *</label><select class="input" name="pillar" required><option value="">Select…</option><option>Translational</option><option>Clinical</option><option>Computational</option></select></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Department *</label><select class="input" name="department" required><option value="">Select…</option><option>Neurology</option><option>Neurosurgery</option><option>Both</option></select></div>
+          <div class="field"><label>Principal investigator *</label><select class="input" name="pi" required><option value="">Select PI…</option>${facultyOpts}<option value="__other">Other (type below)</option></select><input class="input hidden mt-1" name="pi_other" placeholder="PI name"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Disease focus *</label><input class="input" name="disease_focus" required placeholder="e.g. Epilepsy, Stroke, TBI, Glioma"></div>
+          <div class="field"><label>Co-investigators</label><input class="input" name="co_investigators" placeholder="Names separated by commas"></div>
+        </div>
+        ${txt('abstract', 'Brief abstract', 'Short description of the research question and approach', true, 4)}
+        <div class="form-row">
+          <div class="field"><label>Existing umbrella IRB?</label><select class="input" name="umbrella"><option value="no">No</option><option value="yes">Yes — link to existing protocol</option></select></div>
+          <div class="field hidden" id="umbrellaField"><label>Umbrella IRB protocol #</label><input class="input" name="umbrella_irb" placeholder="e.g. IRB-2025-1234"></div>
+        </div>
+      </div>
+      <!-- 2 Protocol -->
+      <div class="wpanel" data-panel="2">
+        <label class="check mb-2"><input type="checkbox" name="protocol_na"> Not applicable (e.g. systematic review, meta-analysis, QI)</label>
+        <div data-na-group="protocol_na">
+          ${txt('background', '1. Background & significance', 'Scientific background, knowledge gaps, clinical significance', true, 4)}
+          ${txt('objectives', '2. Objectives / specific aims', 'Primary and secondary objectives', true, 3)}
+          ${txt('design', '3. Study design & methods', 'Design, procedures, interventions, data sources', true, 4)}
+          ${txt('population', '4. Study population & sample size', 'Setting, recruitment, target N and justification', false, 2)}
+          <div class="form-row">${txt('inclusion', 'Inclusion criteria', 'One per line', false, 3)}${txt('exclusion', 'Exclusion criteria', 'One per line', false, 3)}</div>
+          ${txt('outcomes', '5. Outcome measures', 'Primary and secondary outcomes', false, 2)}
+          ${txt('statPlan', '6. Statistical analysis plan', 'Planned analyses, software', false, 2)}
+          ${txt('dataCollection', '7. Data collection & management', 'REDCap, chart review, registry…', false, 2)}
+          ${txt('timeline', '8. Timeline', 'Milestones and expected completion', false, 2)}
+        </div>
+      </div>
+      <!-- 3 IRB -->
+      <div class="wpanel" data-panel="3">
+        <label class="check mb-2"><input type="checkbox" name="irb_na"> Not applicable (no IRB required — de-identified data, QI project)</label>
+        <div data-na-group="irb_na">
+          <div class="alert alert-info">The IRB protocol number is entered by the IRB reviewer once a decision is recorded. Admin review happens first.</div>
+          <div class="form-row">
+            <div class="field"><label>IRB submission type</label><select class="input" name="irbType"><option>New protocol — full board</option><option>New protocol — expedited</option><option>Exempt determination</option><option>Amendment to existing protocol</option></select></div>
+            <div class="field"><label>Informed consent</label><select class="input" name="consent"><option value="written">Written consent required</option><option value="verbal">Verbal consent</option><option value="waiver">Waiver of consent requested</option><option value="na">Not applicable</option></select></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label>HIPAA authorization</label><select class="input" name="hipaa"><option value="authorization">Authorization obtained</option><option value="waiver">Waiver of authorization requested</option><option value="na">Not applicable (no PHI)</option></select></div>
+            <div class="field"><label>Personnel on the protocol</label><textarea class="input" name="personnel" rows="3" style="min-height:80px" placeholder="One person per line (name or email)"></textarea></div>
+          </div>
+          ${txt('consentPurpose', 'Consent — purpose of study', 'You are being asked to participate in a research study. The purpose is…', false, 2)}
+          ${txt('consentProc', 'Consent — procedures', 'If you agree to participate, you will be asked to…', false, 2)}
+          ${txt('consentRisks', 'Consent — risks & benefits', '', false, 2)}
+          ${txt('consentConfid', 'Consent — confidentiality', '', false, 2)}
+        </div>
+      </div>
+      <!-- 4 Budget -->
+      <div class="wpanel" data-panel="4">
+        <label class="check mb-2"><input type="checkbox" name="budget_na"> Not applicable (no budget needed)</label>
+        <div data-na-group="budget_na">
+          <div class="table-wrap"><table class="table budget"><thead><tr><th>Category</th><th>Item</th><th>Details</th><th>Qty</th><th>Unit cost ($)</th><th class="num">Total</th></tr></thead><tbody id="budgetBody">${BUDGET_ROWS.map(budgetRow).join('')}</tbody><tfoot><tr><td colspan="5" class="tot">Total estimated budget</td><td class="tot" id="budgetTotal" style="color:var(--teal-600);font-size:1.05rem">$0</td></tr></tfoot></table></div>
+          <button type="button" class="btn btn-outline btn-sm mt-2" id="addBudgetRow">${I.plus} Add row</button>
+        </div>
+      </div>
+      <!-- 5 Review -->
+      <div class="wpanel" data-panel="5">
+        <div class="review card" style="background:var(--surface-2);box-shadow:none" id="reviewBox"></div>
+        ${txt('notes', 'Notes / comments', 'Anything reviewers should know', false, 3)}
+        <div class="alert alert-ok mb-0">The project is created as <strong>Pre-submission</strong> and administrators are notified for review. It becomes <strong>Active</strong> once the IRB decision is recorded (or immediately after admin approval when no IRB is required).</div>
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:space-between">
+      <button type="button" class="btn btn-outline" id="wPrev">Back</button>
+      <div class="flex"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="button" class="btn btn-primary" id="wNext">Next</button><button type="submit" class="btn btn-accent hidden" id="wSubmit">Submit project</button></div>
+    </div></form>`, { size: 'lg', dismissible: false });
+
+    const form = SL.qs('#wiz'); let step = 1;
+    const v = (n) => (form.elements[n] ? String(form.elements[n].value || '').trim() : '');
+    form.elements.pi.onchange = () => form.elements.pi_other.classList.toggle('hidden', form.elements.pi.value !== '__other');
+    form.elements.umbrella.onchange = () => SL.qs('#umbrellaField').classList.toggle('hidden', form.elements.umbrella.value !== 'yes');
+    SL.qsa('[data-na-group]', form).forEach((g) => { const cb = form.elements[g.dataset.naGroup]; cb.onchange = () => { g.style.display = cb.checked ? 'none' : ''; }; });
+    // budget
+    const body = SL.qs('#budgetBody');
+    const recalc = () => { let t = 0; SL.qsa('tr', body).forEach((tr) => { const q = +tr.querySelector('[name=qty]').value || 0, u = +tr.querySelector('[name=unit]').value || 0; tr.querySelector('.tot').textContent = '$' + (q * u).toLocaleString(); t += q * u; }); SL.qs('#budgetTotal').textContent = '$' + t.toLocaleString(); return t; };
+    body.addEventListener('input', recalc);
+    body.addEventListener('change', (e) => { if (e.target.matches('[data-preset]')) { const p = BUDGET_PRESETS[e.target.value]; if (p) { const tr = e.target.closest('tr'); tr.querySelector('[name=qty]').value = p[0]; tr.querySelector('[name=unit]').value = p[1]; recalc(); } } });
+    SL.qs('#addBudgetRow').onclick = () => { body.insertAdjacentHTML('beforeend', budgetRow({ qty: 1, unit: 0 })); };
+    const budgetRows = () => SL.qsa('tr', body).map((tr) => { const sel = tr.querySelector('[data-preset]'); const catIn = tr.querySelector('[name=cat]'); return { category: catIn ? catIn.value.trim() : tr.cells[0].textContent.trim(), item: sel ? (sel.selectedOptions[0] && sel.value ? sel.selectedOptions[0].textContent : '') : (tr.querySelector('[name=item]') || {}).value || '', detail: tr.querySelector('[name=detail]').value.trim(), qty: +tr.querySelector('[name=qty]').value || 0, unit: +tr.querySelector('[name=unit]').value || 0 }; }).map((r) => Object.assign(r, { total: r.qty * r.unit })).filter((r) => r.total > 0 || r.item || r.detail);
+
+    const piName = () => v('pi') === '__other' ? v('pi_other') : v('pi');
+    function validate(s) {
+      const req = (names, msg) => { for (const n of names) { if (!v(n)) { form.elements[n].focus(); SL.toast(msg || 'Please complete the required fields', 'err'); return false; } } return true; };
+      if (s === 1) { if (!req(['title', 'study_type', 'pillar', 'department', 'disease_focus', 'abstract'])) return false; if (!piName()) { SL.toast('Select a principal investigator', 'err'); return false; } }
+      if (s === 2 && !form.elements.protocol_na.checked && !req(['background', 'objectives', 'design'], 'Background, objectives and design are required unless protocol is N/A')) return false;
+      return true;
+    }
+    function go(n) {
+      step = n;
+      SL.qsa('.wpanel', form).forEach((p) => p.classList.toggle('on', +p.dataset.panel === n));
+      SL.qsa('.wsteps div', form).forEach((d) => { d.classList.toggle('on', +d.dataset.step === n); d.classList.toggle('done', +d.dataset.step < n); });
+      SL.qs('#wPrev').style.visibility = n > 1 ? '' : 'hidden';
+      SL.qs('#wNext').classList.toggle('hidden', n === 5); SL.qs('#wSubmit').classList.toggle('hidden', n !== 5);
+      if (n === 5) {
+        const b = budgetRows(); const total = recalc();
+        SL.qs('#reviewBox').innerHTML = `<dl>
+          <dt>Title</dt><dd><strong>${h(v('title'))}</strong></dd><dt>Type / pillar</dt><dd>${h(v('study_type'))} · ${h(v('pillar'))} · ${h(v('department'))}</dd>
+          <dt>PI</dt><dd>${h(piName())}${v('co_investigators') ? ' · with ' + h(v('co_investigators')) : ''}</dd><dt>Disease focus</dt><dd>${h(v('disease_focus'))}</dd>
+          <dt>Protocol</dt><dd>${form.elements.protocol_na.checked ? 'Not applicable' : `${['background', 'objectives', 'design', 'population', 'inclusion', 'exclusion', 'outcomes', 'statPlan', 'dataCollection', 'timeline'].filter((k) => v(k)).length} of 10 sections completed`}</dd>
+          <dt>IRB</dt><dd>${form.elements.irb_na.checked ? 'Not required' : `${h(v('irbType'))} · consent: ${h(v('consent'))} · HIPAA: ${h(v('hipaa'))}${v('umbrella') === 'yes' && v('umbrella_irb') ? ' · umbrella ' + h(v('umbrella_irb')) : ''}`}</dd>
+          <dt>Budget</dt><dd>${form.elements.budget_na.checked ? 'Not applicable' : `${b.length} line item${b.length === 1 ? '' : 's'} · $${total.toLocaleString()}`}</dd></dl>`;
+      }
+      SL.qs('#slModal .modal').scrollIntoView({ block: 'start' });
+    }
+    SL.qs('#wPrev').onclick = () => go(Math.max(1, step - 1));
+    SL.qs('#wNext').onclick = () => { if (validate(step)) go(step + 1); };
+    go(1);
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!validate(1) || !validate(2)) return;
+      const btn = SL.qs('#wSubmit'); btn.disabled = true; btn.textContent = 'Submitting…';
+      const lines = (s) => s.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      const protocol = { na: form.elements.protocol_na.checked };
+      ['background', 'objectives', 'design', 'population', 'inclusion', 'exclusion', 'outcomes', 'statPlan', 'dataCollection', 'timeline'].forEach((k) => { protocol[k] = v(k); });
+      const irb_consent = { na: form.elements.irb_na.checked, irbType: v('irbType'), consent: v('consent'), hipaa: v('hipaa'), personnel: lines(v('personnel')), consentPurpose: v('consentPurpose'), consentProc: v('consentProc'), consentRisks: v('consentRisks'), consentConfid: v('consentConfid') };
+      const rows = budgetRows();
+      const budget = { na: form.elements.budget_na.checked, rows, total: rows.reduce((a, r) => a + r.total, 0) };
+      const row = {
+        title: v('title'), study_type: v('study_type'), pillar: v('pillar'), department: v('department'), pi: piName(), co_investigators: v('co_investigators'), disease_focus: v('disease_focus'), abstract: v('abstract'),
+        umbrella_irb: v('umbrella') === 'yes' ? v('umbrella_irb') : '', status: 'Pre-submission', phase: 'Protocol Preparation', progress: 0, irb_approved: false, irb_protocol_number: '', irb_personnel: irb_consent.personnel,
+        created_by: me.id, admin_approved: false, protocol, irb_consent, budget, files: [], manuscript: {}, notes: v('notes'),
+      };
+      const { data, error } = await SL.sb.from('projects').insert(row).select().single();
+      if (error) { btn.disabled = false; btn.textContent = 'Submit project'; return SL.toast('Could not create project: ' + error.message, 'err'); }
+      SL.audit('created', 'project', data.id, { title: data.title });
+      await notifyAll(adminEmails(), 'new', `New project "${data.title}" submitted by ${me.name} — review and approve.`, data, `[Research Hub] New project: ${data.title}`);
+      SL.closeModal(); SL.toast('Project submitted for admin review', 'ok');
+      await load(); openDetail(data.id);
+    };
+  }
+  SL.qs('#newBtn').onclick = openWizard;
+
+  /* =====================================================================
+     PROJECT DETAIL
+     ===================================================================== */
+  async function fetchProject(id) {
+    const { data, error } = await SL.sb.from('projects').select('*, project_members(*), project_publications(*)').eq('id', id).maybeSingle();
+    if (error || !data) { SL.toast('Project not found', 'err'); return null; }
+    return data;
+  }
+  const kv = (obj, labels, skip) => { const rows = Object.entries(obj || {}).filter(([k, val]) => !(skip || []).includes(k) && val != null && val !== '' && (Array.isArray(val) ? val.length > 0 : typeof val !== 'object')); return rows.length ? `<dl class="kv">${rows.map(([k, val]) => `<dt>${h(labels[k] || k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()))}</dt><dd>${h(Array.isArray(val) ? val.join('\n') : typeof val === 'boolean' ? (val ? 'Yes' : 'No') : val)}</dd>`).join('')}</dl>` : '<div class="muted small">Nothing recorded.</div>'; };
+
+  async function openDetail(id, tab) {
+    const p = await fetchProject(id); if (!p) return;
+    if (!canAccess(p)) return SL.toast('Access restricted: you must be listed on the IRB protocol to view this project.', 'err');
+    history.replaceState(null, '', `?id=${id}`);
+    const edit = canEdit(p), irbRole = canIRB();
+    const tabs = [['overview', 'Overview'], ['protocol', 'Protocol'], ['irb', 'IRB'], ['team', 'Team'], ['files', 'Files'], ['manuscript', 'Manuscript'], ['pubs', 'Publications'], ['status', 'Status']];
+    SL.modal(`<div class="modal-head" style="align-items:flex-start"><div><div class="tags mb-1">${statusTag(p.status)}<span class="tag tag-teal">${h(p.pillar || 'Unassigned')}</span>${p.admin_approved ? '<span class="tag tag-ok">Admin approved</span>' : '<span class="tag tag-warn">Awaiting admin review</span>'}${p.irb_approved ? `<span class="tag tag-ok">IRB ${h(p.irb_protocol_number || 'approved')}</span>` : ''}</div><h3 style="font-size:1.25rem">${h(p.title || 'Untitled')}</h3><div class="small muted">${h(p.pi || 'No PI')}${p.department ? ' · ' + h(p.department) : ''} · created ${SL.fmtDate(p.created_at)}</div></div><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
+      <div class="modal-body" style="padding-top:12px"><div class="tabs" id="dtabs">${tabs.map(([k, l]) => `<button data-t="${k}" class="${(tab || 'overview') === k ? 'active' : ''}">${l}</button>`).join('')}</div><div class="detail-body" id="dbody"></div></div>
+      <div class="modal-foot"><a class="btn btn-ghost btn-sm" href="?id=${id}" onclick="navigator.clipboard&&navigator.clipboard.writeText(location.origin+'/hub/projects.html?id=${id}');SL.toast('Link copied','ok');return false">Copy link</a>${edit ? `<button class="btn btn-outline btn-sm" id="delBtn" style="color:var(--danger)">Delete</button>` : ''}<button class="btn btn-primary btn-sm" data-close>Close</button></div>`, { size: 'xl' });
+    SL.qs('#slModal').onclick = (e) => { if (e.target === SL.qs('#slModal')) { SL.closeModal(); history.replaceState(null, '', location.pathname); } };
+    SL.qsa('#dtabs button').forEach((b) => b.onclick = () => { SL.qsa('#dtabs button').forEach((x) => x.classList.remove('active')); b.classList.add('active'); showTab(b.dataset.t); });
+    if (edit) SL.qs('#delBtn').onclick = async () => {
+      if (!await SL.confirm(`Delete "${p.title}"? This removes members, publication links and files metadata.`, 'Delete project')) return;
+      await SL.sb.from('project_members').delete().eq('project_id', id); await SL.sb.from('project_publications').delete().eq('project_id', id);
+      const { error } = await SL.sb.from('projects').delete().eq('id', id);
+      if (error) return SL.toast(error.message, 'err');
+      SL.audit('deleted', 'project', id, { title: p.title }); SL.closeModal(); history.replaceState(null, '', location.pathname); SL.toast('Project deleted', 'ok'); load();
+    };
+    const body = SL.qs('#dbody');
+    const reopen = (t) => openDetail(id, t);
+
+    function showTab(t) {
+      if (t === 'overview') body.innerHTML = `
+        ${p.abstract ? `<div class="sec"><h4>Abstract</h4><p style="white-space:pre-line">${h(p.abstract)}</p></div>` : ''}
+        <div class="sec"><h4>Details</h4><dl class="kv"><dt>Study type</dt><dd>${h(p.study_type || '—')}</dd><dt>Disease focus</dt><dd>${h(p.disease_focus || '—')}</dd><dt>Co-investigators</dt><dd>${h(p.co_investigators || '—')}</dd><dt>Phase</dt><dd>${h(p.phase || '—')}</dd><dt>Progress</dt><dd><div class="progress" style="max-width:240px;margin-top:8px"><span style="width:${p.progress || 0}%"></span></div>${p.progress || 0}%</dd>${p.umbrella_irb ? `<dt>Umbrella IRB</dt><dd>${h(p.umbrella_irb)}</dd>` : ''}<dt>Budget</dt><dd>${p.budget && p.budget.na ? 'Not applicable' : p.budget && p.budget.rows ? `$${(+p.budget.total || 0).toLocaleString()} (${p.budget.rows.length} items)` : h((p.budget && p.budget.totalEstimate) || '—')}</dd>${p.notes ? `<dt>Notes</dt><dd>${h(p.notes)}</dd>` : ''}</dl></div>
+        ${p.budget && p.budget.rows && p.budget.rows.length ? `<div class="sec"><h4>Budget estimate</h4><div class="table-wrap"><table class="table"><thead><tr><th>Category</th><th>Item</th><th>Details</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Total</th></tr></thead><tbody>${p.budget.rows.map((r) => `<tr><td>${h(r.category)}</td><td>${h(r.item)}</td><td>${h(r.detail)}</td><td class="num">${r.qty}</td><td class="num">$${(+r.unit).toLocaleString()}</td><td class="num">$${(+r.total).toLocaleString()}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
+      else if (t === 'protocol') body.innerHTML = `<div class="sec"><h4>Research protocol</h4>${p.protocol && p.protocol.na ? '<div class="alert alert-info">Protocol marked not applicable for this study.</div>' : kv(p.protocol, PROTOCOL_LABELS, ['na'])}</div>${edit ? `<button class="btn btn-outline btn-sm" id="editProt">${I.edit} Edit protocol</button>` : ''}`;
+      else if (t === 'irb') renderIRB();
+      else if (t === 'team') renderTeam();
+      else if (t === 'files') renderFiles();
+      else if (t === 'manuscript') renderManuscript();
+      else if (t === 'pubs') renderPubs();
+      else if (t === 'status') renderStatus();
+      const ep = SL.qs('#editProt'); if (ep) ep.onclick = editProtocol;
+    }
+
+    // ---- protocol edit ----
+    function editProtocol() {
+      const pr = p.protocol || {};
+      body.innerHTML = `<form id="protForm"><label class="check mb-2"><input type="checkbox" name="na" ${pr.na ? 'checked' : ''}> Not applicable</label>${Object.keys(PROTOCOL_LABELS).filter((k) => !['aims', 'methods'].includes(k) || pr[k]).map((k) => `<div class="field"><label>${PROTOCOL_LABELS[k]}</label><textarea class="input" name="${k}" style="min-height:80px">${h(pr[k] || '')}</textarea></div>`).join('')}<div class="flex"><button class="btn btn-primary btn-sm" type="submit">Save protocol</button><button class="btn btn-outline btn-sm" type="button" id="cancelProt">Cancel</button></div></form>`;
+      SL.qs('#cancelProt').onclick = () => showTab('protocol');
+      SL.qs('#protForm').onsubmit = async (e) => { e.preventDefault(); const f = e.target; const o = { na: f.na.checked }; Object.keys(PROTOCOL_LABELS).forEach((k) => { if (f.elements[k]) o[k] = f.elements[k].value.trim(); }); const { error } = await SL.sb.from('projects').update({ protocol: o }).eq('id', id); if (error) return SL.toast(error.message, 'err'); SL.audit('updated', 'project', id, { field: 'protocol' }); SL.toast('Protocol saved', 'ok'); reopen('protocol'); };
+    }
+
+    // ---- IRB tab ----
+    function renderIRB() {
+      const irb = p.irb_consent || {};
+      let html = `<div class="sec"><h4>IRB & consent</h4>${irb.na ? '<div class="alert alert-info">No IRB required for this project (de-identified data / QI).</div>' : kv(irb, IRB_LABELS, ['na', 'personnel'])}
+        <dl class="kv" style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)"><dt>Admin approval</dt><dd>${p.admin_approved ? `Approved by ${h(p.approved_by || '—')} on ${SL.fmtDateTime(p.approved_at)}` : 'Pending'}</dd>
+        ${!irb.na ? `<dt>IRB decision</dt><dd>${p.irb_decision ? h(p.irb_decision) : 'No decision recorded'}</dd><dt>IRB protocol #</dt><dd>${h(p.irb_protocol_number || '—')}</dd><dt>Personnel on protocol</dt><dd>${(p.irb_personnel || []).length ? (p.irb_personnel || []).map(h).join('\n') : '—'}</dd>` : ''}</dl></div>`;
+      if (isAdmin && !p.admin_approved) html += `<div class="sec card" style="background:var(--warn-bg);border-color:rgba(251,191,36,.45)"><h4 style="border:0;margin-bottom:6px">Admin review</h4><p class="small muted">Approve to forward the project${irb.na ? ' (no IRB needed — it becomes Active)' : ' to IRB review'}, or request changes from the creator.</p><div class="field"><label>Note to creator (optional for approval, required for changes)</label><textarea class="input" id="adminNote" style="min-height:70px"></textarea></div><div class="flex wrap"><button class="btn btn-primary btn-sm" id="approveBtn">${I.check} Approve project</button><button class="btn btn-outline btn-sm" id="changesBtn">Request changes</button></div></div>`;
+      if (irbRole && !irb.na) html += `<div class="sec card" style="background:var(--surface-2)"><h4 style="border:0;margin-bottom:6px">IRB decision</h4>${!p.admin_approved ? '<div class="alert alert-warn">Admin approval has not been recorded yet.</div>' : ''}<div class="form-row"><div class="field"><label>Decision</label><select class="input" id="irbDecision"><option value="">Select…</option>${[['approved', 'Approved'], ['conditional', 'Approved with conditions'], ['deferred', 'Deferred — revisions required'], ['denied', 'Not approved']].map(([k, l]) => `<option value="${k}" ${p.irb_decision === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div><div class="field"><label>IRB protocol number</label><input class="input" id="irbNum" value="${h(p.irb_protocol_number || '')}" placeholder="e.g. IRB-2026-0042"></div></div><div class="field"><label>Approved personnel (one per line)</label><textarea class="input" id="irbPersonnel" style="min-height:80px">${h((p.irb_personnel || []).join('\n'))}</textarea></div><div class="field"><label>Reviewer note</label><textarea class="input" id="irbNote" style="min-height:60px"></textarea></div><button class="btn btn-primary btn-sm" id="irbSubmit">Record IRB decision</button></div>`;
+      body.innerHTML = html;
+      const ab = SL.qs('#approveBtn'); if (ab) ab.onclick = async () => {
+        const note = SL.qs('#adminNote').value.trim();
+        const upd = { admin_approved: true, approved_by: me.name, approved_at: new Date().toISOString() };
+        if (irb.na) { upd.status = 'Active'; upd.phase = 'Data Collection'; } else if (['Pre-submission', 'Admin Review'].includes(p.status)) { upd.status = 'IRB Review'; upd.phase = 'IRB Review'; }
+        const { error } = await SL.sb.from('projects').update(upd).eq('id', id); if (error) return SL.toast(error.message, 'err');
+        SL.audit('approved', 'project', id, { title: p.title, note });
+        await notifyAll(creatorEmails(p), 'approved', `Project "${p.title}" was approved by ${me.name}${irb.na ? ' and is now Active.' : ' and forwarded to the IRB.'}${note ? ' Note: ' + note : ''}`, p, `[Research Hub] Project approved: ${p.title}`);
+        if (!irb.na) await notifyAll(irbEmails(), 'irb_submitted', `Project "${p.title}" (PI ${p.pi}) is ready for IRB review.`, p, `[Research Hub] IRB review requested: ${p.title}`);
+        SL.toast('Project approved', 'ok'); load(); reopen('irb');
+      };
+      const cb = SL.qs('#changesBtn'); if (cb) cb.onclick = async () => {
+        const note = SL.qs('#adminNote').value.trim(); if (!note) return SL.toast('Add a note describing the requested changes', 'err');
+        const stamp = `[Changes requested by ${me.name} ${new Date().toISOString().slice(0, 10)}] ${note}`;
+        const { error } = await SL.sb.from('projects').update({ admin_approved: false, status: 'Pre-submission', notes: (p.notes ? p.notes + '\n\n' : '') + stamp }).eq('id', id); if (error) return SL.toast(error.message, 'err');
+        SL.audit('changes_requested', 'project', id, { note });
+        await notifyAll(creatorEmails(p), 'changes_requested', `Changes requested on "${p.title}" by ${me.name}: ${note}`, p, `[Research Hub] Changes requested: ${p.title}`);
+        SL.toast('Request sent to the project creator', 'ok'); load(); reopen('irb');
+      };
+      const ib = SL.qs('#irbSubmit'); if (ib) ib.onclick = async () => {
+        const decision = SL.qs('#irbDecision').value, num = SL.qs('#irbNum').value.trim(), note = SL.qs('#irbNote').value.trim();
+        if (!decision) return SL.toast('Select a decision', 'err');
+        if (['approved', 'conditional'].includes(decision) && !num) return SL.toast('Enter the IRB protocol number', 'err');
+        const upd = { irb_decision: decision, irb_protocol_number: num, irb_personnel: SL.qs('#irbPersonnel').value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean) };
+        if (['approved', 'conditional'].includes(decision)) { upd.irb_approved = true; upd.status = 'Active'; upd.phase = 'Data Collection'; }
+        else { upd.irb_approved = false; upd.status = decision === 'deferred' ? 'Pre-submission' : p.status; }
+        if (note) upd.notes = (p.notes ? p.notes + '\n\n' : '') + `[IRB ${decision} — ${me.name} ${new Date().toISOString().slice(0, 10)}] ${note}`;
+        const { error } = await SL.sb.from('projects').update(upd).eq('id', id); if (error) return SL.toast(error.message, 'err');
+        SL.audit('irb_decision', 'project', id, { decision, protocol: num });
+        await notifyAll(creatorEmails(p), 'irb_decision', `IRB decision for "${p.title}": ${decision}${num ? ' (' + num + ')' : ''}${note ? ' — ' + note : ''}`, p, `[Research Hub] IRB decision: ${p.title}`);
+        SL.toast('IRB decision recorded', 'ok'); load(); reopen('irb');
+      };
+    }
+
+    // ---- team ----
+    function renderTeam() {
+      const members = p.project_members || [];
+      body.innerHTML = `<div class="sec"><h4>Project team</h4><dl class="kv mb-2"><dt>Principal investigator</dt><dd>${h(p.pi || '—')}</dd><dt>Co-investigators</dt><dd>${h(p.co_investigators || '—')}</dd></dl>
+        ${members.length ? members.map((m) => `<div class="frow"><span class="avatar" style="width:32px;height:32px;font-size:.75rem">${h(SL.initials(m.member_name))}</span><div style="flex:1"><strong>${h(m.member_name)}</strong><div class="xs muted">${h(m.member_role || 'Team member')}</div></div>${edit ? `<button class="btn btn-ghost btn-sm btn-icon" data-rm="${m.id}" title="Remove">${I.trash}</button>` : ''}</div>`).join('') : '<div class="muted small">No additional team members.</div>'}</div>
+        ${edit ? `<form id="memForm" class="card" style="background:var(--surface-2);box-shadow:none"><h4 style="border:0;margin-bottom:10px">Add member</h4><div class="form-row"><div class="field" style="position:relative"><label>Name</label><input class="input" name="name" list="peopleList" autocomplete="off" required placeholder="Start typing a name"><datalist id="peopleList">${profiles.map((x) => `<option value="${h(x.name)}">`).join('')}</datalist></div><div class="field"><label>Role</label><select class="input" name="role">${['Co-Investigator', 'Resident', 'Medical Student', 'Research Fellow', 'CRC', 'Research Nurse', 'Statistician', 'Data Analyst', 'Other'].map((r) => `<option>${r}</option>`).join('')}</select></div></div><button class="btn btn-primary btn-sm">${I.plus} Add</button></form>` : ''}`;
+      SL.qsa('[data-rm]', body).forEach((b) => b.onclick = async () => { if (!await SL.confirm('Remove this team member?', 'Remove')) return; await SL.sb.from('project_members').delete().eq('id', b.dataset.rm); SL.audit('member_removed', 'project', id); reopen('team'); });
+      const f = SL.qs('#memForm'); if (f) f.onsubmit = async (e) => { e.preventDefault(); const name = f.name.value.trim(); if (!name) return; const { error } = await SL.sb.from('project_members').insert({ project_id: id, member_name: name, member_role: f.role.value }); if (error) return SL.toast(error.message, 'err'); SL.audit('member_added', 'project', id, { name }); SL.toast(`${name} added`, 'ok'); reopen('team'); };
+    }
+
+    // ---- files ----
+    function renderFiles() {
+      const files = filesArr(p).filter((f) => !f.irb_only || irbRole || p.created_by === me.id);
+      body.innerHTML = `<div class="sec"><h4>Project files</h4>${files.length ? files.map((f, i) => `<div class="frow">${I.doc}<div style="flex:1;min-width:0"><a href="${h(f.url)}" target="_blank" rel="noopener" style="font-weight:600">${h(f.name)}</a><div class="xs muted">${f.irb_only ? '<span class="tag tag-warn" style="font-size:.65rem">IRB only</span> ' : ''}${f.uploaded_by ? h(f.uploaded_by) + ' · ' : ''}${f.at ? SL.fmtDateTime(f.at) : ''}</div></div>${(edit || irbRole) && !f.legacy ? `<button class="btn btn-ghost btn-sm btn-icon" data-rmf="${i}" title="Remove">${I.trash}</button>` : ''}</div>`).join('') : '<div class="muted small">No files uploaded.</div>'}</div>
+        ${edit || irbRole ? `<form id="upForm" class="card" style="background:var(--surface-2);box-shadow:none"><h4 style="border:0;margin-bottom:10px">Upload file</h4><div class="form-row"><div class="field"><label>File (PDF, DOCX, XLSX…)</label><input class="input" type="file" name="file" required></div><div class="field"><label>Label</label><input class="input" name="label" placeholder="e.g. Protocol v2, Consent form, IRB approval letter"></div></div>${irbRole ? '<label class="check mb-2"><input type="checkbox" name="irb_only"> IRB-only (visible to IRB, admins and the creator)</label>' : ''}<button class="btn btn-primary btn-sm">${I.upload} Upload</button></form>` : ''}`;
+      const f = SL.qs('#upForm'); if (f) f.onsubmit = async (e) => {
+        e.preventDefault(); const file = f.file.files[0]; if (!file) return; if (file.size > 50 * 1024 * 1024) return SL.toast('File exceeds 50 MB', 'err');
+        const btn = f.querySelector('button'); btn.disabled = true; btn.textContent = 'Uploading…';
+        try {
+          const url = await SL.upload('research-files', `projects/${id}`, file);
+          const arr = filesArr(p).concat([{ name: f.label.value.trim() || file.name, url, uploaded_by: me.name, at: new Date().toISOString(), irb_only: !!(f.irb_only && f.irb_only.checked) }]);
+          const { error } = await SL.sb.from('projects').update({ files: arr }).eq('id', id); if (error) throw error;
+          SL.audit('file_uploaded', 'project', id, { name: file.name }); SL.toast('File uploaded', 'ok'); reopen('files');
+        } catch (err) { SL.toast('Upload failed: ' + (err.message || err), 'err'); btn.disabled = false; btn.innerHTML = I.upload + ' Upload'; }
+      };
+      SL.qsa('[data-rmf]', body).forEach((b) => b.onclick = async () => { if (!await SL.confirm('Remove this file from the project?', 'Remove')) return; const arr = filesArr(p); const target = files[+b.dataset.rmf]; const next = arr.filter((x) => x !== target); await SL.sb.from('projects').update({ files: next }).eq('id', id); reopen('files'); });
+    }
+
+    // ---- manuscript ----
+    const MS = [['title', 'Title'], ['authors', 'Authors'], ['abstract', 'Abstract'], ['intro', 'Introduction'], ['methods', 'Methods'], ['results', 'Results'], ['discussion', 'Discussion'], ['conclusion', 'Conclusion'], ['references', 'References']];
+    function renderManuscript() {
+      const ms = p.manuscript || {}; const may = canAccess(p) && (edit || isMine(p) || irbRole);
+      body.innerHTML = `<div class="flex between wrap mb-2"><div class="small muted">${ms.lastEditedBy ? `Last edited by ${h(ms.lastEditedBy)} · ${SL.fmtDateTime(ms.lastEditedAt)}` : 'No manuscript started yet.'}</div><div class="flex"><button class="btn btn-outline btn-sm" id="msExport">${I.download} Export .doc</button>${may ? `<button class="btn btn-primary btn-sm" id="msSave">Save manuscript</button>` : ''}</div></div>
+        <form id="msForm" class="ms-grid">${MS.map(([k, l]) => `<div class="field"><label>${l}</label>${k === 'title' || k === 'authors' ? `<input class="input" name="${k}" value="${h(ms[k] || (k === 'title' ? p.title : '') || '')}" ${may ? '' : 'readonly'}>` : `<textarea class="input" name="${k}" ${may ? '' : 'readonly'} ${k === 'abstract' || k === 'conclusion' ? 'style="min-height:90px"' : ''}>${h(ms[k] || '')}</textarea>`}</div>`).join('')}</form>`;
+      const collect = () => { const f = SL.qs('#msForm'); const o = {}; MS.forEach(([k]) => { o[k] = f.elements[k].value.trim(); }); return o; };
+      const sv = SL.qs('#msSave'); if (sv) sv.onclick = async () => { const o = Object.assign(collect(), { lastEditedBy: me.name, lastEditedAt: new Date().toISOString() }); const { error } = await SL.sb.from('projects').update({ manuscript: o }).eq('id', id); if (error) return SL.toast(error.message, 'err'); p.manuscript = o; SL.audit('updated', 'project', id, { field: 'manuscript' }); SL.toast('Manuscript saved', 'ok'); };
+      SL.qs('#msExport').onclick = () => {
+        const m = collect(); const para = (s) => h(s).replace(/\n/g, '<br>');
+        let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${h(m.title || 'Manuscript')}</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;line-height:2;margin:1in}h1{font-size:14pt;text-align:center}h2{font-size:12pt;margin-top:24pt}p{margin:0 0 12pt;text-indent:.5in}.c{text-align:center;text-indent:0}</style></head><body><h1>${h(m.title)}</h1>${m.authors ? `<p class="c">${h(m.authors)}</p>` : ''}<p class="c">Saint Luke's Neuroscience Research Department</p>`;
+        MS.slice(2).forEach(([k, l]) => { if (m[k]) html += `<h2>${l}</h2><p${k === 'references' ? ' style="text-indent:0"' : ''}>${para(m[k])}</p>`; });
+        html += '</body></html>';
+        SL.download(`${(m.title || 'Manuscript').replace(/[^\w]+/g, '_').slice(0, 60)}.doc`, html, 'application/msword'); SL.toast('Manuscript exported', 'ok');
+      };
+    }
+
+    // ---- publications ----
+    function renderPubs() {
+      const links = p.project_publications || [];
+      body.innerHTML = `<div class="sec"><h4>Linked publications</h4>${links.length ? links.map((l) => `<div class="frow">${I.book}<div style="flex:1;min-width:0"><strong>${h(l.title)}</strong>${l.publication_id ? `<div class="xs"><a href="/hub/publications.html?id=${h(l.publication_id)}">Open in publications</a></div>` : ''}</div>${edit ? `<button class="btn btn-ghost btn-sm btn-icon" data-unlink="${l.id || ''}" data-title="${h(l.title)}" title="Unlink">${I.trash}</button>` : ''}</div>`).join('') : '<div class="muted small">No publications linked yet.</div>'}</div>
+        ${edit ? `<div class="card" style="background:var(--surface-2);box-shadow:none"><h4 style="border:0;margin-bottom:10px">Link a publication</h4><div class="field" style="position:relative"><label>Search the publications database by title</label><input class="input" id="pubQ" placeholder="Type at least 3 characters…" autocomplete="off"><div id="pubDrop" class="drop-list hidden"></div></div><div class="xs muted">Not in the database? Add it under <a href="/hub/publications.html">Publications → Add manually</a>, then link it here.</div></div>` : ''}`;
+      SL.qsa('[data-unlink]', body).forEach((b) => b.onclick = async () => { let q = SL.sb.from('project_publications').delete().eq('project_id', id); q = b.dataset.unlink ? q.eq('id', b.dataset.unlink) : q.eq('title', b.dataset.title); await q; reopen('pubs'); });
+      const q = SL.qs('#pubQ'); if (q) q.addEventListener('input', SL.debounce(async () => {
+        const s = q.value.trim(); const d = SL.qs('#pubDrop'); if (s.length < 3) { d.classList.add('hidden'); return; }
+        const { data } = await SL.sb.from('publications').select('id,title,year,journal_abbrev').ilike('title', `%${s.replace(/[%_]/g, '')}%`).limit(8);
+        d.innerHTML = (data || []).length ? data.map((x) => `<button type="button" data-pid="${x.id}" data-t="${h(x.title)}"><strong>${h(x.title)}</strong><div class="xs muted">${h(x.journal_abbrev || '')} ${x.year || ''}</div></button>`).join('') : '<div class="xs muted" style="padding:10px 12px">No matches</div>';
+        d.classList.remove('hidden');
+        SL.qsa('[data-pid]', d).forEach((b) => b.onclick = async () => { if (links.some((l) => l.publication_id === b.dataset.pid)) return SL.toast('Already linked', 'warn'); const { error } = await SL.sb.from('project_publications').insert({ project_id: id, publication_id: b.dataset.pid, title: b.dataset.t }); if (error) return SL.toast(error.message, 'err'); SL.audit('publication_linked', 'project', id, { publication_id: b.dataset.pid }); reopen('pubs'); });
+      }, 250));
+    }
+
+    // ---- status ----
+    function renderStatus() {
+      const timeline = STATUSES.map((s, i) => { const idx = STATUSES.indexOf(p.status); return `<div class="flex" style="gap:10px;padding:6px 0"><span class="dot ${i < idx ? 'dot-ok' : i === idx ? 'dot-info' : ''}"></span><span style="${i === idx ? 'font-weight:600;color:var(--ink)' : i > idx ? 'color:var(--faint)' : ''}">${s}</span></div>`; }).join('');
+      body.innerHTML = `<div class="form-row"><div class="sec"><h4>Pipeline</h4>${timeline}</div><div class="sec"><h4>Update</h4>${edit ? `<form id="stForm"><div class="field"><label>Status</label><select class="input" name="status">${STATUSES.concat(EXTRA_STATUSES).map((s) => `<option ${p.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div class="field"><label>Phase</label><select class="input" name="phase">${['Protocol Preparation', 'IRB Review', 'Contracts', 'Funding', 'Data Collection', 'Analysis', 'Paper Write-Up', 'Submitted', 'Accepted'].map((s) => `<option ${p.phase === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div class="field"><label>Progress: <span id="pgVal">${p.progress || 0}</span>%</label><input type="range" name="progress" min="0" max="100" step="5" value="${p.progress || 0}" style="width:100%" oninput="document.getElementById('pgVal').textContent=this.value"></div><button class="btn btn-primary btn-sm">Save status</button></form>` : '<div class="muted small">Only the project creator or an administrator can change the status.</div>'}</div></div>`;
+      const f = SL.qs('#stForm'); if (f) f.onsubmit = async (e) => {
+        e.preventDefault(); const upd = { status: f.status.value, phase: f.phase.value, progress: +f.progress.value };
+        const { error } = await SL.sb.from('projects').update(upd).eq('id', id); if (error) return SL.toast(error.message, 'err');
+        SL.audit('status_changed', 'project', id, upd);
+        if (upd.status !== p.status) await notifyAll(creatorEmails(p).filter((em) => em !== me.email), 'status_change', `Project "${p.title}" status changed to ${upd.status} by ${me.name}.`, p);
+        SL.toast('Status updated', 'ok'); load(); reopen('status');
+      };
+    }
+    showTab(tab || 'overview');
+  }
+
+  // ---------- boot ----------
+  await load();
+  if (qp.get('id')) openDetail(+qp.get('id'));
+  else if (qp.get('new')) openWizard();
+})();
+</script>
+</body>
+</html>

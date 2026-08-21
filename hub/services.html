@@ -1,0 +1,243 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research Services | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Request biostatistics, IRB, REDCap, registry data, editing, grant and mentorship support from the Saint Luke's Neuroscience Research core.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+.tab-panel{display:none}.tab-panel.active{display:block}
+.svc-layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:20px;align-items:start}
+.svc-layout>.card:nth-child(2){grid-row:span 2}
+@media(max-width:1000px){.svc-layout{grid-template-columns:1fr}}
+.svc-layout>.card{min-width:0}
+.svc-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.svc-list li{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03);cursor:pointer;transition:.2s}
+.svc-list li:hover,.svc-list li.on{border-color:rgba(34,211,238,.45);background:rgba(34,211,238,.08)}
+.svc-list .ic{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,rgba(34,211,238,.18),rgba(139,92,246,.18));border:1px solid rgba(34,211,238,.3);color:var(--teal-600);display:grid;place-items:center;flex:none}
+.svc-list .ic svg{width:18px;height:18px}
+.svc-list b{display:block;font-size:.9rem;color:#fff}.svc-list span{font-size:.8rem;color:var(--muted)}
+.req{padding:14px 0;border-bottom:1px solid var(--line)}.req:last-child{border-bottom:0}
+.req .t{font-weight:600;color:var(--ink);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.req .d{font-size:.88rem;color:var(--ink-2);white-space:pre-wrap;margin:6px 0 4px;max-height:96px;overflow:hidden}
+.urg-Urgent{color:var(--danger);font-weight:600}.urg-High{color:var(--warn);font-weight:600}.urg-Normal{color:var(--muted)}.urg-Low{color:var(--faint)}
+.row-link{cursor:pointer;font-weight:600;color:var(--ink)}.row-link:hover{text-decoration:underline;color:var(--teal-600)}
+.totals{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:12px;margin-bottom:20px}
+.totals .stat{padding:16px 18px}
+.tproj{display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 14px;font-size:.9rem;margin:0}.kv dt{color:var(--muted)}.kv dd{margin:0;white-space:pre-wrap}
+@media(max-width:520px){.kv{grid-template-columns:1fr}}
+</style>
+</head><body>
+<main id="main">
+  <div class="breadcrumb"><a href="/hub/index.html">Dashboard</a> › Research services</div>
+  <div class="page-head">
+    <div><h1>Research services</h1><div class="sub">Request support from the research core — biostatistics, IRB, REDCap, registry data, editing, grants and mentorship</div></div>
+    <div class="flex wrap"><a class="btn btn-outline btn-sm" href="/services.html" target="_blank" rel="noopener">Service catalogue</a><button class="btn btn-outline btn-sm hidden" id="btnCsv">Export CSV</button></div>
+  </div>
+  <div class="tabs" id="tabs"><button data-tab="request" class="active">Request a service</button><button data-tab="triage" class="hidden" id="tabTriage">Triage queue <span class="tag tag-warn hidden" id="openCount" style="margin-left:4px"></span></button></div>
+
+  <section class="tab-panel active" id="tab-request">
+    <div class="svc-layout">
+      <div class="card">
+        <h3 style="font-size:1.1rem">New request</h3>
+        <form id="sForm">
+          <div class="field"><label>Service</label><select class="input" name="service" id="sService" required></select><div class="help" id="sHelp"></div></div>
+          <div class="form-row">
+            <div class="field"><label>Linked project <span class="muted" style="font-weight:400">(optional)</span></label><select class="input" name="project_id" id="sProject"><option value="">— None —</option></select></div>
+            <div class="field"><label>Urgency</label><select class="input" name="urgency"><option>Low</option><option selected>Normal</option><option>High</option><option>Urgent</option></select></div>
+          </div>
+          <div class="field"><label>Details</label><textarea class="input" name="details" rows="6" required placeholder="What do you need, by when, and any context (aims, data sources, deadlines, IRB number)…"></textarea></div>
+          <div class="flex between wrap"><span class="xs muted">Submitted as <strong id="sWho"></strong>. All administrators are notified.</span><button class="btn btn-primary" type="submit" id="sSubmit">Submit request</button></div>
+        </form>
+      </div>
+      <div class="card"><h3 style="font-size:1.05rem">What we offer</h3><ul class="svc-list" id="svcList"></ul></div>
+      <div class="card"><div class="section-head" style="margin-bottom:10px"><h3 style="margin:0;font-size:1.05rem">My requests</h3><span class="muted small" id="myCount"></span></div><div id="myList"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div></div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-triage">
+    <div class="totals" id="tTotals"></div>
+    <div class="filters">
+      <div class="search grow" style="min-width:220px"><input class="input" id="tq" placeholder="Search requester, details, assignee"></div>
+      <select class="input" id="tStatus"><option value="">All statuses</option><option value="open">Open (new, triaged, in progress)</option><option value="new">New</option><option value="triaged">Triaged</option><option value="in_progress">In progress</option><option value="done">Done</option><option value="declined">Declined</option></select>
+      <select class="input" id="tService"><option value="">All services</option></select>
+      <select class="input" id="tAssignee"><option value="">Any assignee</option><option value="me">Assigned to me</option><option value="none">Unassigned</option></select>
+    </div>
+    <div class="table-wrap"><table class="table"><thead><tr><th>Requested</th><th>Service</th><th>Requester</th><th>Project</th><th>Urgency</th><th>Status</th><th>Assigned to</th><th></th></tr></thead><tbody id="tBody"><tr><td colspan="8"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></td></tr></tbody></table></div>
+  </section>
+</main>
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'services' });
+  const sb = SL.sb, esc = SL.esc, qs = SL.qs, qsa = SL.qsa, I = SL.icons;
+  qsa('.search').forEach((el) => { if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', I.search); });
+  const skel = (n) => Array.from({ length: n || 3 }, () => '<div class="skeleton"></div>').join('');
+  const err = (e, fb) => SL.toast((e && e.message) || fb || 'Something went wrong', 'err');
+  const canTriage = SL.hasRole('Admin', 'Statistician', 'CRC', 'Research Fellow');
+  const SERVICES = [
+    ['Biostatistics & Study Design', 'chart', 'Power / sample size, analysis plans, statistical review, figures.'],
+    ['IRB & Regulatory Support', 'shield', 'Protocol and consent drafting, submissions, amendments, continuing review.'],
+    ['REDCap / Data Capture', 'db', 'Project setup, data dictionaries, surveys, exports.'],
+    ['Registry Data Request', 'brain', 'De-identified pulls from the BTR, TBI and FNR registries.'],
+    ['Manuscript & Editing', 'doc', 'Copy-editing, journal formatting, reference management.'],
+    ['Grant Development', 'award', 'Aims review, budgets, biosketches, submission logistics.'],
+    ['Student & Trainee Mentorship', 'graduation', 'Matching students and residents to projects and mentors.'],
+    ['Other', 'info', 'Anything else the research core can help with.'],
+  ];
+  const STATUSES = ['new', 'triaged', 'in_progress', 'done', 'declined'];
+  const ST_LABEL = { new: 'New', triaged: 'Triaged', in_progress: 'In progress', done: 'Done', declined: 'Declined' };
+  const ST_TAG = { new: 'tag-info', triaged: 'tag-teal', in_progress: 'tag-warn', done: 'tag-ok', declined: 'tag-danger' };
+  const OPEN = ['new', 'triaged', 'in_progress'];
+  const stTag = (s) => `<span class="tag ${ST_TAG[s] || 'tag-outline'}">${esc(ST_LABEL[s] || s || 'New')}</span>`;
+  const ago = (d) => { const s = (Date.now() - new Date(d)) / 1000; if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' min ago'; if (s < 86400) return Math.round(s / 3600) + ' h ago'; if (s < 7 * 86400) return Math.round(s / 86400) + ' d ago'; return SL.fmtDate(d); };
+
+  // ---------- tabs ----------
+  let tab = 'request';
+  function showTab(k) {
+    if (k === 'triage' && !canTriage) k = 'request';
+    tab = k; qsa('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === k)); qsa('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + k));
+    qs('#btnCsv').classList.toggle('hidden', k !== 'triage');
+    history.replaceState(null, '', k === 'triage' ? '#triage' : location.pathname);
+  }
+  qsa('#tabs button').forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+  if (canTriage) qs('#tabTriage').classList.remove('hidden');
+
+  // ---------- request form ----------
+  qs('#sWho').textContent = `${me.name || ''} (${me.email || (SL.user && SL.user.email) || ''})`;
+  const svcSel = qs('#sService');
+  svcSel.innerHTML = SERVICES.map(([s]) => `<option>${esc(s)}</option>`).join('');
+  qs('#svcList').innerHTML = SERVICES.map(([s, ic, d]) => `<li data-s="${esc(s)}"><span class="ic">${I[ic] || I.info}</span><div><b>${esc(s)}</b><span>${esc(d)}</span></div></li>`).join('');
+  function syncSvc() { const v = svcSel.value; qsa('#svcList li').forEach((li) => li.classList.toggle('on', li.dataset.s === v)); const d = SERVICES.find((x) => x[0] === v); qs('#sHelp').textContent = d ? d[2] : ''; }
+  qsa('#svcList li').forEach((li) => li.onclick = () => { svcSel.value = li.dataset.s; syncSvc(); qs('[name=details]').focus(); });
+  svcSel.onchange = syncSvc;
+  const pre = SL.param('service'); if (pre && SERVICES.some((x) => x[0] === pre)) svcSel.value = pre; syncSvc();
+
+  let projects = [], projById = {};
+  (async () => {
+    const { data } = await sb.from('projects').select('id,title,pi,status').order('created_at', { ascending: false });
+    projects = data || []; projects.forEach((p) => projById[p.id] = p);
+    qs('#sProject').innerHTML = '<option value="">— None —</option>' + projects.map((p) => `<option value="${p.id}">${esc(p.title)}${p.pi ? ' · ' + esc(p.pi) : ''}</option>`).join('');
+    const pp = SL.param('project'); if (pp && projById[pp]) qs('#sProject').value = pp;
+    if (all.length) renderTriage();
+  })();
+
+  qs('#sForm').onsubmit = async (e) => {
+    e.preventDefault(); const fd = new FormData(e.target); const btn = qs('#sSubmit');
+    const details = String(fd.get('details') || '').trim();
+    if (details.length < 10) return SL.toast('Please describe what you need (at least a sentence).', 'err');
+    btn.disabled = true;
+    const row = { service: fd.get('service'), requester_id: me.id, requester_name: me.name || '', requester_email: me.email || (SL.user && SL.user.email) || '', project_id: fd.get('project_id') ? Number(fd.get('project_id')) : null, urgency: fd.get('urgency'), details, status: 'new' };
+    const { data, error } = await sb.from('service_requests').insert(row).select().single();
+    btn.disabled = false;
+    if (error) return err(error, 'Could not submit the request');
+    const proj = row.project_id ? projById[row.project_id] : null;
+    SL.audit('created', 'service_request', data && data.id, { service: row.service, urgency: row.urgency, project_id: row.project_id });
+    await SL.adminsReady;
+    SL.notify(SL.ADMIN_EMAILS, 'service_request', `New service request (${row.service}${row.urgency !== 'Normal' ? ', ' + row.urgency : ''}) from ${row.requester_name}${proj ? ' — ' + proj.title : ''}`, proj ? { project_id: proj.id, project_title: proj.title } : {});
+    SL.toast('Request submitted — the research core has been notified', 'ok');
+    e.target.reset(); svcSel.value = SERVICES[0][0]; syncSvc();
+    loadMine(); if (canTriage) loadAll();
+  };
+
+  // ---------- my requests ----------
+  async function loadMine() {
+    const box = qs('#myList'); box.innerHTML = skel(2);
+    const { data, error } = await sb.from('service_requests').select('*').eq('requester_id', me.id).order('created_at', { ascending: false }).limit(50);
+    if (error) { box.innerHTML = `<div class="alert alert-danger mb-0">${esc(error.message)}</div>`; return; }
+    const rows = data || [];
+    qs('#myCount').textContent = rows.length ? `${rows.filter((r) => OPEN.includes(r.status)).length} open · ${rows.length} total` : '';
+    box.innerHTML = rows.length ? rows.map((r) => `<div class="req"><div class="t"><span>${esc(r.service)}</span>${stTag(r.status)}${r.urgency && r.urgency !== 'Normal' ? `<span class="xs urg-${esc(r.urgency)}">${esc(r.urgency)}</span>` : ''}</div>
+      <div class="xs muted">${ago(r.created_at)}${r.project_id && projById[r.project_id] ? ' · ' + esc(projById[r.project_id].title) : ''}${r.assigned_to ? ' · assigned to ' + esc(r.assigned_to) : ''}</div>
+      <div class="d">${esc(r.details || '')}</div>${r.notes ? `<div class="alert alert-info mb-0 mt-1" style="padding:8px 10px;font-size:.84rem"><strong>Response:</strong> ${esc(r.notes)}</div>` : ''}</div>`).join('')
+      : `<div class="empty" style="padding:24px">${I.info}<div>You have not submitted any requests yet.</div></div>`;
+  }
+
+  // ---------- triage ----------
+  let all = [], triagers = [];
+  async function loadAll() {
+    const body = qs('#tBody'); body.innerHTML = `<tr><td colspan="8">${skel(4)}</td></tr>`;
+    const [{ data, error }, { data: staff }] = await Promise.all([
+      sb.from('service_requests').select('*').order('created_at', { ascending: false }),
+      sb.from('profiles').select('id,name,email,role').in('role', ['Admin', 'Statistician', 'CRC', 'Research Fellow', 'Faculty']).order('name'),
+    ]);
+    if (error) { body.innerHTML = `<tr><td colspan="8"><div class="alert alert-danger mb-0">${esc(error.message)}</div></td></tr>`; return; }
+    all = data || []; triagers = staff || [];
+    const sel = qs('#tService'), cur = sel.value; sel.innerHTML = '<option value="">All services</option>' + [...new Set(SERVICES.map((s) => s[0]).concat(all.map((r) => r.service)).filter(Boolean))].map((s) => `<option>${esc(s)}</option>`).join(''); sel.value = cur;
+    const open = all.filter((r) => OPEN.includes(r.status)).length; const oc = qs('#openCount'); oc.textContent = open; oc.classList.toggle('hidden', !open);
+    renderTriage();
+  }
+  function filtered() {
+    const q = qs('#tq').value.trim().toLowerCase(), st = qs('#tStatus').value, sv = qs('#tService').value, as = qs('#tAssignee').value;
+    return all.filter((r) => (!q || [r.requester_name, r.requester_email, r.details, r.assigned_to, r.notes, r.service].some((v) => (v || '').toLowerCase().includes(q)))
+      && (!st || (st === 'open' ? OPEN.includes(r.status) : r.status === st)) && (!sv || r.service === sv)
+      && (!as || (as === 'none' ? !r.assigned_to : (r.assigned_to || '').toLowerCase() === (me.name || '').toLowerCase())));
+  }
+  function renderTriage() {
+    const rows = filtered();
+    const by = {}; STATUSES.forEach((s) => by[s] = 0); all.forEach((r) => by[r.status] = (by[r.status] || 0) + 1);
+    qs('#tTotals').innerHTML = [['Open', all.filter((r) => OPEN.includes(r.status)).length]].concat(STATUSES.map((s) => [ST_LABEL[s], by[s]])).map(([l, n]) => `<div class="card stat"><div class="n" style="font-size:1.7rem">${n}</div><div class="l">${l}</div></div>`).join('');
+    const body = qs('#tBody');
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="8"><div class="empty">${I.info}<div>${all.length ? 'No requests match these filters.' : 'No service requests yet.'}</div></div></td></tr>`; return; }
+    body.innerHTML = rows.map((r) => { const p = r.project_id ? projById[r.project_id] : null; return `<tr data-id="${r.id}">
+      <td class="small muted" style="white-space:nowrap">${ago(r.created_at)}</td>
+      <td><span class="row-link" data-open="${r.id}">${esc(r.service)}</span><div class="xs muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.details || '')}</div></td>
+      <td class="small" title="${esc(r.requester_email || '')}">${esc(r.requester_name || '')}</td>
+      <td class="small">${p ? `<a class="tproj" href="/hub/projects.html?id=${p.id}" title="${esc(p.title)}">${esc(p.title)}</a>` : '<span class="muted">—</span>'}</td>
+      <td class="small urg-${esc(r.urgency || 'Normal')}">${esc(r.urgency || 'Normal')}</td>
+      <td>${stTag(r.status)}</td>
+      <td class="small">${r.assigned_to ? esc(r.assigned_to) : '<span class="muted">Unassigned</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm btn-icon" data-open="${r.id}" title="Triage">${I.edit}</button></td></tr>`; }).join('');
+    qsa('[data-open]', body).forEach((b) => b.onclick = () => triageModal(all.find((r) => String(r.id) === b.dataset.open)));
+  }
+  ['#tq'].forEach((s) => qs(s).oninput = SL.debounce(renderTriage, 150));
+  ['#tStatus', '#tService', '#tAssignee'].forEach((s) => qs(s).onchange = renderTriage);
+  qs('#btnCsv').onclick = () => SL.download(`service_requests_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv(filtered().map((r) => Object.assign({ project: r.project_id && projById[r.project_id] ? projById[r.project_id].title : '' }, r)), ['id', 'created_at', 'service', 'requester_name', 'requester_email', 'project', 'urgency', 'status', 'assigned_to', 'details', 'notes']), 'text/csv');
+
+  function triageModal(r) {
+    if (!r) return;
+    const p = r.project_id ? projById[r.project_id] : null;
+    const names = [...new Set(triagers.map((t) => t.name).concat(r.assigned_to ? [r.assigned_to] : []).filter(Boolean))];
+    SL.modal(`<div class="modal-head"><h3>${esc(r.service)}</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
+    <form id="trForm"><div class="modal-body">
+      <dl class="kv mb-3"><dt>Requester</dt><dd>${esc(r.requester_name || '')} · <a href="mailto:${esc(r.requester_email || '')}">${esc(r.requester_email || '')}</a></dd><dt>Submitted</dt><dd>${SL.fmtDateTime(r.created_at)}</dd><dt>Urgency</dt><dd class="urg-${esc(r.urgency || 'Normal')}">${esc(r.urgency || 'Normal')}</dd>${p ? `<dt>Project</dt><dd><a href="/hub/projects.html?id=${p.id}">${esc(p.title)}</a></dd>` : ''}<dt>Details</dt><dd>${esc(r.details || '')}</dd></dl>
+      <div class="form-row">
+        <div class="field"><label>Status</label><select class="input" name="status">${STATUSES.map((s) => `<option value="${s}" ${r.status === s ? 'selected' : ''}>${ST_LABEL[s]}</option>`).join('')}</select></div>
+        <div class="field"><label>Assigned to</label><input class="input" name="assigned_to" list="trNames" value="${esc(r.assigned_to || '')}" placeholder="Name"><datalist id="trNames">${names.map((n) => `<option value="${esc(n)}">`).join('')}</datalist></div>
+      </div>
+      <div class="field"><label>Notes <span class="muted" style="font-weight:400">(visible to the requester)</span></label><textarea class="input" name="notes" rows="4" placeholder="What was done, next steps, or why it was declined">${esc(r.notes || '')}</textarea></div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline btn-sm" id="trMe">Assign to me</button><span class="grow"></span><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="trSave">Save</button></div></form>`);
+    qs('#trMe').onclick = () => { qs('#trForm [name=assigned_to]').value = me.name || ''; const st = qs('#trForm [name=status]'); if (st.value === 'new') st.value = 'triaged'; };
+    qs('#trForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const btn = qs('#trSave'); btn.disabled = true;
+      const upd = { status: fd.get('status'), assigned_to: String(fd.get('assigned_to') || '').trim() || null, notes: String(fd.get('notes') || '').trim() || null };
+      const changes = Object.keys(upd).filter((k) => (upd[k] || null) !== (r[k] || null));
+      if (!changes.length) { SL.closeModal(); return; }
+      const { error } = await sb.from('service_requests').update(upd).eq('id', r.id);
+      if (error) { btn.disabled = false; return err(error, 'Save failed'); }
+      SL.audit('triaged', 'service_request', r.id, { service: r.service, changes: changes.reduce((o, k) => (o[k] = { from: r[k] || null, to: upd[k] }, o), {}) });
+      if (changes.includes('status') && r.requester_email) {
+        SL.notify([r.requester_email], 'service_request_status', `Your ${r.service} request is now ${ST_LABEL[upd.status] || upd.status}${upd.assigned_to ? ' (assigned to ' + upd.assigned_to + ')' : ''}${upd.notes && changes.includes('notes') ? ': ' + upd.notes.slice(0, 160) : ''}`, p ? { project_id: p.id, project_title: p.title } : {});
+      } else if (changes.includes('assigned_to') && upd.assigned_to && r.requester_email) {
+        SL.notify([r.requester_email], 'service_request_status', `Your ${r.service} request has been assigned to ${upd.assigned_to}.`);
+      }
+      Object.assign(r, upd);
+      SL.toast('Request updated', 'ok'); SL.closeModal(); renderTriage(); loadMine();
+      const open = all.filter((x) => OPEN.includes(x.status)).length; const oc = qs('#openCount'); oc.textContent = open; oc.classList.toggle('hidden', !open);
+    };
+  }
+
+  loadMine();
+  if (canTriage) {
+    await loadAll();
+    if (location.hash === '#triage') showTab('triage');
+    const openId = SL.param('id'); if (openId) { const r = all.find((x) => String(x.id) === openId); if (r) { showTab('triage'); triageModal(r); } }
+  }
+})();
+</script>
+</body></html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Publications | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Peer-reviewed publications from Saint Luke's Neurology and Neurosurgery faculty, synced nightly from PubMed. Search by author, year, journal and topic.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .page-hero{border-bottom:1px solid var(--line);padding:56px 0 36px}
+  .overview{display:grid;grid-template-columns:repeat(4,1fr) 2fr;gap:16px;align-items:stretch}
+  @media (max-width:1000px){.overview{grid-template-columns:repeat(2,1fr)}.overview .chart-card{grid-column:1 / -1}}
+  .chart-card{padding:16px 20px 10px}
+  .chart-card .l{font-size:.8rem;color:var(--muted);font-weight:500;margin-bottom:6px;display:flex;justify-content:space-between}
+  .chart{display:flex;align-items:flex-end;gap:3px;height:64px}
+  .chart .bar{flex:1;min-width:4px;background:linear-gradient(180deg,rgba(34,211,238,.55),rgba(139,92,246,.35));border-radius:3px 3px 0 0;position:relative;transition:.15s;cursor:pointer;border:0;padding:0}
+  .chart .bar:hover,.chart .bar.active,.chart .bar:focus-visible{background:var(--teal);outline:none;box-shadow:0 0 10px rgba(34,211,238,.6)}
+  .chart .bar[aria-label]:hover::after{content:attr(aria-label);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:var(--surface-solid);color:#fff;border:1px solid var(--line-2);font-size:.7rem;padding:2px 6px;border-radius:4px;white-space:nowrap;pointer-events:none;z-index:2}
+  .chart-axis{display:flex;justify-content:space-between;font-size:.7rem;color:var(--faint);margin-top:4px}
+  .layout{display:grid;grid-template-columns:260px 1fr;gap:36px;align-items:start;padding:32px 24px}
+  @media (max-width:900px){.layout{grid-template-columns:1fr;gap:20px}}
+  .side{position:sticky;top:calc(var(--nav-h) + 16px)}
+  @media (max-width:900px){.side{position:static}}
+  .side .field{margin-bottom:14px}
+  .side .chips{margin-top:4px;max-height:150px;overflow:auto;padding:2px}
+  .chip.year{padding:4px 10px;font-size:.8rem}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+  .toolbar .count{font-size:.9rem;color:var(--muted)}
+  .toolbar .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .pub .tags{margin-top:8px}
+  .pub-title a{cursor:pointer}
+  .pub-title a:hover{color:var(--teal-600)}
+  .load-more{text-align:center;padding:24px 0}
+  .active-filters{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
+  .active-filters .tag{cursor:pointer}
+  .active-filters .tag::after{content:' ×';opacity:.6}
+  .abstract{font-size:.95rem;color:var(--ink-2);line-height:1.6}
+  .meta-grid{display:grid;grid-template-columns:110px 1fr;gap:6px 14px;font-size:.9rem;margin-top:18px}
+  .meta-grid dt{color:var(--muted);font-weight:500} .meta-grid dd{margin:0}
+  .citation{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:.88rem;line-height:1.5;margin-top:18px;color:var(--ink-2)}
+  .footnote{font-size:.82rem;color:var(--muted);margin-top:28px;padding-top:16px;border-top:1px solid var(--line)}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<main id="content">
+  <section class="page-hero">
+    <div class="container">
+      <div class="eyebrow">Scholarship</div>
+      <h1>Publications <span class="grad-text">library</span></h1>
+      <p class="lead" style="margin-bottom:24px">Peer-reviewed work by Saint Luke's neurology and neurosurgery faculty and trainees. Faculty authors are highlighted.</p>
+      <div class="overview" id="overview">
+        <div class="card stat"><div class="n" id="stTotal">—</div><div class="l">Publications</div></div>
+        <div class="card stat"><div class="n" id="stYear">—</div><div class="l">This year</div></div>
+        <div class="card stat"><div class="n" id="stFac">—</div><div class="l">Faculty with publications</div></div>
+        <div class="card stat"><div class="n" id="stJ">—</div><div class="l">Journals</div></div>
+        <div class="card chart-card"><div class="l"><span>Publications per year</span><span id="chartRange"></span></div><div class="chart" id="chart" role="img" aria-label="Bar chart of publications per year"></div><div class="chart-axis" id="chartAxis"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="container layout">
+    <aside class="side" aria-label="Filters">
+      <div class="field">
+        <label for="q">Search</label>
+        <div class="search"><span aria-hidden="true"></span><input id="q" class="input" type="search" placeholder="Title, author, journal, abstract…" autocomplete="off"></div>
+      </div>
+      <div class="field">
+        <label for="faculty">Faculty author</label>
+        <select id="faculty" class="input"><option value="">All faculty</option></select>
+      </div>
+      <div class="field">
+        <label for="ptype">Publication type</label>
+        <select id="ptype" class="input"><option value="">All types</option></select>
+      </div>
+      <div class="field">
+        <label for="sort">Sort</label>
+        <select id="sort" class="input"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="journal">Journal A–Z</option></select>
+      </div>
+      <div class="field">
+        <span class="field-label" style="display:block;font-size:.85rem;font-weight:600;color:var(--ink-2);margin-bottom:6px">Year</span>
+        <div class="chips" id="years" role="group" aria-label="Filter by year"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="clear" type="button">Clear filters</button>
+    </aside>
+
+    <section aria-labelledby="list-title">
+      <h2 id="list-title" class="sr-only">Publication list</h2>
+      <div class="toolbar">
+        <div class="count" id="count" aria-live="polite">Loading…</div>
+        <div class="actions">
+          <button class="btn btn-outline btn-sm" id="csv" type="button">Export CSV</button>
+          <button class="btn btn-outline btn-sm" id="ris" type="button">RIS export</button>
+        </div>
+      </div>
+      <div class="active-filters" id="activeFilters"></div>
+      <div id="list"><div class="skeleton" style="width:85%"></div><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:40%"></div><div class="skeleton" style="width:80%;margin-top:28px"></div><div class="skeleton" style="width:55%"></div></div>
+      <div class="load-more hidden" id="moreWrap"><button class="btn btn-outline" id="more" type="button">Load more</button></div>
+      <p class="footnote" id="footnote">Synced nightly from PubMed.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+SL.renderShell({ active: 'publications' });
+SL.qs('.search span').innerHTML = SL.icons.search;
+
+const PAGE = 25;
+const state = { q: SL.param('q') || '', faculty: SL.param('faculty') || '', type: SL.param('type') || '', years: new Set((SL.param('year') || '').split(',').filter(Boolean)), sort: 'newest', shown: PAGE };
+let ALL = [], PEOPLE = [], LINKS = [], LAST_NAMES = [], pubsByFaculty = {}, facultyByPub = {};
+const lastName = (n) => (n || '').replace(/,.*$/, '').trim().split(/\s+/).pop();
+const pubHay = (p) => (p._hay = p._hay || [p.title, p.author_string, p.journal, p.journal_abbrev, p.abstract, (p.keywords || []).join(' '), (p.mesh_terms || []).join(' '), p.pmid, p.doi].join(' ').toLowerCase());
+
+function filtered() {
+  const q = state.q.trim().toLowerCase();
+  let rows = ALL.filter((p) => {
+    if (state.faculty && !(facultyByPub[p.id] || []).includes(state.faculty)) return false;
+    if (state.type && p.pub_type !== state.type) return false;
+    if (state.years.size && !state.years.has(String(p.year))) return false;
+    if (q && !pubHay(p).includes(q)) return false;
+    return true;
+  });
+  const d = (p) => p.pub_date || (p.year ? `${p.year}-01-01` : '0000');
+  if (state.sort === 'newest') rows.sort((a, b) => d(b).localeCompare(d(a)));
+  else if (state.sort === 'oldest') rows.sort((a, b) => d(a).localeCompare(d(b)));
+  else rows.sort((a, b) => (a.journal || '').localeCompare(b.journal || '') || d(b).localeCompare(d(a)));
+  return rows;
+}
+
+function pubHtml(p) {
+  const links = [];
+  if (p.pmid) links.push(`<a href="https://pubmed.ncbi.nlm.nih.gov/${encodeURIComponent(p.pmid)}/" target="_blank" rel="noopener">PubMed</a>`);
+  if (p.doi) links.push(`<a href="https://doi.org/${encodeURIComponent(p.doi)}" target="_blank" rel="noopener">DOI</a>`);
+  if (p.pmcid) links.push(`<a href="https://www.ncbi.nlm.nih.gov/pmc/articles/${encodeURIComponent(p.pmcid)}/" target="_blank" rel="noopener">PMC</a>`);
+  if (p.pdf_url) links.push(`<a href="${SL.esc(p.pdf_url)}" target="_blank" rel="noopener">PDF</a>`);
+  const vol = p.volume ? `;${p.volume}${p.issue ? `(${p.issue})` : ''}` : '';
+  return `<article class="pub" data-id="${p.id}">
+    <h3 class="pub-title"><a href="#" data-open="${p.id}">${SL.esc(p.title)}</a></h3>
+    <div class="pub-authors">${p.authors && p.authors.length ? SL.highlightAuthors(p, LAST_NAMES) : SL.esc(p.author_string || '')}</div>
+    <div class="pub-meta"><em>${SL.esc(p.journal || p.journal_abbrev || '')}</em>${p.year ? `. ${p.year}` : ''}${vol}${p.pages ? `:${SL.esc(p.pages)}` : ''}</div>
+    <div class="tags">${p.pub_type ? `<span class="tag tag-outline">${SL.esc(p.pub_type)}</span>` : ''}${p.featured ? '<span class="tag tag-gold">Featured</span>' : ''}</div>
+    ${links.length ? `<div class="pub-links">${links.join('')}</div>` : ''}
+  </article>`;
+}
+
+function render(reset) {
+  if (reset) state.shown = PAGE;
+  const rows = filtered();
+  const list = SL.qs('#list');
+  list.innerHTML = rows.length ? rows.slice(0, state.shown).map(pubHtml).join('') : '<div class="empty">No publications match these filters.</div>';
+  SL.qs('#count').textContent = `${rows.length.toLocaleString()} publication${rows.length === 1 ? '' : 's'}${rows.length !== ALL.length ? ` of ${ALL.length.toLocaleString()}` : ''}`;
+  SL.qs('#moreWrap').classList.toggle('hidden', rows.length <= state.shown);
+  const af = [];
+  if (state.q.trim()) af.push(`<span class="tag" data-clear="q">“${SL.esc(state.q.trim())}”</span>`);
+  if (state.faculty) { const f = PEOPLE.find((x) => x.id === state.faculty); if (f) af.push(`<span class="tag tag-teal" data-clear="faculty">${SL.esc(f.name)}</span>`); }
+  if (state.type) af.push(`<span class="tag" data-clear="type">${SL.esc(state.type)}</span>`);
+  state.years.forEach((y) => af.push(`<span class="tag" data-clear="year" data-year="${y}">${y}</span>`));
+  SL.qs('#activeFilters').innerHTML = af.join('');
+  SL.qsa('.chip.year').forEach((c) => c.classList.toggle('active', state.years.has(c.dataset.year)));
+  SL.qsa('.chart .bar').forEach((b) => b.classList.toggle('active', state.years.has(b.dataset.year)));
+  syncUrl();
+}
+function syncUrl() {
+  const u = new URL(location.href); u.search = '';
+  if (state.q.trim()) u.searchParams.set('q', state.q.trim());
+  if (state.faculty) u.searchParams.set('faculty', state.faculty);
+  if (state.type) u.searchParams.set('type', state.type);
+  if (state.years.size) u.searchParams.set('year', [...state.years].join(','));
+  history.replaceState(null, '', u.pathname + (u.search || ''));
+}
+
+function openDetail(id) {
+  const p = ALL.find((x) => x.id === id); if (!p) return;
+  const authors = (p.authors && p.authors.length) ? SL.highlightAuthors(p, LAST_NAMES) : SL.esc(p.author_string || '');
+  const terms = [...(p.keywords || []), ...(p.mesh_terms || [])];
+  const linked = (facultyByPub[p.id] || []).map((fid) => PEOPLE.find((x) => x.id === fid)).filter(Boolean);
+  SL.modal(`
+    <div class="modal-head"><h3 style="font-size:1.1rem;line-height:1.3;padding-right:8px">${SL.esc(p.title)}</h3><button class="btn btn-ghost btn-icon" data-close aria-label="Close">${SL.icons.close}</button></div>
+    <div class="modal-body" style="max-height:65vh;overflow:auto">
+      <div class="pub-authors" style="font-size:.95rem">${authors}</div>
+      <div class="pub-meta" style="margin-top:4px"><em>${SL.esc(p.journal || '')}</em>${p.year ? `. ${p.year}` : ''}${p.volume ? `;${SL.esc(p.volume)}${p.issue ? `(${SL.esc(p.issue)})` : ''}` : ''}${p.pages ? `:${SL.esc(p.pages)}` : ''}${p.pub_date ? ` · ${SL.fmtDate(p.pub_date)}` : ''}</div>
+      <div class="tags" style="margin-top:10px">${p.pub_type ? `<span class="tag tag-outline">${SL.esc(p.pub_type)}</span>` : ''}${p.featured ? '<span class="tag tag-gold">Featured</span>' : ''}${p.source === 'pubmed' ? '<span class="tag tag-teal">PubMed</span>' : ''}</div>
+      ${p.abstract ? `<h4 style="margin:20px 0 6px">Abstract</h4><p class="abstract">${SL.esc(p.abstract)}</p>` : '<p class="muted small mt-3">No abstract available.</p>'}
+      <dl class="meta-grid">
+        ${linked.length ? `<dt>Faculty</dt><dd>${linked.map((f) => `<a href="/people.html?s=${encodeURIComponent(f.slug)}">${SL.esc(f.name)}</a>`).join(', ')}</dd>` : ''}
+        ${terms.length ? `<dt>Keywords / MeSH</dt><dd><div class="tags">${terms.slice(0, 24).map((t) => `<span class="tag tag-outline">${SL.esc(t)}</span>`).join('')}</div></dd>` : ''}
+        ${p.pmid ? `<dt>PMID</dt><dd><a href="https://pubmed.ncbi.nlm.nih.gov/${encodeURIComponent(p.pmid)}/" target="_blank" rel="noopener">${SL.esc(p.pmid)}</a></dd>` : ''}
+        ${p.doi ? `<dt>DOI</dt><dd><a href="https://doi.org/${encodeURIComponent(p.doi)}" target="_blank" rel="noopener">${SL.esc(p.doi)}</a></dd>` : ''}
+        ${p.pmcid ? `<dt>PMC</dt><dd><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/${encodeURIComponent(p.pmcid)}/" target="_blank" rel="noopener">${SL.esc(p.pmcid)}</a></dd>` : ''}
+      </dl>
+      <h4 style="margin:20px 0 0">Citation</h4>
+      <div class="citation" id="cite">${SL.esc(SL.pubCitation(p))}</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" id="copyCite" type="button">Copy citation</button>
+      <button class="btn btn-outline btn-sm" id="bib" type="button">BibTeX</button>
+      <button class="btn btn-primary btn-sm" data-close type="button">Close</button>
+    </div>`, { size: 'lg' });
+  SL.qs('#copyCite').onclick = async () => {
+    try { await navigator.clipboard.writeText(SL.pubCitation(p)); SL.toast('Citation copied', 'ok'); }
+    catch (e) { SL.toast('Could not access clipboard', 'err'); }
+  };
+  SL.qs('#bib').onclick = () => SL.download(`${(p.pmid || 'citation')}.bib`, SL.pubBibtex(p), 'application/x-bibtex');
+}
+
+function ris(rows) {
+  return rows.map((p) => {
+    const L = ['TY  - JOUR', `TI  - ${p.title || ''}`];
+    (p.authors && p.authors.length ? p.authors.map((a) => a.last ? `${a.last}, ${a.initials || ''}`.trim() : a.name) : (p.author_string || '').split(/,\s*/)).filter(Boolean).forEach((a) => L.push(`AU  - ${a}`));
+    if (p.journal) L.push(`JO  - ${p.journal}`); if (p.journal_abbrev) L.push(`JA  - ${p.journal_abbrev}`);
+    if (p.year) L.push(`PY  - ${p.year}`); if (p.pub_date) L.push(`DA  - ${p.pub_date.replace(/-/g, '/')}`);
+    if (p.volume) L.push(`VL  - ${p.volume}`); if (p.issue) L.push(`IS  - ${p.issue}`);
+    if (p.pages) { const [sp, ep] = String(p.pages).split('-'); L.push(`SP  - ${sp}`); if (ep) L.push(`EP  - ${ep}`); }
+    if (p.doi) L.push(`DO  - ${p.doi}`); if (p.pmid) L.push(`AN  - ${p.pmid}`);
+    if (p.url) L.push(`UR  - ${p.url}`); if (p.abstract) L.push(`AB  - ${p.abstract.replace(/\s+/g, ' ')}`);
+    (p.keywords || []).forEach((k) => L.push(`KW  - ${k}`));
+    L.push('ER  - '); return L.join('\r\n');
+  }).join('\r\n');
+}
+
+function drawChart(stats) {
+  const rows = (stats || []).filter((s) => s.year).sort((a, b) => a.year - b.year);
+  if (!rows.length) { SL.qs('.chart-card').classList.add('hidden'); return; }
+  // Fill gaps so the x-axis is continuous for the last 25 years (older years collapse into the first bar's tooltip if sparse).
+  const minY = Math.max(rows[0].year, rows[rows.length - 1].year - 24), maxY = rows[rows.length - 1].year;
+  const byYear = Object.fromEntries(rows.map((r) => [r.year, Number(r.n)]));
+  const older = rows.filter((r) => r.year < minY).reduce((s, r) => s + Number(r.n), 0);
+  const bars = []; for (let y = minY; y <= maxY; y++) bars.push({ y, n: byYear[y] || 0 });
+  const max = Math.max(...bars.map((b) => b.n), 1);
+  SL.qs('#chart').innerHTML = bars.map((b) => `<button class="bar" type="button" data-year="${b.y}" style="height:${Math.max(3, Math.round(b.n / max * 100))}%" aria-label="${b.y}: ${b.n}" title="${b.y}: ${b.n}"></button>`).join('');
+  SL.qs('#chartAxis').innerHTML = `<span>${minY}</span><span>${maxY}</span>`;
+  SL.qs('#chartRange').textContent = older ? `+${older} before ${minY}` : '';
+  SL.qsa('.chart .bar').forEach((b) => b.onclick = () => { toggleYear(b.dataset.year); });
+}
+function toggleYear(y) { if (state.years.has(y)) state.years.delete(y); else state.years.add(y); render(true); }
+
+async function load() {
+  const [pubs, people, links, stats] = await Promise.all([
+    SL.sb.from('publications').select('*').eq('visible', true).order('pub_date', { ascending: false, nullsFirst: false }).order('year', { ascending: false }),
+    SL.sb.from('public_people').select('id,name,slug,role'),
+    SL.sb.from('publication_authors').select('publication_id,profile_id'),
+    SL.sb.from('publication_stats').select('year,n'),
+  ]);
+  if (pubs.error) throw pubs.error;
+  ALL = pubs.data || []; PEOPLE = people.data || []; LINKS = links.data || [];
+  LAST_NAMES = PEOPLE.map((p) => lastName(p.name));
+  LINKS.forEach((l) => { (pubsByFaculty[l.profile_id] = pubsByFaculty[l.profile_id] || []).push(l.publication_id); (facultyByPub[l.publication_id] = facultyByPub[l.publication_id] || []).push(l.profile_id); });
+
+  // stats
+  const year = new Date().getFullYear();
+  SL.qs('#stTotal').textContent = ALL.length.toLocaleString();
+  SL.qs('#stYear').textContent = ALL.filter((p) => p.year === year).length.toLocaleString();
+  SL.qs('#stFac').textContent = PEOPLE.filter((p) => (pubsByFaculty[p.id] || []).length).length.toLocaleString();
+  SL.qs('#stJ').textContent = new Set(ALL.map((p) => (p.journal || '').trim().toLowerCase()).filter(Boolean)).size.toLocaleString();
+  drawChart(stats.data && stats.data.length ? stats.data : Object.entries(ALL.reduce((m, p) => { if (p.year) m[p.year] = (m[p.year] || 0) + 1; return m; }, {})).map(([y, n]) => ({ year: +y, n })));
+
+  // filter options
+  const fac = PEOPLE.filter((p) => (pubsByFaculty[p.id] || []).length).sort((a, b) => lastName(a.name).localeCompare(lastName(b.name)));
+  SL.qs('#faculty').innerHTML += fac.map((p) => `<option value="${p.id}">${SL.esc(p.name)} (${pubsByFaculty[p.id].length})</option>`).join('');
+  if (state.faculty && !fac.some((p) => p.id === state.faculty)) state.faculty = '';
+  SL.qs('#faculty').value = state.faculty;
+  const types = [...new Set(ALL.map((p) => p.pub_type).filter(Boolean))].sort();
+  SL.qs('#ptype').innerHTML += types.map((t) => `<option>${SL.esc(t)}</option>`).join('');
+  SL.qs('#ptype').value = types.includes(state.type) ? state.type : (state.type = '');
+  const years = [...new Set(ALL.map((p) => p.year).filter(Boolean))].sort((a, b) => b - a);
+  SL.qs('#years').innerHTML = years.map((y) => `<button type="button" class="chip year" data-year="${y}" aria-pressed="false">${y}</button>`).join('');
+  SL.qsa('.chip.year').forEach((c) => c.onclick = () => { toggleYear(c.dataset.year); c.setAttribute('aria-pressed', state.years.has(c.dataset.year)); });
+  SL.qs('#q').value = state.q;
+  render(true);
+
+  // last sync (auth-only table; silently skip when unreadable)
+  try {
+    const { data, error } = await SL.sb.from('pubmed_sync_log').select('finished_at').not('finished_at', 'is', null).order('finished_at', { ascending: false }).limit(1);
+    if (!error && data && data[0]) SL.qs('#footnote').textContent = `Synced nightly from PubMed; last sync ${SL.fmtDateTime(data[0].finished_at)}.`;
+  } catch (e) { /* not readable anonymously */ }
+}
+
+SL.qs('#q').addEventListener('input', SL.debounce((e) => { state.q = e.target.value; render(true); }, 250));
+SL.qs('#faculty').onchange = (e) => { state.faculty = e.target.value; render(true); };
+SL.qs('#ptype').onchange = (e) => { state.type = e.target.value; render(true); };
+SL.qs('#sort').onchange = (e) => { state.sort = e.target.value; render(true); };
+SL.qs('#clear').onclick = () => { state.q = ''; state.faculty = ''; state.type = ''; state.years.clear(); SL.qs('#q').value = ''; SL.qs('#faculty').value = ''; SL.qs('#ptype').value = ''; render(true); };
+SL.qs('#activeFilters').onclick = (e) => { const t = e.target.closest('[data-clear]'); if (!t) return; const k = t.dataset.clear;
+  if (k === 'year') state.years.delete(t.dataset.year); else { state[k] = ''; if (k === 'q') SL.qs('#q').value = ''; else SL.qs(k === 'faculty' ? '#faculty' : '#ptype').value = ''; } render(true); };
+SL.qs('#more').onclick = () => { state.shown += PAGE; render(false); };
+SL.qs('#list').addEventListener('click', (e) => { const a = e.target.closest('[data-open]'); if (a) { e.preventDefault(); openDetail(a.dataset.open); } });
+SL.qs('#csv').onclick = () => SL.download(`publications_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv(filtered(), ['pmid', 'title', 'author_string', 'journal', 'year', 'doi', 'url']), 'text/csv');
+SL.qs('#ris').onclick = () => SL.download(`publications_${new Date().toISOString().slice(0, 10)}.ris`, ris(filtered()), 'application/x-research-info-systems');
+
+load().catch((e) => { console.error(e); SL.qs('#list').innerHTML = '<div class="empty">Could not load the publication library. Please try again later.</div>'; SL.qs('#count').textContent = ''; });
+</script>
+</body>
+</html>

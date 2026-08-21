@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>People | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Faculty, trainees and research staff of the Neurology and Neurosurgery research department at Saint Luke's Health System, Kansas City.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .page-hero{border-bottom:1px solid var(--line);padding:56px 0 28px}
+  .controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:space-between;margin:24px 0 20px}
+  .controls .search{flex:1;min-width:220px;max-width:380px}
+  .people-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
+  .person-card{display:flex;gap:14px;align-items:flex-start;color:inherit;padding:18px}
+  .person-card:hover{text-decoration:none}
+  .person-card .avatar{width:52px;height:52px;font-size:1rem}
+  .person-card .body{min-width:0;flex:1}
+  .person-card .person-name{font-size:1rem;line-height:1.3}
+  .person-card .person-title{margin-top:2px}
+  .person-card .tags{margin-top:8px} .person-card .tag{white-space:normal;text-align:left}
+  .person-card .pubs{font-size:.75rem;color:var(--teal-600);font-weight:600;margin-top:8px;display:inline-flex;align-items:center;gap:4px}
+  .person-card .pubs svg{width:14px;height:14px}
+  .group-head{font-family:var(--font-head);font-size:1.25rem;color:var(--ink);margin:32px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .group-head:first-child{margin-top:0}
+  .group-head small{font-family:var(--font-body);font-size:.8rem;color:var(--muted);font-weight:500;margin-left:8px}
+  /* profile */
+  .profile-head{border-bottom:1px solid var(--line);padding:32px 0 36px;background:linear-gradient(180deg,rgba(34,211,238,.05),transparent)}
+  .profile-head .wrap{display:flex;gap:28px;align-items:flex-start}
+  .profile-head h1{font-size:clamp(1.7rem,3vw,2.3rem);margin:0 0 4px}
+  .profile-head .cred{font-family:var(--font-body);font-size:1rem;color:var(--muted);font-weight:500}
+  .profile-head .title{font-size:1.05rem;color:var(--ink-2);margin:6px 0 2px}
+  .profile-head .dept{color:var(--muted);font-size:.92rem}
+  .profile-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .profile-links .btn svg{width:16px;height:16px}
+  @media (max-width:640px){.profile-head .wrap{flex-direction:column;gap:16px}}
+  .profile-body{display:grid;grid-template-columns:1fr 300px;gap:40px;padding:36px 24px;align-items:start}
+  @media (max-width:900px){.profile-body{grid-template-columns:1fr}}
+  .profile-body h2{font-size:1.3rem;margin:0 0 10px}
+  .profile-body section{margin-bottom:32px}
+  .profile-body .text{color:var(--ink-2);white-space:pre-line;max-width:70ch}
+  .facts{display:grid;gap:14px}
+  .facts .card{padding:16px 18px}
+  .facts .k{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin-bottom:4px}
+  .facts .v{color:var(--ink);font-size:.95rem;white-space:pre-line}
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .metrics .stat{padding:12px 14px} .metrics .stat .n{font-size:1.6rem}
+  .container.section-tight,.container.section{padding-left:24px;padding-right:24px}
+</style>
+</head>
+<body>
+<main id="content"></main>
+
+<script>
+SL.renderShell({ active: 'people' });
+const main = SL.qs('#content');
+const lastName = (n) => (n || '').replace(/,.*$/, '').trim().split(/\s+/).pop();
+const blob = (p) => [p.title, p.department, (p.specialties || []).join(' '), p.role, p.credential].join(' ').toLowerCase();
+const has = (p, ...kw) => { const b = blob(p); return kw.some((k) => b.includes(k)); };
+const CHIPS = [
+  { key: 'all', label: 'All', test: () => true },
+  { key: 'leadership', label: 'Leadership', test: (p) => /director|chair/i.test(p.title || '') },
+  { key: 'neurosurgery', label: 'Neurosurgery', test: (p) => has(p, 'neurosurg', 'spine', 'functional', 'skull base', 'neuro-oncology', 'cerebrovascular') },
+  { key: 'neurology', label: 'Neurology', test: (p) => has(p, 'neurolog', 'stroke', 'epilepsy', 'movement', 'headache', 'neuromuscular', 'sleep', 'cognitive') && !has(p, 'neurosurg') },
+  { key: 'faculty', label: 'Faculty', test: (p) => p.role === 'Faculty' || /faculty/i.test(p.title || '') },
+  { key: 'app', label: 'Advanced Practice', test: (p) => ['APP', 'NP', 'PA'].includes(p.role) || /\b(APP|NP|PA|nurse practitioner|physician assistant)\b/i.test((p.title || '') + ' ' + (p.credential || '')) },
+  { key: 'nursing', label: 'Nursing', test: (p) => p.role === 'RN' || /\bRN\b|nurs/i.test((p.title || '') + ' ' + (p.credential || '')) },
+  { key: 'trainees', label: 'Trainees', test: (p) => ['Resident', 'Research Fellow', 'Medical Student'].includes(p.role) || /resident|fellow|student/i.test(p.title || '') },
+  { key: 'staff', label: 'Research Staff', test: (p) => ['CRC', 'Statistician', 'Budget & Contracts'].includes(p.role) || /coordinator|statistic|\bCRC\b|research staff|data/i.test(p.title || '') },
+];
+const GROUP_OF = (p) => {
+  if (/director|chair/i.test(p.title || '')) return 'Leadership';
+  if (p.role === 'Faculty' || p.role === 'Admin') return 'Faculty';
+  if (['APP', 'NP', 'PA', 'RN'].includes(p.role)) return 'Advanced practice & nursing';
+  if (['Resident', 'Research Fellow', 'Medical Student'].includes(p.role)) return 'Trainees';
+  return 'Research staff';
+};
+const GROUP_ORDER = ['Leadership', 'Faculty', 'Advanced practice & nursing', 'Trainees', 'Research staff'];
+
+const avatar = (p, cls) => `<span class="avatar ${cls || ''}">${p.photo_url ? `<img src="${SL.esc(p.photo_url)}" alt="${SL.esc(p.name)}">` : SL.esc(p.initials || SL.initials(p.name))}</span>`;
+
+/* ----------------------------- Directory ----------------------------- */
+async function directory() {
+  document.title = "People | Saint Luke's Neuroscience Research";
+  main.innerHTML = `
+    <section class="page-hero"><div class="container">
+      <div class="eyebrow">Directory</div>
+      <h1>Faculty <span class="grad-text">&amp; staff</span></h1>
+      <p class="lead">Neurosurgeons, neurologists, advanced practice providers, trainees and research staff who make up the department's research community.</p>
+      <div class="controls">
+        <div class="chips" id="chips" role="group" aria-label="Filter by group">${CHIPS.map((c) => `<button type="button" class="chip ${c.key === 'all' ? 'active' : ''}" data-key="${c.key}" aria-pressed="${c.key === 'all'}">${c.label}</button>`).join('')}</div>
+        <div class="search"><span aria-hidden="true">${SL.icons.search}</span><label class="sr-only" for="q">Search people</label><input id="q" class="input" type="search" placeholder="Search by name, title or specialty…" autocomplete="off"></div>
+      </div>
+    </div></section>
+    <section class="container section-tight" aria-live="polite">
+      <div id="grid"><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:40%"></div><div class="skeleton" style="width:50%"></div></div>
+    </section>`;
+  const [{ data: people, error }, { data: links }] = await Promise.all([
+    SL.sb.from('public_people').select('id,name,initials,role,title,credential,department,slug,photo_url,specialties'),
+    SL.sb.from('publication_authors').select('profile_id'),
+  ]);
+  if (error) { SL.qs('#grid').innerHTML = '<div class="empty">Could not load the directory.</div>'; return; }
+  const counts = {}; (links || []).forEach((l) => counts[l.profile_id] = (counts[l.profile_id] || 0) + 1);
+  const ALL = (people || []).sort((a, b) => lastName(a.name).localeCompare(lastName(b.name)));
+  let key = 'all', q = '';
+  const render = () => {
+    const chip = CHIPS.find((c) => c.key === key);
+    const qq = q.trim().toLowerCase();
+    const rows = ALL.filter((p) => chip.test(p) && (!qq || (p.name + ' ' + blob(p)).toLowerCase().includes(qq)));
+    const grid = SL.qs('#grid');
+    if (!rows.length) { grid.innerHTML = '<div class="empty">No people match this filter.</div>'; return; }
+    const groups = {}; rows.forEach((p) => (groups[GROUP_OF(p)] = groups[GROUP_OF(p)] || []).push(p));
+    grid.innerHTML = GROUP_ORDER.filter((g) => groups[g]).map((g) => `
+      <h2 class="group-head">${g}<small>${groups[g].length}</small></h2>
+      <div class="people-grid">${groups[g].map((p) => `
+        <a class="card card-hover person-card" href="/people.html?s=${encodeURIComponent(p.slug)}">
+          ${avatar(p)}
+          <div class="body">
+            <div class="person-name">${SL.esc(p.name)}</div>
+            <div class="person-title">${SL.esc(p.title || p.role || '')}${p.department ? ` · ${SL.esc(p.department)}` : ''}</div>
+            ${(p.specialties || []).length ? `<div class="tags">${p.specialties.slice(0, 3).map((s) => `<span class="tag tag-teal">${SL.esc(s)}</span>`).join('')}</div>` : ''}
+            ${counts[p.id] ? `<span class="pubs">${SL.icons.book}${counts[p.id]} publication${counts[p.id] === 1 ? '' : 's'}</span>` : ''}
+          </div>
+        </a>`).join('')}</div>`).join('');
+  };
+  SL.qsa('#chips .chip').forEach((b) => b.onclick = () => { key = b.dataset.key; SL.qsa('#chips .chip').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-pressed', x === b); }); render(); });
+  SL.qs('#q').addEventListener('input', SL.debounce((e) => { q = e.target.value; render(); }, 200));
+  render();
+}
+
+/* ------------------------------ Profile ------------------------------ */
+async function profile(slug) {
+  main.innerHTML = `<div class="container section-tight"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:60%"></div></div>`;
+  const { data: p, error } = await SL.sb.from('public_people').select('*').eq('slug', slug).maybeSingle();
+  if (error || !p) {
+    document.title = "Person not found | Saint Luke's Neuroscience Research";
+    main.innerHTML = `<div class="container section"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="/people.html">People</a> › Not found</nav>
+      <div class="empty">${SL.icons.users}<h1 style="font-size:1.4rem">We couldn't find that profile</h1><p>The link may be out of date, or the profile is not public.</p><a class="btn btn-primary" href="/people.html">Back to directory</a></div></div>`;
+    return;
+  }
+  document.title = `${p.name} | Saint Luke's Neuroscience Research`;
+  const ext = (href, label, icon) => href ? `<a class="btn btn-outline btn-sm" href="${SL.esc(/^https?:/i.test(href) ? href : 'https://' + href)}" target="_blank" rel="noopener">${icon || SL.icons.external}${label}</a>` : '';
+  const orcidUrl = p.orcid ? (/^https?:/i.test(p.orcid) ? p.orcid : `https://orcid.org/${p.orcid}`) : '';
+  main.innerHTML = `
+    <section class="profile-head"><div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/people.html">People</a> › ${SL.esc(p.name)}</nav>
+      <div class="wrap">
+        ${avatar(p, 'avatar-lg')}
+        <div style="flex:1;min-width:0">
+          <h1>${SL.esc(p.name.replace(/,.*$/, ''))}${p.credential ? ` <span class="cred">${SL.esc(p.credential)}</span>` : ''}</h1>
+          <div class="title">${SL.esc(p.title || p.role || '')}</div>
+          <div class="dept">${[p.department, "Saint Luke's Health System · Kansas City, MO"].filter(Boolean).map(SL.esc).join(' · ')}</div>
+          <div class="tags mt-2">${(p.specialties || []).map((s) => `<span class="tag tag-teal">${SL.esc(s)}</span>`).join('')}${p.accepting_students ? '<span class="tag tag-ok">Accepting students</span>' : ''}</div>
+          <div class="profile-links">
+            ${ext(orcidUrl, 'ORCID')}${ext(p.google_scholar, 'Google Scholar')}${ext(p.lab_website, 'Lab website', SL.icons.globe)}
+            <a class="btn btn-ghost btn-sm" href="/publications.html?faculty=${p.id}">${SL.icons.book}View all in library</a>
+          </div>
+        </div>
+      </div>
+    </div></section>
+    <div class="container profile-body">
+      <div>
+        ${p.bio ? `<section><h2>About</h2><div class="text">${SL.esc(p.bio)}</div></section>` : ''}
+        ${p.research_interests ? `<section><h2>Research interests</h2><div class="text">${SL.esc(p.research_interests)}</div></section>` : ''}
+        <section>
+          <div class="section-head"><h2>Publications</h2><a class="btn btn-ghost btn-sm" href="/publications.html?faculty=${p.id}">View all in library →</a></div>
+          <div id="pubs"><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:55%"></div></div>
+        </section>
+      </div>
+      <aside class="facts" aria-label="Details">
+        ${p.clinical_focus ? `<div class="card"><div class="k">Clinical focus</div><div class="v">${SL.esc(p.clinical_focus)}</div></div>` : ''}
+        ${p.education ? `<div class="card"><div class="k">Education &amp; training</div><div class="v">${SL.esc(p.education)}</div></div>` : ''}
+        ${(p.h_index != null || p.total_citations != null) ? `<div class="metrics">${p.h_index != null ? `<div class="card stat"><div class="n">${Number(p.h_index).toLocaleString()}</div><div class="l">h-index</div></div>` : ''}${p.total_citations != null ? `<div class="card stat"><div class="n">${Number(p.total_citations).toLocaleString()}</div><div class="l">Citations</div></div>` : ''}</div>` : ''}
+        ${p.role && !['Admin','IRB'].includes(p.role) ? `<div class="card"><div class="k">Role</div><div class="v">${SL.esc(p.role)}</div></div>` : ''}
+      </aside>
+    </div>`;
+
+  const [{ data: links }, { data: people }] = await Promise.all([
+    SL.sb.from('publication_authors').select('publication_id,publications(*)').eq('profile_id', p.id),
+    SL.sb.from('public_people').select('name'),
+  ]);
+  const lastNames = (people || []).map((x) => lastName(x.name));
+  const pubs = (links || []).map((l) => l.publications).filter((x) => x && x.visible !== false)
+    .sort((a, b) => String(b.pub_date || (b.year ? b.year + '-01-01' : '')).localeCompare(String(a.pub_date || (a.year ? a.year + '-01-01' : ''))));
+  const box = SL.qs('#pubs');
+  if (!pubs.length) { box.innerHTML = '<div class="empty" style="padding:28px 10px">No indexed publications yet.</div>'; return; }
+  const show = pubs.slice(0, 15);
+  box.innerHTML = show.map((x) => `
+    <article class="pub">
+      <h3 class="pub-title"><a href="${SL.esc(x.url || (x.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${x.pmid}/` : `/publications.html?q=${encodeURIComponent(x.title)}`))}" ${x.url || x.pmid ? 'target="_blank" rel="noopener"' : ''}>${SL.esc(x.title)}</a></h3>
+      <div class="pub-authors">${x.authors && x.authors.length ? SL.highlightAuthors(x, lastNames) : SL.esc(x.author_string || '')}</div>
+      <div class="pub-meta"><em>${SL.esc(x.journal_abbrev || x.journal || '')}</em>${x.year ? ` · ${x.year}` : ''}${x.pub_type ? ` · ${SL.esc(x.pub_type)}` : ''}</div>
+    </article>`).join('') + (pubs.length > show.length ? `<p class="small mt-2"><a href="/publications.html?faculty=${p.id}">See all ${pubs.length} publications in the library →</a></p>` : '');
+}
+
+const slug = SL.param('s');
+(slug ? profile(slug) : directory()).catch((e) => { console.error(e); main.innerHTML = '<div class="container section"><div class="empty">Something went wrong loading this page.</div></div>'; });
+</script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research Services | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Research services from the Saint Luke's Neuroscience Research office: biostatistics and study design, IRB and regulatory support, REDCap data capture, registry data requests, manuscript editing, grant development and trainee mentorship.">
+<link rel="canonical" href="https://slresearchhub.com/services.html">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .page-hero{border-bottom:1px solid var(--line);padding:64px 0 48px;position:relative;overflow:hidden}
+  .page-hero .container{display:grid;grid-template-columns:1.2fr .8fr;gap:40px;align-items:center}
+  @media (max-width:860px){.page-hero .container{grid-template-columns:1fr}}
+  .page-hero .lead{margin-bottom:22px}
+  .jump{display:flex;gap:8px;flex-wrap:wrap}
+  .jump a{padding:7px 13px;border-radius:999px;border:1px solid var(--line-2);font-size:.84rem;font-weight:500;color:var(--ink-2);background:rgba(255,255,255,.03);transition:.2s}
+  .jump a:hover{border-color:rgba(34,211,238,.6);color:#fff;text-decoration:none;background:rgba(34,211,238,.12)}
+  .hero-side{display:grid;gap:12px}
+  .hero-side .card{display:flex;gap:14px;align-items:center;padding:16px 18px}
+  .hero-side .icon-badge{margin:0;width:40px;height:40px;flex:none}
+  .hero-side .t{font-weight:600;color:#fff;font-size:.95rem} .hero-side .d{font-size:.84rem;color:var(--muted)}
+  section[id]{scroll-margin-top:calc(var(--nav-h) + 16px)}
+  .svc{display:flex;flex-direction:column;gap:10px;scroll-margin-top:calc(var(--nav-h) + 16px)}
+  .svc .head{display:flex;gap:14px;align-items:flex-start}
+  .svc .head .icon-badge{margin:0;flex:none}
+  .svc h3{margin:4px 0 0;font-size:1.12rem}
+  .svc .blurb{color:var(--muted);font-size:.92rem;margin:0}
+  .svc ul{margin:4px 0 0;padding-left:18px;color:var(--ink-2);font-size:.9rem;display:grid;gap:4px;flex:1}
+  .svc ul li::marker{color:var(--teal)}
+  .svc .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .svc .turn{font-size:.8rem;color:var(--muted)} .svc .turn b{color:var(--ink);font-weight:600}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;position:relative}
+  @media (max-width:760px){.steps{grid-template-columns:1fr}}
+  .step{padding:26px 24px 22px;position:relative}
+  .step .num{width:38px;height:38px;border-radius:12px;background:var(--grad);color:#06101a;display:grid;place-items:center;font-weight:700;font-family:var(--font-head);margin-bottom:14px;box-shadow:0 0 18px rgba(34,211,238,.35)}
+  .step h3{font-size:1.05rem;margin-bottom:6px} .step p{margin:0;font-size:.92rem;color:var(--muted)}
+  .step::after{content:"";position:absolute;right:-18px;top:44px;width:18px;height:1px;background:linear-gradient(90deg,rgba(34,211,238,.6),rgba(139,92,246,.6))}
+  .step:last-child::after{display:none} @media (max-width:760px){.step::after{display:none}}
+  .faq{display:grid;gap:10px;max-width:820px}
+  .faq details{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);backdrop-filter:blur(12px);transition:.2s}
+  .faq details[open]{border-color:rgba(34,211,238,.4);box-shadow:0 0 24px rgba(34,211,238,.08)}
+  .faq summary{cursor:pointer;padding:16px 20px;font-weight:600;color:#fff;font-family:var(--font-head);list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:"+";font-size:1.3rem;color:var(--teal);line-height:1;transition:.25s;flex:none}
+  .faq details[open] summary::after{transform:rotate(45deg)}
+  .faq details p{margin:0;padding:0 20px 18px;color:var(--ink-2);font-size:.95rem}
+  .reg-card{display:flex;flex-direction:column;gap:10px}
+  .reg-card p{margin:0;color:var(--muted);font-size:.92rem;flex:1}
+  .reg-card ul{margin:0;padding-left:18px;color:var(--ink-2);font-size:.88rem}
+  .reg-card .tag{align-self:flex-start}
+  .band{background:linear-gradient(135deg,rgba(34,211,238,.12),rgba(139,92,246,.18));border:1px solid var(--line-2);border-radius:var(--radius-lg);padding:40px 44px;display:grid;grid-template-columns:1.3fr auto;gap:28px;align-items:center;position:relative;overflow:hidden;backdrop-filter:blur(12px)}
+  .band::after{content:"";position:absolute;right:-80px;top:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.28),transparent 70%);pointer-events:none}
+  .band h2{color:#fff;margin-bottom:8px} .band p{margin:0;color:var(--ink-2)}
+  @media (max-width:760px){.band{grid-template-columns:1fr;padding:30px 24px}}
+  .section-divided{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(255,255,255,.015)}
+  .req-form .help.err{color:var(--danger)}
+</style>
+</head>
+<body>
+<main id="content">
+  <section class="page-hero" aria-labelledby="hero-title">
+    <div class="container">
+      <div>
+        <div class="eyebrow">Research office</div>
+        <h1 id="hero-title">Research <span class="grad-text">services</span></h1>
+        <p class="lead">From first idea to published paper, the research office supports Saint Luke's investigators with design, regulatory, data, writing, funding and mentorship help. Request a service below — a member of the team will follow up by email.</p>
+        <nav class="jump" aria-label="Jump to service">
+          <a href="#biostatistics">Biostatistics</a><a href="#irb">IRB &amp; regulatory</a><a href="#redcap">REDCap</a><a href="#registry">Registry data</a><a href="#manuscripts">Manuscripts</a><a href="#grants">Grants</a><a href="#mentorship">Mentorship</a><a href="#data">Databases &amp; registries</a><a href="#faq">FAQ</a>
+        </nav>
+      </div>
+      <div class="hero-side" aria-label="At a glance">
+        <div class="card float" style="animation-delay:0s"><span class="icon-badge" data-icon="check"></span><div><div class="t">Free for department investigators</div><div class="d">Faculty, trainees, APPs, nurses and staff</div></div></div>
+        <div class="card float" style="animation-delay:-2s"><span class="icon-badge" data-icon="cal"></span><div><div class="t">Typical first response: 2 business days</div><div class="d">Urgent requests are triaged the same day</div></div></div>
+        <div class="card float" style="animation-delay:-4s"><span class="icon-badge" data-icon="shield"></span><div><div class="t">IRB-governed data access</div><div class="d">Registry data released only under an approved protocol</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="catalogue" aria-labelledby="cat-title">
+    <div class="container">
+      <div class="section-head">
+        <div><div class="eyebrow">Catalogue</div><h2 id="cat-title">Seven services, one request form</h2></div>
+        <button class="btn btn-primary" type="button" data-request="">Request a service</button>
+      </div>
+      <div class="grid grid-3" id="services"></div>
+    </div>
+  </section>
+
+  <section class="section section-divided" id="how" aria-labelledby="how-title">
+    <div class="container">
+      <div class="eyebrow">Process</div>
+      <h2 id="how-title">How it works</h2>
+      <p class="lead" style="margin-bottom:28px">Three steps, no paperwork to start.</p>
+      <div class="steps">
+        <div class="card step"><span class="num">1</span><h3>Request</h3><p>Pick a service and tell us what you need in a few sentences. Use your institutional email so we can find your Hub profile and projects.</p></div>
+        <div class="card step"><span class="num">2</span><h3>Triage &amp; scope</h3><p>The research office confirms receipt, assigns a statistician, coordinator or fellow, and agrees on scope, deliverables and timing with you.</p></div>
+        <div class="card step"><span class="num">3</span><h3>Deliver &amp; follow up</h3><p>Work is tracked in the Research Hub alongside your project. You receive the deliverable, a short summary, and a point of contact for revisions.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="data" aria-labelledby="data-title">
+    <div class="container">
+      <div class="section-head">
+        <div><div class="eyebrow">Data resources</div><h2 id="data-title">Databases &amp; registries</h2></div>
+        <button class="btn btn-accent" type="button" data-request="Registry Data Request (BTR/TBI/FNR)">Request data</button>
+      </div>
+      <p class="lead" style="margin-bottom:28px">The department maintains three prospective clinical registries. They are IRB-governed data resources: every extract is tied to an approved protocol or an umbrella registry IRB, and de-identified datasets are prepared by the research office rather than pulled directly by investigators.</p>
+      <div class="grid grid-3">
+        <div class="card card-hover reg-card">
+          <span class="icon-badge" data-icon="brain"></span>
+          <span class="tag tag-teal">BTR</span>
+          <h3 class="card-title">Brain Tumor Registry</h3>
+          <p>Primary and metastatic CNS tumors: surgery, radiation and systemic therapy, imaging and volumetrics, RANO assessments, tumor board decisions, trial enrollment and biobank specimens.</p>
+          <ul><li>Progression and follow-up tracking</li><li>Research cohorts and trial notes</li></ul>
+        </div>
+        <div class="card card-hover reg-card">
+          <span class="icon-badge" data-icon="shield"></span>
+          <span class="tag tag-teal">TBI</span>
+          <h3 class="card-title">Trauma / TBI Registry</h3>
+          <p>Traumatic brain injury and cranial trauma including subdural and epidural hematoma and skull fracture, with ICP readings, imaging, complications and standardized outcome assessments.</p>
+          <ul><li>Neurocritical care physiology</li><li>Functional outcome follow-up</li></ul>
+        </div>
+        <div class="card card-hover reg-card">
+          <span class="icon-badge" data-icon="settings"></span>
+          <span class="tag tag-teal">FNR</span>
+          <h3 class="card-title">Functional Neurosurgery Registry</h3>
+          <p>Epilepsy surgery, deep brain stimulation, pain and spasticity procedures, with device programming, seizure logs, medications, neurophysiology and validated outcome instruments.</p>
+          <ul><li>Device and programming timeline</li><li>Seizure and symptom diaries</li></ul>
+        </div>
+      </div>
+      <p class="small muted mt-3">Approved Hub members can browse registry dashboards directly in the <a href="/hub/registries/index.html">Research Hub</a>. External collaborators need a data-use agreement in addition to IRB approval. Program context is on the <a href="/research.html#registries">Research</a> page.</p>
+    </div>
+  </section>
+
+  <section class="section section-divided" id="faq" aria-labelledby="faq-title">
+    <div class="container">
+      <div class="eyebrow">Questions</div>
+      <h2 id="faq-title">Frequently asked</h2>
+      <div class="faq mt-3">
+        <details><summary>Who can request services?</summary><p>Any Saint Luke's or UMKC-affiliated faculty member, resident, fellow, medical student, advanced practice provider, nurse or research staff member working on a neuroscience project. Use your institutional email address; requests from other domains are not accepted.</p></details>
+        <details><summary>Is there a cost?</summary><p>Core services are provided by the department at no charge for departmental projects. Large or externally funded studies may need a statistician or coordinator budgeted in the grant — we will tell you early if that applies.</p></details>
+        <details><summary>How fast will I hear back?</summary><p>You will get an acknowledgement within two business days. Turnaround for the work itself depends on the service and is listed on each card; mark a request as urgent only for abstract, grant or IRB deadlines inside two weeks.</p></details>
+        <details><summary>Do I need IRB approval before asking for registry data?</summary><p>Not to start the conversation. We will help you decide whether your question fits an existing umbrella registry protocol or needs its own submission. Data are released only after approval is in place.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="funding" aria-labelledby="fund-title">
+    <div class="container">
+      <div class="band">
+        <div>
+          <div class="eyebrow">Funding</div>
+          <h2 id="fund-title">Funded research in the department</h2>
+          <p>See the federal, foundation and industry awards currently supporting our investigators, and ask the grant development team for help with your next submission.</p>
+        </div>
+        <div class="flex wrap" style="justify-content:flex-end">
+          <a class="btn btn-primary" href="/research.html#funding">View funded research</a>
+          <button class="btn btn-outline" type="button" data-request="Grant Development">Grant help</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+SL.renderShell({ active: 'services' });
+
+const SERVICES = [
+  { id: 'biostatistics', key: 'Biostatistics & Study Design', icon: 'chart', blurb: 'Design the study right, then analyze it correctly.',
+    items: ['Sample-size and power calculations for proposals and protocols.', 'Analysis plans, statistical methods sections and reviewer responses.', 'Descriptive, regression and survival analyses with reproducible code.'], turnaround: '1–3 weeks depending on scope' },
+  { id: 'irb', key: 'IRB & Regulatory Support', icon: 'shield', blurb: 'Get from concept to an approved protocol without surprises.',
+    items: ['Protocol and consent drafting from department templates.', 'Determination of exempt, expedited or umbrella-registry pathways.', 'Submission, modification and continuing-review coordination.'], turnaround: 'Draft in 1 week; IRB timelines vary' },
+  { id: 'redcap', key: 'REDCap / Data Capture', icon: 'db', blurb: 'Build a clean database before the first patient is entered.',
+    items: ['REDCap project build with validated fields and branching logic.', 'Data dictionaries, codebooks and eCRF design reviews.', 'Export pipelines and quality checks for analysis-ready data.'], turnaround: '1–2 weeks for a standard project' },
+  { id: 'registry', key: 'Registry Data Request (BTR/TBI/FNR)', icon: 'brain', blurb: 'De-identified extracts from the Brain Tumor, Trauma/TBI and Functional registries.',
+    items: ['Feasibility counts to test an idea before you write a protocol.', 'IRB-aligned, de-identified datasets with a variable dictionary.', 'Linked follow-up, outcome and imaging tables on request.'], turnaround: 'Counts in 3 days; datasets in 2–3 weeks after IRB' },
+  { id: 'manuscripts', key: 'Manuscript & Editing', icon: 'doc', blurb: 'Sharper papers, faster decisions.',
+    items: ['Structural and language editing of drafts, abstracts and posters.', 'Journal selection, formatting and submission-portal help.', 'Reporting-guideline checks (STROBE, CONSORT, PRISMA).'], turnaround: '5–10 business days per round' },
+  { id: 'grants', key: 'Grant Development', icon: 'award', blurb: 'Find, plan and submit competitive proposals.',
+    items: ['Funding-opportunity scans matched to your program.', 'Specific aims review, budgets and biosketch preparation.', 'Internal deadlines, letters of support and submission logistics.'], turnaround: 'Start at least 8 weeks before the deadline' },
+  { id: 'mentorship', key: 'Student & Trainee Mentorship', icon: 'graduation', blurb: 'Structured research experiences for students, residents and fellows.',
+    items: ['Matching with a faculty mentor and an active project.', 'Onboarding: CITI training, Hub access and authorship expectations.', 'Milestone check-ins toward an abstract, poster or paper.'], turnaround: 'Placements reviewed monthly' },
+];
+
+SL.qs('#services').innerHTML = SERVICES.map((s) => `
+  <article class="card card-hover svc" id="${s.id}" aria-labelledby="${s.id}-title">
+    <div class="head"><span class="icon-badge" aria-hidden="true">${SL.icons[s.icon]}</span><div><h3 id="${s.id}-title">${SL.esc(s.key)}</h3><p class="blurb">${SL.esc(s.blurb)}</p></div></div>
+    <ul>${s.items.map((i) => `<li>${SL.esc(i)}</li>`).join('')}</ul>
+    <div class="foot"><span class="turn"><b>Turnaround:</b> ${SL.esc(s.turnaround)}</span><button class="btn btn-accent btn-sm" type="button" data-request="${SL.esc(s.key)}">Request</button></div>
+  </article>`).join('');
+SL.qsa('[data-icon]').forEach((el) => { el.innerHTML = SL.icons[el.dataset.icon] || ''; el.setAttribute('aria-hidden', 'true'); });
+
+/* ---- request modal ---- */
+function openRequest(preselect) {
+  SL.modal(`
+    <div class="modal-head"><h3>Request a service</h3><button class="btn btn-ghost btn-icon" data-close aria-label="Close">${SL.icons.close}</button></div>
+    <form id="reqForm" class="req-form" novalidate>
+      <div class="modal-body">
+        <div id="reqAlert"></div>
+        <div class="field"><label for="rService">Service</label><select class="input" id="rService" required>${SERVICES.map((s) => `<option ${s.key === preselect ? 'selected' : ''}>${SL.esc(s.key)}</option>`).join('')}</select></div>
+        <div class="form-row">
+          <div class="field"><label for="rName">Your name</label><input class="input" id="rName" autocomplete="name" required></div>
+          <div class="field"><label for="rEmail">Institutional email</label><input class="input" id="rEmail" type="email" autocomplete="email" required aria-describedby="rEmailHelp"><div class="help" id="rEmailHelp">@saintlukeskc.org, @saint-lukes.org, @saintlukes.org or @umkc.edu</div></div>
+        </div>
+        <div class="field"><label for="rUrgency">Urgency</label><select class="input" id="rUrgency"><option value="normal">Normal</option><option value="urgent">Urgent — deadline within two weeks</option></select></div>
+        <div class="field"><label for="rDetails">Details</label><textarea class="input" id="rDetails" required placeholder="Project title, what you need, relevant deadlines, IRB status if any…"></textarea><div class="help">Please do not include patient identifiers or PHI.</div></div>
+      </div>
+      <div class="modal-foot"><span class="small muted grow">Requests are triaged by the research office.</span><button class="btn btn-outline" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit" id="rSubmit">Submit request</button></div>
+    </form>`);
+  const emailHelp = SL.qs('#rEmailHelp');
+  SL.qs('#rEmail').addEventListener('input', (e) => { const ok = !e.target.value || SL.isValidEmail(e.target.value.trim()); emailHelp.classList.toggle('err', !ok); e.target.setAttribute('aria-invalid', String(!ok)); });
+  SL.qs('#rName').focus();
+  SL.qs('#reqForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const v = (id) => SL.qs('#' + id).value.trim();
+    const service = v('rService'), name = v('rName'), email = v('rEmail').toLowerCase(), urgency = v('rUrgency'), details = v('rDetails');
+    const alertBox = SL.qs('#reqAlert');
+    if (!name || !email || !details) { alertBox.innerHTML = '<div class="alert alert-warn" role="alert">Please complete your name, email and details.</div>'; return; }
+    if (!SL.isValidEmail(email)) { emailHelp.classList.add('err'); SL.qs('#rEmail').focus(); alertBox.innerHTML = '<div class="alert alert-warn" role="alert">Please use an institutional email address.</div>'; return; }
+    const btn = SL.qs('#rSubmit'); btn.disabled = true; btn.textContent = 'Submitting…'; alertBox.innerHTML = '';
+    try {
+      const { error } = await SL.sb.rpc('submit_service_request', { p_service: service, p_name: name, p_email: email, p_details: details, p_urgency: urgency });
+      if (error) throw error;
+      SL.qs('#reqForm').innerHTML = `<div class="modal-body"><div class="alert alert-ok" role="status"><strong>Request received.</strong> Thank you, ${SL.esc(name)} — the research office will confirm by email at <strong>${SL.esc(email)}</strong>${urgency === 'urgent' ? ' and triage it today' : ' within two business days'}.</div><p class="small muted" style="margin:0">Service: ${SL.esc(service)}</p></div><div class="modal-foot"><button class="btn btn-primary" type="button" data-close>Done</button></div>`;
+      SL.qsa('[data-close]', SL.qs('#slModal')).forEach((b) => b.onclick = SL.closeModal);
+      SL.toast('Service request submitted', 'ok');
+    } catch (err) {
+      const subject = `Service request — ${service}`;
+      const body = `Name: ${name}\nEmail: ${email}\nService: ${service}\nUrgency: ${urgency}\n\n${details}`;
+      alertBox.innerHTML = `<div class="alert alert-danger" role="alert">We couldn't submit your request${err && err.message ? ' (' + SL.esc(err.message) + ')' : ''}. Please try again, or <a href="mailto:${SL.esc(SL.ADMIN_EMAILS.join(','))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}">email the research office</a> instead.</div>`;
+      SL.toast('Request could not be submitted', 'err');
+    } finally { btn.disabled = false; btn.textContent = 'Submit request'; }
+  });
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-request]'); if (b) openRequest(b.dataset.request || SERVICES[0].key); });
+// deep link: /services.html?request=Grant%20Development or #request
+const pre = SL.param('request'); if (pre) openRequest(SERVICES.some((s) => s.key === pre) ? pre : SERVICES[0].key);
+</script>
+</body>
+</html>

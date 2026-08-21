@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>News | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Announcements and news from the Neurology and Neurosurgery research department at Saint Luke's Health System, Kansas City.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .page-hero{border-bottom:1px solid var(--line);padding:56px 0 36px}
+  .news-list{display:grid;gap:20px;max-width:820px}
+  .news-card{display:grid;grid-template-columns:1fr;gap:14px;color:inherit}
+  .news-card.has-img{grid-template-columns:200px 1fr}
+  @media (max-width:640px){.news-card.has-img{grid-template-columns:1fr}}
+  .news-card:hover{text-decoration:none}
+  .news-card img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+  .news-card .meta{font-size:.8rem;color:var(--faint);font-weight:500;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  .news-card h2{font-size:1.25rem;margin:0 0 6px}
+  .news-card p{color:var(--muted);font-size:.95rem;margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .post{max-width:760px}
+  .post .meta{font-size:.9rem;color:var(--muted);margin-bottom:22px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .post img{border-radius:var(--radius);border:1px solid var(--line);margin:0 0 24px}
+  .post .body{font-size:1.05rem;line-height:1.7;color:var(--ink-2);white-space:pre-line}
+  .container.section-tight,.container.section{padding-left:24px;padding-right:24px}
+</style>
+</head>
+<body>
+<main id="content"></main>
+<script>
+SL.renderShell({ active: 'news' });
+const main = SL.qs('#content');
+const prio = (n) => n.priority && !/^(normal|low)$/i.test(n.priority) ? `<span class="tag ${/high|urgent/i.test(n.priority) ? 'tag-warn' : 'tag-info'}">${SL.esc(n.priority)}</span>` : '';
+
+async function list() {
+  main.innerHTML = `<section class="page-hero"><div class="container"><div class="eyebrow">Department</div><h1>News <span class="grad-text">&amp; announcements</span></h1><p class="lead">Updates from the research office: symposia, funding opportunities, new resources and milestones.</p></div></section>
+    <section class="container section-tight"><div class="news-list" id="list"><div class="skeleton" style="width:70%"></div><div class="skeleton" style="width:50%"></div></div></section>`;
+  const { data, error } = await SL.sb.from('announcements').select('id,title,content,priority,pinned,created_by,created_at,slug,image_url')
+    .eq('visibility', 'public').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(100);
+  const box = SL.qs('#list');
+  if (error) { box.innerHTML = '<div class="empty">Could not load announcements.</div>'; return; }
+  if (!data || !data.length) { box.innerHTML = `<div class="empty">${SL.icons.bell}<p>No public announcements yet.</p></div>`; return; }
+  box.innerHTML = data.map((n) => `
+    <a class="card card-hover news-card ${n.image_url ? 'has-img' : ''}" href="/news.html?id=${n.id}">
+      ${n.image_url ? `<img src="${SL.esc(n.image_url)}" alt="" loading="lazy">` : ''}
+      <div>
+        <div class="meta"><time datetime="${SL.esc(n.created_at)}">${SL.fmtDate(n.created_at)}</time>${n.pinned ? '<span class="tag tag-gold">Pinned</span>' : ''}${prio(n)}</div>
+        <h2>${SL.esc(n.title)}</h2>
+        <p>${SL.esc(n.content || '')}</p>
+      </div>
+    </a>`).join('');
+}
+
+async function post(id) {
+  main.innerHTML = `<div class="container section-tight"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:70%"></div></div>`;
+  const { data: n, error } = await SL.sb.from('announcements').select('*').eq('visibility', 'public').eq('id', id).maybeSingle();
+  if (error || !n) {
+    main.innerHTML = `<div class="container section"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="/news.html">News</a> › Not found</nav><div class="empty">${SL.icons.bell}<h1 style="font-size:1.4rem">Announcement not found</h1><p>It may have been removed or is not public.</p><a class="btn btn-primary" href="/news.html">All news</a></div></div>`;
+    return;
+  }
+  document.title = `${n.title} | Saint Luke's Neuroscience Research`;
+  main.innerHTML = `<article class="container section post">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/news.html">News</a> › ${SL.esc(n.title)}</nav>
+    <h1>${SL.esc(n.title)}</h1>
+    <div class="meta"><time datetime="${SL.esc(n.created_at)}">${SL.fmtDate(n.created_at, { year: 'numeric', month: 'long', day: 'numeric' })}</time>${n.created_by ? `<span>· ${SL.esc(n.created_by)}</span>` : ''}${n.pinned ? '<span class="tag tag-gold">Pinned</span>' : ''}${prio(n)}</div>
+    ${n.image_url ? `<img src="${SL.esc(n.image_url)}" alt="">` : ''}
+    <div class="body">${SL.esc(n.content || '')}</div>
+    <p class="mt-4"><a class="btn btn-outline" href="/news.html">← All news</a></p>
+  </article>`;
+}
+
+const id = SL.param('id');
+(id ? post(id) : list()).catch((e) => { console.error(e); main.innerHTML = '<div class="container section"><div class="empty">Something went wrong.</div></div>'; });
+</script>
+</body>
+</html>

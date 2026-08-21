@@ -1,0 +1,223 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Forum &amp; Requests | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Research discussion forum and service requests for the Saint Luke's Neuroscience Research Hub.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+.tab-panel{display:none}.tab-panel.active{display:block}
+.thread{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.thread:last-child{border-bottom:0}.thread:hover .t-title{text-decoration:underline}
+.thread .avatar{width:40px;height:40px;font-size:.85rem}
+.t-title{font-weight:600;color:var(--ink);font-size:1rem}
+.t-snip{font-size:.88rem;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+.t-meta{font-size:.8rem;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.thread .count{flex:none;text-align:center;min-width:48px}
+.thread .count .n{font-family:var(--font-head);font-size:1.3rem;color:var(--ink);line-height:1}
+.thread .count .l{font-size:.68rem;color:var(--muted);text-transform:uppercase}
+.reply{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.reply:last-child{border-bottom:0}
+.reply .avatar{width:34px;height:34px;font-size:.78rem}
+.post-body{white-space:pre-wrap;line-height:1.6}
+.thread.pinned{background:linear-gradient(90deg,rgba(245,196,81,.12) 0,transparent 60%);margin:0 -22px;padding-left:22px;padding-right:22px}
+.req-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.req .head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.req .desc{font-size:.88rem;color:var(--ink-2);white-space:pre-wrap;margin:8px 0;max-height:120px;overflow:hidden}
+.urg-High{color:var(--danger);font-weight:600}.urg-Medium{color:var(--warn);font-weight:600}.urg-Low{color:var(--muted)}
+</style>
+</head><body>
+<main id="main">
+  <div class="page-head">
+    <div><h1>Forum &amp; Requests</h1><div class="sub">Ask the team, share methods, and request statistics, data and IRB support</div></div>
+    <div class="flex wrap"><button class="btn btn-outline btn-sm" id="btnCsv">Export CSV</button><button class="btn btn-primary btn-sm" id="btnNew">New thread</button></div>
+  </div>
+  <div class="tabs" id="tabs"><button data-tab="forum" class="active">Discussion</button><button data-tab="requests">Requests <span class="tag tag-info" id="openCount" style="margin-left:4px"></span></button></div>
+
+  <section class="tab-panel active" id="tab-forum">
+    <div id="threadList">
+      <div class="filters"><div class="search grow" style="min-width:220px"><input class="input" id="fq" placeholder="Search threads"></div><select class="input" id="fState"><option value="">All threads</option><option value="open">Unresolved</option><option value="resolved">Resolved</option><option value="mine">My threads</option></select></div>
+      <div class="chips mb-3" id="fChips"></div>
+      <div class="card" id="threads"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+    <div id="threadView" class="hidden"></div>
+  </section>
+
+  <section class="tab-panel" id="tab-requests">
+    <div class="filters">
+      <div class="search grow" style="min-width:220px"><input class="input" id="rq" placeholder="Search requests"></div>
+      <select class="input" id="rCat"><option value="">All categories</option></select>
+      <select class="input" id="rStatus"><option value="">All statuses</option><option>Open</option><option>In progress</option><option>Done</option></select>
+      <label class="check"><input type="checkbox" id="rMine"> Only mine</label>
+    </div>
+    <div class="req-grid" id="requests"><div class="card"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+  </section>
+</main>
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'forum' });
+  const sb = SL.sb, esc = SL.esc, qs = SL.qs, qsa = SL.qsa;
+  qsa('.search').forEach((el) => { if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', SL.icons.search); });
+  const skel = (n) => Array.from({ length: n || 3 }, () => '<div class="skeleton"></div>').join('');
+  const err = (e, fb) => SL.toast((e && e.message) || fb || 'Something went wrong', 'err');
+  const CATS = ['General', 'Methods', 'Statistics', 'IRB', 'Data', 'Announcements'];
+  const CAT_TAG = { General: 'tag-outline', Methods: 'tag-teal', Statistics: 'tag-info', IRB: 'tag-gold', Data: '', Announcements: 'tag-danger' };
+  const RCATS = ['Statistics consult', 'Data pull', 'IRB help', 'Editing', 'Student project request', 'Other'];
+  const RSTAT = ['Open', 'In progress', 'Done'];
+  const canTriage = SL.hasRole('Admin', 'Statistician');
+  const ago = (d) => { const s = (Date.now() - new Date(d)) / 1000; if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' min ago'; if (s < 86400) return Math.round(s / 3600) + ' h ago'; if (s < 7 * 86400) return Math.round(s / 86400) + ' d ago'; return SL.fmtDate(d); };
+  const normStatus = (s) => { s = String(s || '').toLowerCase(); return s.startsWith('in') ? 'In progress' : /done|closed|complete|resolved/.test(s) ? 'Done' : 'Open'; };
+  let tab = 'forum';
+  function showTab(k) { tab = k; qsa('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === k)); qsa('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + k)); qs('#btnNew').textContent = k === 'forum' ? 'New thread' : 'New request'; history.replaceState(null, '', k === 'forum' ? location.pathname : '#requests'); }
+  qsa('#tabs button').forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+  qs('#btnNew').onclick = () => tab === 'forum' ? threadForm() : requestForm();
+  qs('#btnCsv').onclick = () => tab === 'forum'
+    ? SL.download('forum_threads.csv', SL.csv(filteredThreads().map((t) => Object.assign({ replies: counts[t.id] || 0 }, t)), ['id', 'title', 'category', 'author_name', 'created_at', 'replies', 'resolved', 'pinned']), 'text/csv')
+    : SL.download('requests.csv', SL.csv(filteredReqs().map((r) => Object.assign({ requested_by_name: names[r.requested_by] || '' }, r)), ['id', 'title', 'category', 'urgency', 'status', 'requested_by_name', 'assigned_to', 'project_id', 'created_at', 'description']), 'text/csv');
+
+  // ============ THREADS ============
+  let threads = [], counts = {}, latest = {}, cat = 'All', names = {};
+  async function loadThreads() {
+    const [{ data, error }, { data: reps }] = await Promise.all([sb.from('forum_posts').select('*').is('parent_id', null).order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(300), sb.from('forum_posts').select('parent_id,created_at').not('parent_id', 'is', null)]);
+    if (error) { qs('#threads').innerHTML = `<div class="alert alert-danger mb-0">${esc(error.message)}</div>`; return; }
+    threads = data || []; counts = {}; latest = {};
+    (reps || []).forEach((r) => { counts[r.parent_id] = (counts[r.parent_id] || 0) + 1; if (!latest[r.parent_id] || r.created_at > latest[r.parent_id]) latest[r.parent_id] = r.created_at; });
+    renderChips(); renderThreads();
+  }
+  function renderChips() {
+    const all = ['All'].concat(CATS);
+    qs('#fChips').innerHTML = all.map((c) => `<button class="chip ${cat === c ? 'active' : ''}" data-c="${c}">${c} <span style="opacity:.7;font-size:.75rem">${c === 'All' ? threads.length : threads.filter((t) => (t.category || 'General') === c).length}</span></button>`).join('');
+    qsa('#fChips .chip').forEach((b) => b.onclick = () => { cat = b.dataset.c; renderChips(); renderThreads(); });
+  }
+  function filteredThreads() {
+    const q = qs('#fq').value.trim().toLowerCase(), st = qs('#fState').value;
+    return threads.filter((t) => (cat === 'All' || (t.category || 'General') === cat) && (!q || [t.title, t.content, t.author_name].some((v) => (v || '').toLowerCase().includes(q))) && (st === '' || (st === 'open' && !t.resolved) || (st === 'resolved' && t.resolved) || (st === 'mine' && t.author_id === me.id)));
+  }
+  function renderThreads() {
+    const rows = filteredThreads(); const box = qs('#threads');
+    box.innerHTML = rows.length ? rows.map((t) => `<div class="thread ${t.pinned ? 'pinned' : ''}" data-id="${t.id}"><span class="avatar">${esc(SL.initials(t.author_name))}</span><div style="flex:1;min-width:0"><div class="t-title">${t.pinned ? '📌 ' : ''}${esc(t.title)}</div><div class="t-snip">${esc(t.content || '')}</div><div class="t-meta"><span class="tag ${CAT_TAG[t.category] || 'tag-outline'}">${esc(t.category || 'General')}</span>${t.resolved ? '<span class="tag tag-ok">Resolved</span>' : ''}<span>${esc(t.author_name || 'Unknown')}</span><span>${ago(t.created_at)}</span>${latest[t.id] ? `<span>· last reply ${ago(latest[t.id])}</span>` : ''}</div></div><div class="count"><div class="n">${counts[t.id] || 0}</div><div class="l">replies</div></div></div>`).join('') : `<div class="empty">${SL.icons.chat}<div>${threads.length ? 'No threads match.' : 'No discussions yet. Start the first thread.'}</div></div>`;
+    qsa('.thread', box).forEach((el) => el.onclick = () => openThread(Number(el.dataset.id)));
+  }
+  ['#fq', '#fState'].forEach((s) => { qs(s).oninput = SL.debounce(renderThreads, 120); qs(s).onchange = renderThreads; });
+
+  function threadForm() {
+    SL.modal(`<div class="modal-head"><h3>New thread</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="tForm"><div class="modal-body">
+      <div class="field"><label>Title</label><input class="input" name="title" required maxlength="200" placeholder="What do you want to discuss?"></div>
+      <div class="field"><label>Category</label><select class="input" name="category">${CATS.filter((c) => c !== 'Announcements' || SL.isAdmin()).map((c) => `<option>${c}</option>`).join('')}</select></div>
+      <div class="field"><label>Content</label><textarea class="input" name="content" rows="7" required placeholder="Describe your question or topic. Please do not include PHI."></textarea></div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="tSave">Post thread</button></div></form>`);
+    qs('#tForm').onsubmit = async (e) => {
+      e.preventDefault(); qs('#tSave').disabled = true; const fd = new FormData(e.target);
+      const { data, error } = await sb.from('forum_posts').insert({ title: fd.get('title').trim(), category: fd.get('category'), content: fd.get('content').trim(), author_id: me.id, author_name: me.name, parent_id: null, resolved: false, pinned: false }).select().single();
+      if (error) { qs('#tSave').disabled = false; return err(error); }
+      SL.audit('created', 'forum_post', data.id, data.title); SL.toast('Thread posted', 'ok'); SL.closeModal(); await loadThreads(); openThread(data.id);
+    };
+  }
+
+  async function openThread(id) {
+    qs('#threadList').classList.add('hidden'); const v = qs('#threadView'); v.classList.remove('hidden'); v.innerHTML = `<div class="card">${skel(4)}</div>`;
+    history.replaceState(null, '', '?t=' + id);
+    const [{ data: t, error }, { data: replies }] = await Promise.all([sb.from('forum_posts').select('*').eq('id', id).maybeSingle(), sb.from('forum_posts').select('*').eq('parent_id', id).order('created_at', { ascending: true })]);
+    if (error || !t) { v.innerHTML = `<button class="btn btn-outline btn-sm mb-2" id="btnBack">← Back</button><div class="empty">Thread not found.</div>`; qs('#btnBack').onclick = backToList; return; }
+    const mine = t.author_id === me.id, admin = SL.isAdmin();
+    v.innerHTML = `<button class="btn btn-outline btn-sm mb-2" id="btnBack">← All threads</button>
+      <div class="card mb-2">
+        <div class="flex wrap" style="gap:6px;margin-bottom:8px"><span class="tag ${CAT_TAG[t.category] || 'tag-outline'}">${esc(t.category || 'General')}</span>${t.pinned ? '<span class="tag tag-gold">Pinned</span>' : ''}${t.resolved ? '<span class="tag tag-ok">Resolved</span>' : ''}</div>
+        <h2 style="font-size:1.45rem">${esc(t.title)}</h2>
+        <div class="post-body">${esc(t.content || '')}</div>
+        <div class="t-meta mt-2"><span class="avatar" style="width:26px;height:26px;font-size:.65rem">${esc(SL.initials(t.author_name))}</span><span>${esc(t.author_name || 'Unknown')}</span><span>${SL.fmtDateTime(t.created_at)}</span></div>
+        ${(mine || admin) ? `<div class="flex wrap mt-3" style="gap:8px">${!t.resolved ? `<button class="btn btn-outline btn-sm" data-act="resolve">${SL.icons.check} Mark resolved</button>` : `<button class="btn btn-ghost btn-sm" data-act="reopen">Reopen</button>`}${admin ? `<button class="btn btn-outline btn-sm" data-act="pin">${t.pinned ? 'Unpin' : 'Pin'}</button>` : ''}${mine || admin ? `<button class="btn btn-ghost btn-sm" data-act="edit">${SL.icons.edit} Edit</button>` : ''}<button class="btn btn-ghost btn-sm" data-act="delete" style="color:var(--danger)">${SL.icons.trash} Delete</button></div>` : ''}
+      </div>
+      <div class="card mb-2"><h3 style="font-size:1.05rem">Replies (${(replies || []).length})</h3>
+        <div id="replies">${(replies || []).length ? replies.map((r) => `<div class="reply" data-rid="${r.id}"><span class="avatar">${esc(SL.initials(r.author_name))}</span><div style="flex:1;min-width:0"><div class="flex between wrap"><div><strong class="small">${esc(r.author_name || 'Unknown')}</strong> <span class="xs muted">${SL.fmtDateTime(r.created_at)}</span></div>${(r.author_id === me.id || admin) ? `<button class="btn btn-ghost btn-sm btn-icon" data-delreply="${r.id}" title="Delete reply">${SL.icons.trash}</button>` : ''}</div><div class="post-body small mt-1">${esc(r.content || '')}</div></div></div>`).join('') : '<div class="empty" style="padding:20px">No replies yet. Be the first to respond.</div>'}</div>
+      </div>
+      <div class="card"><form id="replyForm"><div class="field"><label>Your reply</label><textarea class="input" name="content" rows="4" required placeholder="Write a reply…"></textarea></div><button class="btn btn-primary btn-sm" type="submit" id="replySave">Post reply</button></form></div>`;
+    qs('#btnBack').onclick = backToList;
+    qsa('[data-act]', v).forEach((b) => b.onclick = async () => {
+      const a = b.dataset.act;
+      if (a === 'resolve' || a === 'reopen') { const { error } = await sb.from('forum_posts').update({ resolved: a === 'resolve' }).eq('id', id); if (error) return err(error); SL.toast(a === 'resolve' ? 'Marked resolved' : 'Reopened', 'ok'); }
+      else if (a === 'pin') { const { error } = await sb.from('forum_posts').update({ pinned: !t.pinned }).eq('id', id); if (error) return err(error); SL.toast(t.pinned ? 'Unpinned' : 'Pinned', 'ok'); }
+      else if (a === 'edit') { return editThread(t); }
+      else if (a === 'delete') { if (!await SL.confirm('Delete this thread and all its replies?', 'Delete')) return; await sb.from('forum_posts').delete().eq('parent_id', id); const { error } = await sb.from('forum_posts').delete().eq('id', id); if (error) return err(error); SL.audit('deleted', 'forum_post', id, t.title); SL.toast('Thread deleted', 'ok'); return backToList(); }
+      SL.audit('updated', 'forum_post', id, a); loadThreads(); openThread(id);
+    });
+    qsa('[data-delreply]', v).forEach((b) => b.onclick = async () => { if (!await SL.confirm('Delete this reply?', 'Delete')) return; const { error } = await sb.from('forum_posts').delete().eq('id', b.dataset.delreply); if (error) return err(error); SL.toast('Reply deleted', 'ok'); loadThreads(); openThread(id); });
+    qs('#replyForm').onsubmit = async (e) => {
+      e.preventDefault(); qs('#replySave').disabled = true; const content = new FormData(e.target).get('content').trim();
+      const { error } = await sb.from('forum_posts').insert({ content, parent_id: id, author_id: me.id, author_name: me.name, resolved: false, pinned: false, category: t.category });
+      if (error) { qs('#replySave').disabled = false; return err(error); }
+      const who = new Set([t.author_id].concat((replies || []).map((r) => r.author_id)).filter((x) => x && x !== me.id));
+      if (who.size) { const { data: ps } = await sb.from('profiles').select('email').in('id', [...who]); const to = (ps || []).map((p) => p.email).filter(Boolean); if (to.length) SL.notify(to, 'forum_reply', `${me.name} replied to "${t.title}"`); }
+      SL.toast('Reply posted', 'ok'); loadThreads(); openThread(id);
+    };
+  }
+  function editThread(t) {
+    SL.modal(`<div class="modal-head"><h3>Edit thread</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div><form id="eForm"><div class="modal-body"><div class="field"><label>Title</label><input class="input" name="title" required value="${esc(t.title)}"></div><div class="field"><label>Category</label><select class="input" name="category">${CATS.map((c) => `<option ${c === t.category ? 'selected' : ''}>${c}</option>`).join('')}</select></div><div class="field"><label>Content</label><textarea class="input" name="content" rows="7" required>${esc(t.content || '')}</textarea></div></div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form>`);
+    qs('#eForm').onsubmit = async (e) => { e.preventDefault(); const fd = new FormData(e.target); const { error } = await sb.from('forum_posts').update({ title: fd.get('title').trim(), category: fd.get('category'), content: fd.get('content').trim(), updated_at: new Date().toISOString() }).eq('id', t.id); if (error) return err(error); SL.closeModal(); SL.toast('Saved', 'ok'); loadThreads(); openThread(t.id); };
+  }
+  function backToList() { qs('#threadView').classList.add('hidden'); qs('#threadList').classList.remove('hidden'); history.replaceState(null, '', location.pathname); }
+
+  // ============ REQUESTS ============
+  let reqs = [], projects = {}, emails = {};
+  async function loadRequests() {
+    const [{ data, error }, { data: ps }, { data: prj }] = await Promise.all([sb.from('forum_requests').select('*').order('created_at', { ascending: false }), sb.from('profiles').select('id,name,email'), sb.from('projects').select('id,title')]);
+    if (error) { qs('#requests').innerHTML = `<div class="alert alert-danger">${esc(error.message)}</div>`; return; }
+    reqs = data || []; names = {}; emails = {}; (ps || []).forEach((p) => { names[p.id] = p.name; emails[p.id] = p.email; }); projects = {}; (prj || []).forEach((p) => projects[p.id] = p.title);
+    const el = qs('#rCat'), cur = el.value; el.innerHTML = '<option value="">All categories</option>' + [...new Set(RCATS.concat(reqs.map((r) => r.category).filter(Boolean)))].map((c) => `<option>${esc(c)}</option>`).join(''); el.value = cur;
+    const open = reqs.filter((r) => normStatus(r.status) !== 'Done').length; qs('#openCount').textContent = open || ''; qs('#openCount').classList.toggle('hidden', !open);
+    renderRequests();
+  }
+  function filteredReqs() {
+    const q = qs('#rq').value.trim().toLowerCase(), c = qs('#rCat').value, st = qs('#rStatus').value, mine = qs('#rMine').checked;
+    return reqs.filter((r) => (!q || [r.title, r.description, names[r.requested_by], r.assigned_to].some((v) => (v || '').toLowerCase().includes(q))) && (!c || r.category === c) && (!st || normStatus(r.status) === st) && (!mine || r.requested_by === me.id));
+  }
+  function renderRequests() {
+    const rows = filteredReqs(); const box = qs('#requests');
+    const stTag = { Open: 'tag-info', 'In progress': 'tag-warn', Done: 'tag-ok' };
+    box.innerHTML = rows.length ? rows.map((r) => { const st = normStatus(r.status), own = r.requested_by === me.id; return `<div class="card req"><div class="head"><div><div style="font-weight:600;color:var(--ink)">${esc(r.title)}</div><div class="xs muted">${esc(r.category || 'Other')} · ${esc(names[r.requested_by] || 'Unknown')} · ${ago(r.created_at)}</div></div><span class="tag ${stTag[st]}">${st}</span></div>
+      <div class="desc">${esc(r.description || '')}</div>
+      <div class="flex wrap between xs"><span><span class="urg-${esc(r.urgency || 'Medium')}">${esc(r.urgency || 'Medium')} urgency</span>${r.project_id ? ` · <a href="/hub/projects.html?id=${r.project_id}">${esc(projects[r.project_id] || 'Project #' + r.project_id)}</a>` : ''}${r.assigned_to ? ` · Assigned: ${esc(r.assigned_to)}` : ''}</span></div>
+      <div class="flex wrap mt-2" style="gap:6px">${canTriage ? `<select class="input" data-st="${r.id}" style="width:auto;padding:5px 8px;font-size:.82rem">${RSTAT.map((s) => `<option ${s === st ? 'selected' : ''}>${s}</option>`).join('')}</select><button class="btn btn-outline btn-sm" data-assign="${r.id}">${r.assigned_to ? 'Reassign' : 'Assign'}</button>` : ''}${(own || SL.isAdmin()) && st !== 'Done' ? `<button class="btn btn-ghost btn-sm" data-redit="${r.id}">Edit</button>` : ''}${SL.isAdmin() ? `<button class="btn btn-ghost btn-sm btn-icon" data-rdel="${r.id}" title="Delete">${SL.icons.trash}</button>` : ''}</div></div>`; }).join('') : `<div class="empty" style="grid-column:1/-1">${SL.icons.chat}<div>${reqs.length ? 'No requests match.' : 'No requests yet.'}</div></div>`;
+    qsa('[data-st]', box).forEach((s) => s.onchange = async () => { const r = reqs.find((x) => String(x.id) === s.dataset.st); const { error } = await sb.from('forum_requests').update({ status: s.value }).eq('id', r.id); if (error) return err(error); SL.audit('updated', 'forum_request', r.id, 'status → ' + s.value); if (emails[r.requested_by] && r.requested_by !== me.id) SL.notify([emails[r.requested_by]], 'request_status', `Your request "${r.title}" is now ${s.value}`); SL.toast('Status updated', 'ok'); loadRequests(); });
+    qsa('[data-assign]', box).forEach((b) => b.onclick = () => { const r = reqs.find((x) => String(x.id) === b.dataset.assign); SL.modal(`<div class="modal-head"><h3>Assign request</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div><form id="asForm"><div class="modal-body"><div class="field"><label>Assigned to</label><input class="input" name="a" list="ppl" value="${esc(r.assigned_to || me.name)}"><datalist id="ppl">${Object.values(names).filter(Boolean).sort().map((n) => `<option value="${esc(n)}">`).join('')}</datalist></div></div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button class="btn btn-primary" type="submit">Save</button></div></form>`); qs('#asForm').onsubmit = async (e) => { e.preventDefault(); const a = new FormData(e.target).get('a').trim() || null; const patch = { assigned_to: a }; if (a && normStatus(r.status) === 'Open') patch.status = 'In progress'; const { error } = await sb.from('forum_requests').update(patch).eq('id', r.id); if (error) return err(error); SL.closeModal(); SL.toast('Assigned', 'ok'); loadRequests(); }; });
+    qsa('[data-redit]', box).forEach((b) => b.onclick = () => requestForm(reqs.find((x) => String(x.id) === b.dataset.redit)));
+    qsa('[data-rdel]', box).forEach((b) => b.onclick = async () => { const r = reqs.find((x) => String(x.id) === b.dataset.rdel); if (!await SL.confirm(`Delete request "${r.title}"?`, 'Delete')) return; const { error } = await sb.from('forum_requests').delete().eq('id', r.id); if (error) return err(error); SL.audit('deleted', 'forum_request', r.id, r.title); SL.toast('Deleted', 'ok'); loadRequests(); });
+  }
+  ['#rq', '#rCat', '#rStatus', '#rMine'].forEach((s) => { qs(s).oninput = SL.debounce(renderRequests, 120); qs(s).onchange = renderRequests; });
+  async function requestForm(r) {
+    r = r || {};
+    const { data: prj } = await sb.from('projects').select('id,title').order('title');
+    SL.modal(`<div class="modal-head"><h3>${r.id ? 'Edit request' : 'New request'}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="rForm"><div class="modal-body">
+      <div class="field"><label>Title</label><input class="input" name="title" required value="${esc(r.title || '')}" placeholder="Short summary"></div>
+      <div class="form-row"><div class="field"><label>Category</label><select class="input" name="category">${RCATS.filter((c) => c !== 'Student project request' || r.category === c).map((c) => `<option ${(r.category || 'Statistics consult') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div><div class="field"><label>Urgency</label><select class="input" name="urgency">${['Low', 'Medium', 'High'].map((u) => `<option ${(r.urgency || 'Medium') === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div>
+      <div class="field"><label>Related project</label><select class="input" name="project_id"><option value="">None</option>${(prj || []).map((p) => `<option value="${p.id}" ${String(r.project_id) === String(p.id) ? 'selected' : ''}>${esc(p.title)}</option>`).join('')}</select></div>
+      <div class="field"><label>Description</label><textarea class="input" name="description" rows="6" required placeholder="What do you need, by when, and any relevant details (no PHI).">${esc(r.description || '')}</textarea></div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="rSave">${r.id ? 'Save' : 'Submit request'}</button></div></form>`);
+    qs('#rForm').onsubmit = async (e) => {
+      e.preventDefault(); qs('#rSave').disabled = true; const fd = new FormData(e.target);
+      const row = { title: fd.get('title').trim(), category: fd.get('category'), urgency: fd.get('urgency'), project_id: fd.get('project_id') ? Number(fd.get('project_id')) : null, description: fd.get('description').trim() };
+      if (!r.id) { row.status = 'Open'; row.requested_by = me.id; }
+      const res = r.id ? await sb.from('forum_requests').update(row).eq('id', r.id) : await sb.from('forum_requests').insert(row).select().single();
+      if (res.error) { qs('#rSave').disabled = false; return err(res.error); }
+      if (!r.id) {
+        const { data: admins } = await sb.from('profiles').select('email').in('role', row.category === 'Statistics consult' ? ['Admin', 'Statistician'] : ['Admin']);
+        SL.notify([...new Set((admins || []).map((a) => a.email).concat(SL.ADMIN_EMAILS))], 'request', `New ${row.category} request from ${me.name}: ${row.title}`, { project_id: row.project_id });
+      }
+      SL.audit(r.id ? 'updated' : 'created', 'forum_request', r.id || (res.data && res.data.id), row.title);
+      SL.toast(r.id ? 'Request updated' : 'Request submitted', 'ok'); SL.closeModal(); loadRequests();
+    };
+  }
+
+  loadThreads(); loadRequests();
+  if (location.hash === '#requests') showTab('requests');
+  if (SL.param('t')) openThread(Number(SL.param('t')));
+})();
+</script>
+</body></html>

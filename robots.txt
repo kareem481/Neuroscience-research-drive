@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /hub/
+Disallow: /login.html
+Disallow: /legacy/
+
+Sitemap: https://slresearchhub.com/sitemap.xml

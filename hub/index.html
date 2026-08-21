@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Research Hub dashboard — projects, announcements, deadlines and publications for the Saint Luke's Neuroscience Research Department.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+  .dash-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start}
+  @media(max-width:1100px){.dash-grid{grid-template-columns:1fr}}
+  .stats{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-bottom:24px}
+  @media(max-width:1300px){.stats{grid-template-columns:repeat(4,1fr)}}
+  @media(max-width:1000px){.stats{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat a{color:inherit;text-decoration:none;display:block}
+  .stat.alert-tile{border-color:rgba(251,191,36,.45);background:var(--warn-bg)}
+  .stat.alert-tile .n{background:none;-webkit-text-fill-color:var(--warn);color:var(--warn)}
+  .quick{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}
+  @media(max-width:1100px){.quick{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:640px){.quick{grid-template-columns:repeat(2,1fr)}}
+  .quick a{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:var(--radius);color:var(--ink);font-weight:600;font-size:.92rem;box-shadow:var(--shadow-sm);transition:.2s}
+  .quick a:hover{text-decoration:none;border-color:rgba(34,211,238,.4);box-shadow:var(--shadow),0 0 24px rgba(34,211,238,.12);transform:translateY(-2px)}
+  .quick a svg{width:22px;height:22px;color:var(--teal);flex:none}
+  .proj-row{display:grid;grid-template-columns:1fr auto;gap:6px 16px;padding:12px 0;border-bottom:1px solid var(--line);align-items:center;cursor:pointer}
+  .proj-row:last-child{border-bottom:0}
+  .proj-row:hover .pt{text-decoration:underline}
+  .proj-row .pt{font-weight:600;color:var(--ink);font-size:.95rem}
+  .proj-row .progress{grid-column:1/-1;margin-top:2px}
+  .ann{padding:14px 0;border-bottom:1px solid var(--line)} .ann:last-child{border-bottom:0}
+  .ann .t{font-weight:600;color:var(--ink);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .ann p{margin:4px 0 4px;font-size:.9rem;color:var(--ink-2);white-space:pre-line}
+  .up{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);align-items:flex-start} .up:last-child{border-bottom:0}
+  .up .d{flex:none;width:46px;text-align:center;background:var(--navy-100);border-radius:8px;padding:4px 0;line-height:1.1}
+  .up .d b{display:block;font-size:1.1rem;color:var(--ink);font-family:var(--font-head)} .up .d span{font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .gsearch{position:relative;min-width:min(420px,100%)}
+  .gsearch .input{padding-left:40px;padding-right:52px}
+  .gsearch .kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%)}
+  .gs-drop{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface-solid);border:1px solid var(--line-2);border-radius:var(--radius);box-shadow:var(--shadow-lg);z-index:60;max-height:420px;overflow:auto;padding:6px}
+  .gs-item{display:flex;gap:12px;align-items:center;padding:9px 12px;border-radius:8px;color:inherit} .gs-item:hover{background:rgba(34,211,238,.08);text-decoration:none}
+  .gs-item .ic{width:32px;height:32px;border-radius:8px;background:var(--teal-100);color:var(--teal-600);display:grid;place-items:center;flex:none} .gs-item .ic svg{width:16px;height:16px}
+  .gs-item .ttl{font-weight:600;font-size:.9rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gs-item .sub{font-size:.78rem;color:var(--muted)}
+  .card h3{font-size:1.1rem;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .card h3 a,.card h3 button{font-family:var(--font-body);font-size:.82rem;font-weight:600}
+</style>
+</head>
+<body>
+<main id="main">
+  <div class="page-head">
+    <div>
+      <h1 id="welcome">Dashboard</h1>
+      <div class="sub" id="welcomeSub">&nbsp;</div>
+    </div>
+    <div class="gsearch search">
+      <span id="gsIcon"></span>
+      <input class="input" id="gsearch" type="search" placeholder="Search projects, people, grants, publications…" autocomplete="off" aria-label="Global search">
+      <span class="kbd">Ctrl K</span>
+      <div id="gsDrop" class="gs-drop hidden" role="listbox"></div>
+    </div>
+  </div>
+
+  <div class="stats" id="stats">
+    <div class="card stat"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:70%"></div></div>
+    <div class="card stat"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:70%"></div></div>
+    <div class="card stat"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:70%"></div></div>
+    <div class="card stat"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:70%"></div></div>
+    <div class="card stat"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:70%"></div></div>
+    <div class="card stat"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:70%"></div></div>
+    <div class="card stat"><div class="skeleton" style="width:40%;height:28px"></div><div class="skeleton" style="width:70%"></div></div>
+  </div>
+
+  <div class="quick" id="quick"></div>
+
+  <div class="dash-grid">
+    <div style="display:grid;gap:20px">
+      <section class="card">
+        <h3>My projects <a href="/hub/projects.html?mine=1">View all</a></h3>
+        <div id="myProjects"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:60%"></div></div>
+      </section>
+      <section class="card">
+        <h3>Recent publications <a href="/hub/publications.html">All publications</a></h3>
+        <div id="recentPubs"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:60%"></div></div>
+      </section>
+    </div>
+    <div style="display:grid;gap:20px">
+      <section class="card">
+        <h3>Announcements <button class="btn btn-outline btn-sm hidden" id="annAdd">New</button></h3>
+        <div id="announcements"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div>
+      </section>
+      <section class="card">
+        <h3>Upcoming (14 days) <a href="/hub/grants.html">Deadlines</a></h3>
+        <div id="upcoming"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+(async function () {
+  const me = await SL.requireAuth();
+  SL.renderHubShell({ active: 'dashboard' });
+  const h = SL.esc, I = SL.icons;
+  const isAdmin = SL.isAdmin(), isIRB = SL.hasRole('IRB');
+  const isTriager = SL.hasRole('Admin', 'Statistician', 'CRC', 'Research Fellow');
+  const myName = (me.name || '').trim().toLowerCase();
+  const ACTIVE_EXCL = ['Completed', 'Archived'];
+
+  // ---- welcome ----
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  SL.qs('#welcome').textContent = `${greet}, ${(me.name || '').split(',')[0].split(' ')[0] || 'there'}`;
+  SL.qs('#welcomeSub').innerHTML = [me.role, me.department].filter(Boolean).map(h).concat(new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })).join(' · ');
+  SL.qs('#gsIcon').innerHTML = I.search;
+
+  // ---- quick actions ----
+  SL.qs('#quick').innerHTML = [
+    ['/hub/projects.html?new=1', I.plus, 'New project'],
+    ['/hub/registries/index.html', I.db, 'Open registries'],
+    ['/docs.html', I.doc, 'Documentation'],
+    ['/hub/tools.html#samplesize', I.chart, 'Sample-size calculator'],
+    ['/hub/services.html', I.shield, 'Request a service'],
+  ].map(([href, ic, label]) => `<a href="${href}">${ic}<span>${label}</span></a>`).join('');
+
+  // ---- helpers ----
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const plus = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
+  const statusTag = (s) => { const m = { 'Active': 'tag-ok', 'Data Collection': 'tag-teal', 'Analysis': 'tag-info', 'Publication': 'tag-gold', 'Completed': 'tag-outline', 'IRB Review': 'tag-warn', 'Admin Review': 'tag-warn' }; return `<span class="tag ${m[s] || ''}">${h(s || 'Pre-submission')}</span>`; };
+  const mentionsMe = (p) => {
+    if (p.created_by === me.id) return true;
+    if (!myName) return false;
+    const last = myName.split(/[\s,]+/).filter(Boolean).pop();
+    const hay = [p.pi, p.co_investigators].concat(p.irb_personnel || []).filter(Boolean).join(' | ').toLowerCase();
+    return hay.includes(myName) || (last && last.length > 3 && hay.includes(last));
+  };
+
+  // ---- load everything in parallel ----
+  const [projR, pubsR, pubCountR, grantsR, dlR, mtgR, annR, pendingR, svcR] = await Promise.all([
+    SL.sb.from('projects').select('id,title,status,progress,pi,co_investigators,irb_personnel,created_by,admin_approved,irb_approved,irb_decision,irb_consent,notes,created_at').order('created_at', { ascending: false }),
+    SL.sb.from('publications').select('id,title,journal,journal_abbrev,year,pub_date,author_string,doi,pmid,url').eq('visible', true).order('pub_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(5),
+    SL.sb.from('publications').select('id', { count: 'exact', head: true }).eq('visible', true),
+    SL.sb.from('grants').select('id', { count: 'exact', head: true }).eq('status', 'Active'),
+    SL.sb.from('deadlines').select('id,title,deadline_type,deadline_date,associated_item').gte('deadline_date', iso(today)).lte('deadline_date', iso(plus(30))).order('deadline_date'),
+    SL.sb.from('meetings').select('id,title,meeting_date,meeting_time,location,teams_link').gte('meeting_date', iso(today)).lte('meeting_date', iso(plus(14))).order('meeting_date').order('meeting_time'),
+    SL.sb.from('announcements').select('*').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(8),
+    isAdmin ? SL.sb.from('pending_login_approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending') : Promise.resolve({ count: 0 }),
+    (isTriager ? SL.sb.from('service_requests').select('id', { count: 'exact', head: true }) : SL.sb.from('service_requests').select('id', { count: 'exact', head: true }).eq('requester_id', me.id)).in('status', ['new', 'triaged', 'in_progress']),
+  ]);
+  const projects = projR.data || [];
+  const deadlines = dlR.data || [];
+  const meetings = mtgR.data || [];
+
+  // ---- stats (correct order: Active projects, Pending my action, Publications, Grants, Deadlines, Meetings) ----
+  const active = projects.filter((p) => !ACTIVE_EXCL.includes(p.status)).length;
+  let pending = 0, pendingHref = '/hub/projects.html';
+  if (isAdmin) {
+    pending = (pendingR.count || 0) + projects.filter((p) => !p.admin_approved && !ACTIVE_EXCL.includes(p.status)).length;
+    pendingHref = (pendingR.count || 0) ? '/hub/admin.html' : '/hub/projects.html?pending=admin';
+  } else if (isIRB) {
+    pending = projects.filter((p) => !p.irb_approved && p.status === 'IRB Review').length;
+    pendingHref = '/hub/projects.html?status=IRB%20Review';
+  } else {
+    pending = projects.filter((p) => mentionsMe(p) && (['conditional', 'deferred', 'denied'].includes(p.irb_decision) || /changes requested/i.test(p.notes || ''))).length;
+    pendingHref = '/hub/projects.html?mine=1';
+  }
+  // meetings this week (Mon–Sun)
+  const dow = (today.getDay() + 6) % 7; const monday = plus(-dow); const sunday = plus(6 - dow);
+  const weekMtgs = meetings.filter((m) => m.meeting_date >= iso(monday) && m.meeting_date <= iso(sunday)).length;
+  const tiles = [
+    { n: active, l: 'Active projects', href: '/hub/projects.html' },
+    { n: pending, l: 'Pending my action', href: pendingHref, warn: pending > 0 },
+    { n: pubCountR.count || 0, l: 'Publications', href: '/hub/publications.html' },
+    { n: grantsR.count || 0, l: 'Active grants', href: '/hub/grants.html' },
+    { n: deadlines.length, l: 'Deadlines (30 days)', href: '/hub/grants.html#deadlines' },
+    { n: weekMtgs, l: 'Meetings this week', href: '/hub/meetings.html' },
+    { n: svcR.count || 0, l: isTriager ? 'Open service requests' : 'My service requests', href: isTriager ? '/hub/services.html#triage' : '/hub/services.html', warn: isTriager && (svcR.count || 0) > 0 },
+  ];
+  SL.qs('#stats').innerHTML = tiles.map((t) => `<div class="card stat ${t.warn ? 'alert-tile' : ''}"><a href="${t.href}"><div class="n">${t.n}</div><div class="l">${t.l}</div></a></div>`).join('');
+
+  // ---- my projects ----
+  const mine = projects.filter(mentionsMe).slice(0, 8);
+  SL.qs('#myProjects').innerHTML = mine.length ? mine.map((p) => `
+    <div class="proj-row" onclick="location.href='/hub/projects.html?id=${p.id}'">
+      <div><div class="pt">${h(p.title || 'Untitled')}</div><div class="xs muted">${h(p.pi || 'No PI')}${p.irb_approved ? ' · IRB approved' : (p.irb_consent && p.irb_consent.na) ? ' · No IRB needed' : ' · IRB pending'}</div></div>
+      <div class="flex" style="gap:8px">${statusTag(p.status)}<span class="xs muted" style="min-width:32px;text-align:right">${p.progress || 0}%</span></div>
+      <div class="progress"><span style="width:${Math.min(100, p.progress || 0)}%"></span></div>
+    </div>`).join('')
+    : `<div class="empty" style="padding:28px">${I.flask}<div>You are not listed on any projects yet.</div><a class="btn btn-primary btn-sm mt-2" href="/hub/projects.html?new=1">Start a project</a></div>`;
+
+  // ---- recent publications ----
+  const pubs = pubsR.data || [];
+  SL.qs('#recentPubs').innerHTML = pubs.length ? pubs.map((p) => `
+    <div class="pub" style="padding:12px 0">
+      <div class="pub-title" style="font-size:.95rem"><a href="/hub/publications.html?id=${p.id}">${h(p.title)}</a></div>
+      <div class="pub-meta">${h(p.journal_abbrev || p.journal || '')}${p.year ? ' · ' + p.year : ''}${p.pmid ? ` · <a href="https://pubmed.ncbi.nlm.nih.gov/${h(p.pmid)}/" target="_blank" rel="noopener">PMID ${h(p.pmid)}</a>` : ''}</div>
+    </div>`).join('') : '<div class="empty">No publications yet.</div>';
+
+  // ---- upcoming (deadlines + meetings, next 14 days) ----
+  const cutoff = iso(plus(14));
+  const items = deadlines.filter((d) => d.deadline_date <= cutoff).map((d) => ({ date: d.deadline_date, time: '', title: d.title, sub: `${d.deadline_type || 'Deadline'}${d.associated_item ? ' · ' + d.associated_item : ''}`, kind: 'Deadline', href: '/hub/grants.html#deadlines' }))
+    .concat(meetings.map((m) => ({ date: m.meeting_date, time: m.meeting_time || '', title: m.title, sub: [m.meeting_time ? fmtTime(m.meeting_time) : '', m.location || (m.teams_link ? 'Teams' : '')].filter(Boolean).join(' · '), kind: 'Meeting', href: '/hub/meetings.html' })))
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  function fmtTime(t) { const [hh, mm] = String(t).split(':'); const n = +hh; return `${n % 12 || 12}:${mm} ${n < 12 ? 'AM' : 'PM'}`; }
+  SL.qs('#upcoming').innerHTML = items.length ? items.map((it) => { const d = new Date(it.date + 'T12:00:00'); return `
+    <a class="up" href="${it.href}" style="color:inherit">
+      <div class="d"><b>${d.getDate()}</b><span>${d.toLocaleDateString('en-US', { month: 'short' })}</span></div>
+      <div style="min-width:0"><div style="font-weight:600;font-size:.92rem;color:var(--ink)">${h(it.title)}</div><div class="xs muted">${h(it.sub)}</div></div>
+      <span class="tag ${it.kind === 'Deadline' ? 'tag-warn' : 'tag-teal'}" style="margin-left:auto">${it.kind}</span>
+    </a>`; }).join('') : '<div class="empty" style="padding:24px">Nothing due in the next two weeks.</div>';
+
+  // ---- announcements ----
+  const annBox = SL.qs('#announcements');
+  const isUuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || '');
+  const nameById = {};
+  async function resolveAuthors(list) {
+    const ids = [...new Set(list.map((a) => a.created_by).filter((v) => isUuid(v) && !nameById[v]))];
+    if (!ids.length) return;
+    const { data } = await SL.sb.from('profiles').select('id,name').in('id', ids);
+    (data || []).forEach((p) => nameById[p.id] = p.name);
+  }
+  const authorName = (v) => isUuid(v) ? (nameById[v] || '') : (v || '');
+  async function renderAnnouncements(list) {
+    if (!list.length) { annBox.innerHTML = '<div class="empty" style="padding:24px">No announcements yet.</div>'; return; }
+    await resolveAuthors(list);
+    const pr = { high: 'tag-danger', medium: 'tag-warn', low: 'tag-ok' };
+    annBox.innerHTML = list.map((a) => `
+      <div class="ann" data-id="${a.id}">
+        <div class="t">${a.pinned ? '<span class="tag tag-gold" title="Pinned">Pinned</span>' : ''}<span>${h(a.title)}</span>${a.priority && a.priority !== 'medium' ? `<span class="tag ${pr[a.priority] || ''}">${h(a.priority)}</span>` : ''}${a.visibility === 'public' ? '<span class="tag tag-outline">Public</span>' : ''}</div>
+        <p>${h(a.content)}</p>
+        <div class="xs muted flex between wrap"><span>${SL.fmtDate(a.created_at)}${authorName(a.created_by) ? ' · ' + h(authorName(a.created_by)) : ''}</span>
+          ${isAdmin ? `<span class="flex" style="gap:4px"><button class="btn btn-ghost btn-sm btn-icon" title="Edit" data-edit="${a.id}">${I.edit}</button><button class="btn btn-ghost btn-sm btn-icon" title="Delete" data-del="${a.id}">${I.trash}</button></span>` : ''}</div>
+      </div>`).join('');
+    if (isAdmin) {
+      SL.qsa('[data-edit]', annBox).forEach((b) => b.onclick = () => openAnnModal(list.find((x) => String(x.id) === b.dataset.edit)));
+      SL.qsa('[data-del]', annBox).forEach((b) => b.onclick = async () => {
+        if (!await SL.confirm('Delete this announcement?', 'Delete')) return;
+        const { error } = await SL.sb.from('announcements').delete().eq('id', b.dataset.del);
+        if (error) return SL.toast(error.message, 'err');
+        SL.audit('deleted', 'announcement', b.dataset.del); SL.toast('Announcement deleted', 'ok'); reloadAnnouncements();
+      });
+    }
+  }
+  async function reloadAnnouncements() {
+    const { data } = await SL.sb.from('announcements').select('*').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(8);
+    renderAnnouncements(data || []);
+  }
+  renderAnnouncements(annR.data || []);
+  if (isAdmin) { const b = SL.qs('#annAdd'); b.classList.remove('hidden'); b.onclick = () => openAnnModal(null); }
+
+  function openAnnModal(a) {
+    a = a || {};
+    SL.modal(`<div class="modal-head"><h3>${a.id ? 'Edit' : 'New'} announcement</h3><button class="btn btn-ghost btn-icon" data-close>${I.close}</button></div>
+      <form id="annForm"><div class="modal-body">
+        <div class="field"><label>Title</label><input class="input" name="title" required maxlength="160" value="${h(a.title || '')}"></div>
+        <div class="field"><label>Content</label><textarea class="input" name="content" required>${h(a.content || '')}</textarea></div>
+        <div class="form-row">
+          <div class="field"><label>Priority</label><select class="input" name="priority">${['low', 'medium', 'high'].map((p) => `<option ${(a.priority || 'medium') === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+          <div class="field"><label>Visibility</label><select class="input" name="visibility"><option value="internal" ${a.visibility !== 'public' ? 'selected' : ''}>Internal (hub only)</option><option value="public" ${a.visibility === 'public' ? 'selected' : ''}>Public (news page)</option></select></div>
+        </div>
+        <label class="check"><input type="checkbox" name="pinned" ${a.pinned ? 'checked' : ''}> Pin to top</label>
+      </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button class="btn btn-primary" type="submit">${a.id ? 'Save' : 'Post'}</button></div></form>`);
+    SL.qs('#annForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const row = { title: f.title.value.trim(), content: f.content.value.trim(), priority: f.priority.value, visibility: f.visibility.value, pinned: f.pinned.checked };
+      if (!row.title || !row.content) return SL.toast('Title and content are required', 'err');
+      let error;
+      if (a.id) ({ error } = await SL.sb.from('announcements').update(row).eq('id', a.id));
+      else {
+        row.created_by = me.name; row.slug = row.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60) + '-' + Date.now().toString(36);
+        ({ error } = await SL.sb.from('announcements').insert(row));
+      }
+      if (error) return SL.toast(error.message, 'err');
+      SL.audit(a.id ? 'updated' : 'created', 'announcement', a.id || '', { title: row.title });
+      SL.closeModal(); SL.toast(a.id ? 'Announcement updated' : 'Announcement posted', 'ok'); reloadAnnouncements();
+    };
+  }
+
+  // ---- global search (Ctrl+K) ----
+  const gs = SL.qs('#gsearch'), drop = SL.qs('#gsDrop');
+  document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); gs.focus(); gs.select(); } });
+  const hide = () => drop.classList.add('hidden');
+  gs.addEventListener('blur', () => setTimeout(hide, 180));
+  gs.addEventListener('focus', () => { if (drop.innerHTML) drop.classList.remove('hidden'); });
+  gs.addEventListener('input', SL.debounce(async () => {
+    const q = gs.value.trim();
+    if (q.length < 2) { hide(); drop.innerHTML = ''; return; }
+    const like = `%${q.replace(/[%_]/g, '')}%`;
+    const [pr, pe, gr, pu] = await Promise.all([
+      SL.sb.from('projects').select('id,title,pi,status').ilike('title', like).limit(5),
+      SL.sb.from('profiles').select('id,name,role,department').ilike('name', like).limit(5),
+      SL.sb.from('grants').select('id,title,pi,agency').ilike('title', like).limit(5),
+      SL.sb.from('publications').select('id,title,year,journal_abbrev').ilike('title', like).limit(5),
+    ]);
+    if (gs.value.trim() !== q) return;
+    const res = []
+      .concat((pr.data || []).map((p) => ({ ic: I.flask, kind: 'Project', t: p.title, s: [p.pi, p.status].filter(Boolean).join(' · '), href: `/hub/projects.html?id=${p.id}` })))
+      .concat((pe.data || []).map((p) => ({ ic: I.users, kind: 'Person', t: p.name, s: [p.role, p.department].filter(Boolean).join(' · '), href: `/hub/directory.html?id=${p.id}` })))
+      .concat((gr.data || []).map((g) => ({ ic: I.award, kind: 'Grant', t: g.title, s: [g.pi, g.agency].filter(Boolean).join(' · '), href: `/hub/grants.html?id=${g.id}` })))
+      .concat((pu.data || []).map((p) => ({ ic: I.book, kind: 'Publication', t: p.title, s: [p.journal_abbrev, p.year].filter(Boolean).join(' · '), href: `/hub/publications.html?id=${p.id}` })));
+    drop.innerHTML = res.length ? res.map((r) => `<a class="gs-item" href="${r.href}"><span class="ic">${r.ic}</span><span style="min-width:0;flex:1"><div class="ttl">${h(r.t)}</div><div class="sub">${h(r.s)}</div></span><span class="tag tag-outline">${r.kind}</span></a>`).join('')
+      : `<div class="empty" style="padding:20px">No results for "${h(q)}"</div>`;
+    drop.classList.remove('hidden');
+  }, 280));
+})();
+</script>
+</body>
+</html>

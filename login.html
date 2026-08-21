@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Sign in to the Saint Luke's Neuroscience Research Hub.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<style>
+  .auth-card{background:rgba(15,23,42,.78)} .auth-card h1{margin-bottom:4px} .auth-card .sub{color:var(--muted);font-size:.92rem;margin-bottom:22px}
+  .pw-wrap{position:relative} .pw-wrap .input{padding-right:44px}
+  .pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);font-size:.78rem;font-weight:600;cursor:pointer;padding:6px 8px;border-radius:6px}
+  .pw-toggle:hover{background:rgba(34,211,238,.14);color:var(--teal-600)}
+  .auth-links{display:flex;justify-content:space-between;gap:12px;font-size:.88rem;margin-top:16px;flex-wrap:wrap}
+  .auth-foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);font-size:.82rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<main class="auth-wrap" id="content">
+  <div class="card auth-card" id="card">
+    <div id="alerts"></div>
+    <form id="loginForm" novalidate>
+      <h1>Sign in</h1>
+      <p class="sub">Research Hub for Saint Luke's Neurology &amp; Neurosurgery</p>
+      <div class="field"><label for="email">Email</label><input class="input" id="email" type="email" autocomplete="username" required aria-describedby="emailHelp"><div class="help" id="emailHelp">Use your @saint-lukes.org, @saintlukeskc.org or @umkc.edu address.</div></div>
+      <div class="field"><label for="password">Password</label><div class="pw-wrap"><input class="input" id="password" type="password" autocomplete="current-password" required><button type="button" class="pw-toggle" id="togglePw" aria-label="Show password" aria-pressed="false">Show</button></div></div>
+      <button class="btn btn-primary btn-block" type="submit" id="signinBtn">Sign in</button>
+      <div class="auth-links"><a href="#" id="forgotLink">Forgot password?</a><a href="/about.html#request-access">Request access</a></div>
+    </form>
+
+    <form id="forgotForm" class="hidden" novalidate>
+      <h1>Reset password</h1>
+      <p class="sub">We'll email you a link to choose a new password.</p>
+      <div class="field"><label for="femail">Email</label><input class="input" id="femail" type="email" autocomplete="username" required></div>
+      <button class="btn btn-primary btn-block" type="submit" id="forgotBtn">Send reset link</button>
+      <div class="auth-links"><a href="#" id="backLink">← Back to sign in</a></div>
+    </form>
+
+    <form id="resetForm" class="hidden" novalidate>
+      <h1>Set new password</h1>
+      <p class="sub">Choose a password of at least 8 characters.</p>
+      <div class="field"><label for="npw">New password</label><input class="input" id="npw" type="password" autocomplete="new-password" minlength="8" required></div>
+      <div class="field"><label for="npw2">Confirm password</label><input class="input" id="npw2" type="password" autocomplete="new-password" minlength="8" required></div>
+      <button class="btn btn-primary btn-block" type="submit" id="resetBtn">Update password</button>
+    </form>
+
+    <div class="auth-foot">Access is limited to approved department personnel. Problems signing in? Contact the <a href="/about.html#contact">research office</a>.</div>
+  </div>
+</main>
+
+<script>
+SL.renderShell({ active: '', footer: false });
+const sb = SL.sb;
+const $ = SL.qs;
+const alerts = $('#alerts');
+const showAlert = (html, type) => { alerts.innerHTML = `<div class="alert alert-${type || 'info'}" role="alert">${html}</div>`; };
+const show = (id) => { ['loginForm', 'forgotForm', 'resetForm'].forEach((f) => $('#' + f).classList.toggle('hidden', f !== id)); };
+const busy = (btn, on, label) => { btn.disabled = on; btn.textContent = on ? 'Please wait…' : label; };
+
+/* Safe post-login destination: only hub/ or docs pages on this origin. */
+function nextUrl() {
+  const n = SL.param('next') || '';
+  if (/^(hub\/|docs)[A-Za-z0-9_\-\/.?=&%]*$/.test(n) && !n.includes('//') && !n.includes('..')) return '/' + n;
+  return '/hub/index.html';
+}
+
+/* ---- password visibility ---- */
+$('#togglePw').onclick = (e) => { const i = $('#password'); const vis = i.type === 'password'; i.type = vis ? 'text' : 'password'; e.currentTarget.textContent = vis ? 'Hide' : 'Show'; e.currentTarget.setAttribute('aria-pressed', String(vis)); e.currentTarget.setAttribute('aria-label', vis ? 'Hide password' : 'Show password'); };
+$('#forgotLink').onclick = (e) => { e.preventDefault(); $('#femail').value = $('#email').value; alerts.innerHTML = ''; show('forgotForm'); $('#femail').focus(); };
+$('#backLink').onclick = (e) => { e.preventDefault(); alerts.innerHTML = ''; show('loginForm'); };
+
+/* ---- initial state ---- */
+const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+const isRecovery = SL.param('reset') === '1' || hash.get('type') === 'recovery';
+if (SL.param('pending') === '1') showAlert('Your first login needs administrator approval — you\'ll get an email once your account is approved.', 'info');
+if (hash.get('error_description')) showAlert(SL.esc(hash.get('error_description').replace(/\+/g, ' ')), 'danger');
+
+sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') show('resetForm'); });
+
+(async () => {
+  if (isRecovery) { show('resetForm'); return; }
+  const s = await SL.session();
+  if (s) {
+    const p = await SL.loadProfile();
+    if (p && (p.login_approved || ['Admin', 'IRB'].includes(p.role))) { location.replace(nextUrl()); return; }
+  }
+})();
+
+/* ---- sign in ---- */
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = $('#email').value.trim().toLowerCase(), password = $('#password').value;
+  if (!email) { SL.toast('Please enter your email address.', 'err'); return; }
+  if (!password) { SL.toast('Please enter your password.', 'err'); return; }
+  if (!SL.isValidEmail(email)) { showAlert('Please use your institutional email address (@saint-lukes.org, @saintlukeskc.org, @saintlukes.org or @umkc.edu).', 'warn'); return; }
+  const btn = $('#signinBtn'); busy(btn, true, 'Sign in'); alerts.innerHTML = '';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) { showAlert('Sign-in failed: ' + SL.esc(error.message), 'danger'); $('#password').value = ''; $('#password').focus(); return; }
+    SL.user = data.user;
+    const { data: profile, error: pErr } = await sb.from('profiles').select('*').eq('id', data.user.id).maybeSingle();
+    if (pErr || !profile) { await sb.auth.signOut(); showAlert('Your profile was not found. Please contact an administrator.', 'danger'); return; }
+    SL.profile = profile;
+
+    const privileged = ['Admin', 'IRB'].includes(profile.role);
+    if (!privileged && !profile.login_approved) {
+      // Server-side RPC dedupes on email+pending and notifies admins (SECURITY DEFINER).
+      let status = 'ok';
+      try { const { data: r } = await sb.rpc('request_login_approval'); status = r || 'ok'; } catch (e1) { /* ignore */ }
+      if (status === 'ok') {
+        try { await SL.sendEmail(SL.ADMIN_EMAILS, `Login approval needed — ${profile.name}`, `<p><strong>${SL.esc(profile.name)}</strong> (${SL.esc(email)}, ${SL.esc(profile.role || '')}) signed in for the first time and is awaiting approval.</p><p>Approve in the Research Hub admin panel.</p>`); } catch (e4) { /* ignore */ }
+      }
+      await sb.auth.signOut(); SL.user = null; SL.profile = null;
+      showAlert('Your first login needs administrator approval — you\'ll get an email once your account is approved.', 'info');
+      return;
+    }
+
+    if (profile.needs_profile_setup) { await profileSetup(profile); }
+    SL.toast(`Welcome, ${profile.name.split(',')[0].split(' ')[0]}!`, 'ok');
+    location.replace(nextUrl());
+  } catch (err) {
+    console.error(err); showAlert('Sign-in error: ' + SL.esc(err.message || String(err)), 'danger');
+  } finally { busy(btn, false, 'Sign in'); }
+});
+
+/* ---- first-login profile setup (new password + department + phone) ---- */
+function profileSetup(profile) {
+  return new Promise((resolve) => {
+    SL.modal(`
+      <div class="modal-head"><h3>Welcome — complete your profile</h3></div>
+      <form id="setupForm" novalidate>
+        <div class="modal-body">
+          <div class="alert alert-info">This is your first approved login. Please choose a new password and confirm your details.</div>
+          <div class="form-row">
+            <div class="field"><label for="spw">New password</label><input class="input" id="spw" type="password" autocomplete="new-password" minlength="8" required></div>
+            <div class="field"><label for="spw2">Confirm password</label><input class="input" id="spw2" type="password" autocomplete="new-password" minlength="8" required></div>
+          </div>
+          <div class="field"><label for="sname">Full name</label><input class="input" id="sname" value="${SL.esc(profile.name || '')}" required></div>
+          <div class="form-row">
+            <div class="field"><label for="sdept">Department</label><select class="input" id="sdept" required><option value="">Select…</option><option>Neurology</option><option>Neurosurgery</option><option>Both</option></select></div>
+            <div class="field"><label for="sphone">Phone</label><input class="input" id="sphone" type="tel" autocomplete="tel" placeholder="(816) 555-0100"></div>
+          </div>
+        </div>
+        <div class="modal-foot"><button class="btn btn-primary" type="submit" id="setupBtn">Complete setup</button></div>
+      </form>`, { dismissible: false });
+    if (profile.department) $('#sdept').value = profile.department;
+    $('#setupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pw = $('#spw').value, pw2 = $('#spw2').value, name = $('#sname').value.trim(), dept = $('#sdept').value, phone = $('#sphone').value.trim();
+      if (pw.length < 8) { SL.toast('Password must be at least 8 characters.', 'err'); return; }
+      if (pw !== pw2) { SL.toast('Passwords do not match.', 'err'); return; }
+      if (!dept) { SL.toast('Please choose a department.', 'err'); return; }
+      const btn = $('#setupBtn'); busy(btn, true, 'Complete setup');
+      try {
+        const { error } = await sb.auth.updateUser({ password: pw });
+        if (error) { SL.toast('Could not update password: ' + error.message, 'err'); return; }
+        const updates = { needs_profile_setup: false, department: dept };
+        if (name) { updates.name = name; updates.initials = SL.initials(name); }
+        if (phone) updates.phone = phone;
+        const { error: uErr } = await sb.from('profiles').update(updates).eq('id', profile.id);
+        if (uErr) { SL.toast('Could not save profile: ' + uErr.message, 'err'); return; }
+        Object.assign(profile, updates);
+        SL.closeModal(); SL.toast('Profile setup complete.', 'ok'); resolve();
+      } finally { busy(btn, false, 'Complete setup'); }
+    });
+  });
+}
+
+/* ---- forgot password ---- */
+$('#forgotForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = $('#femail').value.trim().toLowerCase();
+  if (!SL.isValidEmail(email)) { showAlert('Please enter your institutional email address.', 'warn'); return; }
+  const btn = $('#forgotBtn'); busy(btn, true, 'Send reset link');
+  try {
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/login.html?reset=1' });
+    if (error) { showAlert('Could not send reset email: ' + SL.esc(error.message), 'danger'); return; }
+    showAlert(`If an account exists for <strong>${SL.esc(email)}</strong>, a password reset link has been sent.`, 'ok');
+    show('loginForm');
+  } finally { busy(btn, false, 'Send reset link'); }
+});
+
+/* ---- set new password (recovery) ---- */
+$('#resetForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = $('#npw').value, pw2 = $('#npw2').value;
+  if (pw.length < 8) { SL.toast('Password must be at least 8 characters.', 'err'); return; }
+  if (pw !== pw2) { SL.toast('Passwords do not match.', 'err'); return; }
+  const btn = $('#resetBtn'); busy(btn, true, 'Update password');
+  try {
+    const s = await SL.session();
+    if (!s) { showAlert('This reset link is invalid or has expired. Please request a new one.', 'danger'); show('forgotForm'); return; }
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) { showAlert('Could not update password: ' + SL.esc(error.message), 'danger'); return; }
+    SL.toast('Password updated', 'ok');
+    const p = await SL.loadProfile();
+    if (p && (p.login_approved || ['Admin', 'IRB'].includes(p.role))) location.replace('/hub/index.html');
+    else { await sb.auth.signOut(); history.replaceState(null, '', '/login.html'); show('loginForm'); showAlert('Password updated. Please sign in.', 'ok'); }
+  } finally { busy(btn, false, 'Update password'); }
+});
+</script>
+</body>
+</html>

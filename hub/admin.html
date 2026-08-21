@@ -1,0 +1,525 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Panel | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Research Hub administration: approvals, users, announcements, audit log and system status.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/assets/js/sl.js" data-root="/"></script>
+<style>
+.tab-panel{display:none}.tab-panel.active{display:block}
+.tabs button .cnt{display:inline-block;min-width:18px;padding:0 6px;border-radius:999px;background:var(--danger);color:#fff;font-size:.7rem;margin-left:6px;line-height:1.5}
+.table .input,.table select.input{padding:6px 8px;font-size:.85rem;min-width:120px}
+.table td .check input{width:16px;height:16px}
+.row-link{cursor:pointer;font-weight:600;color:var(--ink)}.row-link:hover{text-decoration:underline}
+.side-modal{display:grid;grid-template-columns:200px 1fr;gap:24px}
+@media(max-width:760px){.side-modal{grid-template-columns:1fr}}
+.photo-box{width:160px;height:160px;border-radius:12px;background:var(--navy-100);display:grid;place-items:center;overflow:hidden;font-family:var(--font-head);font-size:2.2rem;color:var(--teal-600)}
+.photo-box img{width:100%;height:100%;object-fit:cover}
+.audit-action{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.health-ok{color:var(--ok)} .health-bad{color:var(--danger)}
+.admins{display:flex;flex-wrap:wrap;gap:10px}.admins .person{align-items:center;gap:10px;padding:8px 12px 8px 8px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.03)}.admins .avatar{width:32px;height:32px;font-size:.78rem}
+.perm{font-size:.8rem}.perm .yes{color:var(--ok);font-weight:700}.perm .no{color:var(--faint)}
+.ann-img{width:72px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.truncate{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sys-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(6,16,26,.3);border-top-color:#06101a;border-radius:50%;animation:rot .8s linear infinite;vertical-align:-3px}
+@keyframes rot{to{transform:rotate(360deg)}}
+.fac td input.input{padding:6px 8px;font-size:.85rem}
+.sync-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:20px;align-items:start}
+@media(max-width:960px){.sync-grid{grid-template-columns:minmax(0,1fr)}}
+.sync-grid>.card{min-width:0}
+</style>
+</head><body>
+<main id="main">
+  <div class="page-head">
+    <div><h1>Admin Panel</h1><div class="sub">Accounts, approvals, content and system status</div></div>
+    <div class="flex wrap"><a class="btn btn-outline btn-sm" href="#pubmed">PubMed sync</a><a class="btn btn-outline btn-sm" href="/docs.html">Documentation</a></div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button data-tab="approvals" class="active">Approvals<span class="cnt hidden" id="cntApprovals"></span></button>
+    <button data-tab="users">Users</button>
+    <button data-tab="announcements">Announcements</button>
+    <button data-tab="audit">Audit log</button>
+    <button data-tab="pubmed">PubMed sync</button>
+    <button data-tab="roles">Roles &amp; permissions</button>
+    <button data-tab="system">System</button>
+  </div>
+
+  <section class="tab-panel active" id="tab-approvals">
+    <div class="alert alert-info"><strong>Requests are sent to all administrators; any one administrator can approve.</strong> Approving a request unlocks Hub access for an existing account. Accounts themselves are created by the research office (there is no service-role key in the browser) — requests without a matching account show an <strong>Invite</strong> action that drafts an email to the research office.</div>
+    <div class="section-head"><h2 style="font-size:1.2rem">Pending login requests</h2><button class="btn btn-ghost btn-sm" id="btnRefreshApprovals">Refresh</button></div>
+    <div id="approvalsList"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    <h3 class="mt-4" style="font-size:1.05rem">Recently processed</h3>
+    <div id="approvalsHistory" class="muted small">Loading…</div>
+  </section>
+
+  <section class="tab-panel" id="tab-users">
+    <div class="card mb-3" id="adminsCard"><h3 style="font-size:1.05rem;margin-bottom:10px">Administrators</h3><p class="xs muted" style="margin-bottom:12px">Profiles with the Admin role. All of them receive access requests and service requests; any one of them can approve.</p><div class="admins" id="adminsList"><div class="skeleton" style="width:40%"></div></div></div>
+    <div class="filters">
+      <div class="search grow" style="min-width:220px"><input class="input" id="uSearch" placeholder="Search name, email, title, department"></div>
+      <select class="input" id="uRole"><option value="">All roles</option></select>
+      <select class="input" id="uApproved"><option value="">Approval: any</option><option value="1">Approved</option><option value="0">Not approved</option></select>
+      <select class="input" id="uSetup"><option value="">Setup: any</option><option value="1">Needs setup</option><option value="0">Setup complete</option></select>
+      <button class="btn btn-outline btn-sm" id="btnUsersCsv">Export CSV</button>
+    </div>
+    <div class="muted small mb-1" id="uCount"></div>
+    <div class="table-wrap"><table class="table" id="usersTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Title</th><th>Department</th><th>Approved</th><th>Setup</th><th></th></tr></thead><tbody id="usersBody"><tr><td colspan="8"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></td></tr></tbody></table></div>
+  </section>
+
+  <section class="tab-panel" id="tab-announcements">
+    <div class="section-head"><div class="filters mb-0"><div class="search"><input class="input" id="aSearch" placeholder="Search announcements"></div><select class="input" id="aVis"><option value="">All visibility</option><option>public</option><option>internal</option></select></div><button class="btn btn-primary btn-sm" id="btnNewAnn">New announcement</button></div>
+    <div class="table-wrap"><table class="table"><thead><tr><th></th><th>Title</th><th>Priority</th><th>Visibility</th><th>Posted</th><th>By</th><th></th></tr></thead><tbody id="annBody"><tr><td colspan="7"><div class="skeleton"></div><div class="skeleton"></div></td></tr></tbody></table></div>
+  </section>
+
+  <section class="tab-panel" id="tab-audit">
+    <div class="filters">
+      <div class="search grow" style="min-width:220px"><input class="input" id="lSearch" placeholder="Search details, entity, id"></div>
+      <select class="input" id="lAction"><option value="">All actions</option></select>
+      <input class="input" id="lUser" placeholder="User name" style="min-width:160px">
+      <select class="input" id="lEntity"><option value="">All entities</option></select>
+      <button class="btn btn-outline btn-sm" id="btnAuditCsv">Export CSV</button>
+    </div>
+    <div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th><th>User</th><th>Role</th></tr></thead><tbody id="auditBody"><tr><td colspan="7"><div class="skeleton"></div><div class="skeleton"></div></td></tr></tbody></table></div>
+    <div class="text-center mt-2"><button class="btn btn-outline" id="btnAuditMore">Load more</button> <span class="muted small" id="auditCount"></span></div>
+  </section>
+
+  <section class="tab-panel" id="tab-pubmed">
+    <div class="sys-grid mb-3" id="syncStats"></div>
+    <div class="sync-grid mb-3">
+      <div class="card">
+        <h3 style="font-size:1.1rem">Run a sync</h3>
+        <p class="small muted">Queries PubMed for every enabled faculty member, inserts new records and refreshes existing ones. Takes about a minute; the nightly job runs at 07:15 UTC. Curate results under <a href="/hub/publications.html">Publications</a>.</p>
+        <div class="flex wrap"><button class="btn btn-primary" id="syncNow">Sync now</button><span id="syncStatus" class="small muted"></span></div>
+        <div id="syncResult" class="mt-2"></div>
+      </div>
+      <div class="card"><h3 style="font-size:1.1rem">Recent sync log <span class="muted xs" style="font-family:var(--font-body);font-weight:400">last 10</span></h3><div id="syncLog"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div></div>
+    </div>
+    <div class="card">
+      <div class="flex between wrap mb-2"><h3 style="margin:0;font-size:1.1rem">Faculty PubMed settings</h3><span class="xs muted">Author terms are PubMed [Author] queries, e.g. “Smith JA, Smith J”. Edit, then Save on the row.</span></div>
+      <div id="facTable"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-roles">
+    <p class="muted">Reference of what each role can do. This mirrors the row-level security policies in Supabase — client-side checks are a convenience; the database enforces the rules.</p>
+    <div class="table-wrap"><table class="table perm" id="rolesTable"></table></div>
+    <div class="alert alert-info mt-3"><strong>Notes.</strong> Project visibility is additionally restricted by IRB personnel lists (creator, Admin and IRB always see a project; others see it when it is IRB-approved and they are listed as personnel, or when the project is marked not-human-subjects). Registry writes are enforced as: any authenticated user may insert; Faculty and Admin may update; only Admin may delete. Medical Students are treated as read-only in the registry UI.</div>
+  </section>
+
+  <section class="tab-panel" id="tab-system">
+    <div class="section-head"><h2 style="font-size:1.2rem">Supabase project health</h2><button class="btn btn-outline btn-sm" id="btnSysRun">Run checks</button></div>
+    <div id="sysHealth" class="sys-grid mb-3"></div>
+    <h3 style="font-size:1.05rem">Row counts</h3>
+    <div id="sysCounts" class="sys-grid mb-3"></div>
+    <h3 style="font-size:1.05rem">Links</h3>
+    <div class="flex wrap">
+      <a class="btn btn-outline btn-sm" href="#pubmed">PubMed sync</a>
+      <a class="btn btn-outline btn-sm" href="/hub/publications.html">Publications</a>
+      <a class="btn btn-outline btn-sm" href="https://supabase.com/dashboard/project/noxyrovuuprygxuyhgik" target="_blank" rel="noopener">Supabase dashboard</a>
+      <a class="btn btn-outline btn-sm" href="https://vercel.com/dashboard" target="_blank" rel="noopener">Vercel dashboard</a>
+      <a class="btn btn-outline btn-sm" href="https://supabase.com/dashboard/project/noxyrovuuprygxuyhgik/auth/users" target="_blank" rel="noopener">Auth users</a>
+      <a class="btn btn-outline btn-sm" href="https://supabase.com/dashboard/project/noxyrovuuprygxuyhgik/storage/buckets" target="_blank" rel="noopener">Storage buckets</a>
+    </div>
+  </section>
+</main>
+
+<script>
+(async function () {
+  const me = await SL.requireAuth({ roles: ['Admin'] });
+  SL.renderHubShell({ active: 'admin' });
+  const sb = SL.sb, esc = SL.esc, qs = SL.qs, qsa = SL.qsa;
+  qsa('.search').forEach((el) => { if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', SL.icons.search); });
+  const ROLES = ['Admin', 'IRB', 'Faculty', 'Resident', 'Medical Student', 'APP', 'NP', 'RN', 'PA', 'Research Fellow', 'CRC', 'Statistician', 'Budget & Contracts'];
+  const skel = (n) => Array.from({ length: n || 3 }, () => '<div class="skeleton"></div>').join('');
+  const empty = (msg) => `<div class="empty">${SL.icons.info}<div>${esc(msg)}</div></div>`;
+  const err = (e, fallback) => SL.toast((e && e.message) || fallback || 'Something went wrong', 'err');
+  const rowErr = (cols, e) => `<tr><td colspan="${cols}"><div class="alert alert-danger mb-0">${esc((e && e.message) || 'Failed to load')}</div></td></tr>`;
+  const loginUrl = location.origin + '/login.html';
+  const isUuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || '');
+
+  // ---------- tabs ----------
+  const loaded = {};
+  const loaders = { approvals: loadApprovals, users: loadUsers, announcements: loadAnn, audit: () => loadAudit(true), pubmed: loadSync, roles: renderRoles, system: runSystem };
+  function showTab(k) {
+    qsa('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === k));
+    qsa('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + k));
+    history.replaceState(null, '', '#' + k);
+    if (!loaded[k]) { loaded[k] = true; loaders[k](); }
+  }
+  qsa('#tabs button').forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+
+  // ============ APPROVALS ============
+  async function loadApprovals() {
+    const list = qs('#approvalsList'); list.innerHTML = skel(3);
+    const [{ data: pending, error }, { data: profiles }] = await Promise.all([
+      sb.from('pending_login_approvals').select('*').eq('status', 'pending').order('requested_at', { ascending: false }),
+      sb.from('profiles').select('id,email,login_approved'),
+    ]);
+    if (error) { list.innerHTML = `<div class="alert alert-danger">${esc(error.message)}</div>`; return; }
+    const byEmail = {}; (profiles || []).forEach((p) => byEmail[(p.email || '').toLowerCase()] = p);
+    const cnt = qs('#cntApprovals'); cnt.textContent = (pending || []).length; cnt.classList.toggle('hidden', !(pending || []).length);
+    if (!pending || !pending.length) { list.innerHTML = empty('No pending login requests.'); }
+    else {
+      list.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Title</th><th>Requested</th><th>Account</th><th></th></tr></thead><tbody>${pending.map((r) => {
+        const prof = byEmail[(r.email || '').toLowerCase()];
+        const acct = prof ? (prof.login_approved ? '<span class="tag tag-ok">Exists · approved</span>' : '<span class="tag tag-teal">Exists</span>') : '<span class="tag tag-warn">No account</span>';
+        const mail = 'mailto:' + SL.ADMIN_EMAILS.join(',') + '?subject=' + encodeURIComponent('Create Research Hub account: ' + (r.name || r.email)) + '&body=' + encodeURIComponent(`Please create a Research Hub account for:\n\nName: ${r.name || ''}\nEmail: ${r.email || ''}\nRole: ${r.role || ''}\nTitle: ${r.title || ''}\nRequested: ${SL.fmtDateTime(r.requested_at)}\n\nOnce created, approve the login request in the Admin Panel: ${location.origin}/hub/admin.html#approvals`);
+        return `<tr><td style="font-weight:600">${esc(r.name)}</td><td>${esc(r.email)}</td><td><span class="tag">${esc(r.role || '')}</span></td><td>${esc(r.title || '')}</td><td class="small muted">${SL.fmtDateTime(r.requested_at)}</td><td>${acct}</td>
+          <td><div class="flex" style="gap:6px">${prof ? `<button class="btn btn-primary btn-sm" data-approve="${r.id}">Approve</button>` : `<a class="btn btn-accent btn-sm" href="${mail}">Invite</a>`}<button class="btn btn-outline btn-sm" data-deny="${r.id}">Deny</button></div></td></tr>`;
+      }).join('')}</tbody></table></div>`;
+      qsa('[data-approve]', list).forEach((b) => b.onclick = () => approve(pending.find((p) => String(p.id) === b.dataset.approve), byEmail));
+      qsa('[data-deny]', list).forEach((b) => b.onclick = () => deny(pending.find((p) => String(p.id) === b.dataset.deny)));
+    }
+    const { data: hist } = await sb.from('pending_login_approvals').select('*').neq('status', 'pending').order('requested_at', { ascending: false }).limit(15);
+    qs('#approvalsHistory').innerHTML = (hist && hist.length) ? `<div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>By</th><th>When</th></tr></thead><tbody>${hist.map((h) => `<tr><td>${esc(h.name)}</td><td>${esc(h.email)}</td><td><span class="tag ${h.status === 'approved' ? 'tag-ok' : 'tag-danger'}">${esc(h.status)}</span></td><td>${esc(h.approved_by || '')}</td><td class="small muted">${SL.fmtDateTime(h.approved_at || h.requested_at)}</td></tr>`).join('')}</tbody></table></div>` : '<span class="muted">Nothing processed yet.</span>';
+  }
+  async function approve(r, byEmail) {
+    if (!r) return;
+    if (!await SL.confirm(`Approve Hub access for ${r.name || r.email}?`, 'Approve')) return;
+    try {
+      const { data: result, error } = await sb.rpc('approve_login_request', { p_id: r.id, p_approve: true }); if (error) throw error;
+      const res = String(result || '');
+      if (res === 'not_found') throw new Error('Request not found — it may have been removed.');
+      if (res.startsWith('already_')) { SL.toast(`This request was already ${res.replace('already_', '').replace(/_/g, ' ')} by another administrator`, 'warn'); loadApprovals(); return; }
+      if (res !== 'approved' && res !== 'approved_no_profile') throw new Error(`Unexpected response: ${res}`);
+      const prof = byEmail[(r.email || '').toLowerCase()];
+      if (prof) {
+        const { data: citi } = await sb.from('citi_training').select('id').eq('user_id', prof.id).limit(1);
+        if (!citi || !citi.length) await sb.from('citi_training').insert({ user_id: prof.id, human_subjects_status: 'Not started' });
+      }
+      await SL.notify([r.email], 'login_approved', `Welcome to the Research Hub! Your access was approved by ${me.name}. Please complete your profile and upload your CITI certificate under Training & Students.`);
+      try {
+        await SL.sendEmail([r.email], "Your Saint Luke's Research Hub access is approved",
+          `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><div style="background:#0b2545;padding:20px;color:#fff"><h2 style="margin:0">Saint Luke's Neuroscience Research</h2><p style="margin:4px 0 0;color:#c9d6e8">Research Hub access approved</p></div><div style="padding:24px;background:#f6f7f9;color:#1b1f23"><p>Hello ${esc(r.name || '')},</p><p>Your Research Hub login has been approved by ${esc(me.name)}. You can sign in with your institutional email address.</p><p style="text-align:center;margin:24px 0"><a href="${loginUrl}" style="display:inline-block;background:#0e7c7b;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600">Sign in to the Research Hub</a></p><p>Next steps: complete your profile in the Directory and upload your CITI training certificate under Training &amp; Students.</p><p style="color:#5b6573;font-size:.85rem">This is an automated message from the Saint Luke's Neuroscience Research Hub.</p></div></div>`);
+      } catch (mailErr) { console.warn('Welcome email failed', mailErr); SL.toast('Approved, but the welcome email could not be sent', 'warn'); }
+      SL.audit('approved', 'login_request', r.id, `Login approved for ${r.email}${res === 'approved_no_profile' ? ' (no profile yet)' : ''}`);
+      SL.toast(res === 'approved_no_profile' ? `Request approved for ${r.email} — access unlocks once the account exists` : `Access approved for ${r.email}`, 'ok');
+      loaded.users = false; loadApprovals();
+    } catch (e) { err(e, 'Approval failed'); }
+  }
+  async function deny(r) {
+    if (!r) return;
+    if (!await SL.confirm(`Deny the login request from ${r.name || r.email}?`, 'Deny')) return;
+    const { data: result, error } = await sb.rpc('approve_login_request', { p_id: r.id, p_approve: false });
+    if (error) return err(error);
+    const res = String(result || '');
+    if (res === 'not_found') return err(null, 'Request not found');
+    if (res.startsWith('already_')) { SL.toast(`This request was already ${res.replace('already_', '').replace(/_/g, ' ')} by another administrator`, 'warn'); loadApprovals(); return; }
+    SL.notify([r.email], 'login_denied', 'Your Research Hub access request was not approved. Contact the research office if you believe this is an error.');
+    SL.audit('denied', 'login_request', r.id, `Login denied for ${r.email}`);
+    SL.toast('Request denied', 'warn'); loadApprovals();
+  }
+  qs('#btnRefreshApprovals').onclick = loadApprovals;
+
+  // ============ USERS ============
+  let users = [];
+  const roleSel = qs('#uRole'); ROLES.forEach((r) => roleSel.insertAdjacentHTML('beforeend', `<option>${esc(r)}</option>`));
+  async function loadUsers() {
+    const body = qs('#usersBody'); body.innerHTML = `<tr><td colspan="8">${skel(4)}</td></tr>`;
+    const { data, error } = await sb.from('profiles').select('*').order('name');
+    if (error) { body.innerHTML = rowErr(8, error); return; }
+    users = data || []; renderUsers(); renderAdmins();
+  }
+  function renderAdmins() {
+    const admins = users.filter((u) => u.role === 'Admin');
+    qs('#adminsList').innerHTML = admins.length ? admins.map((u) => `<div class="person"><span class="avatar">${esc(u.initials || SL.initials(u.name))}</span><div><div style="font-weight:600;font-size:.9rem;line-height:1.2">${esc(u.name || u.email)}${u.id === me.id ? ' <span class="xs muted">(you)</span>' : ''}</div><div class="xs muted">${esc(u.email)}${u.login_approved ? '' : ' · not approved'}</div></div></div>`).join('') : empty('No Admin profiles found.');
+  }
+  function filteredUsers() {
+    const q = qs('#uSearch').value.trim().toLowerCase(), role = qs('#uRole').value, ap = qs('#uApproved').value, st = qs('#uSetup').value;
+    return users.filter((u) => (!q || [u.name, u.email, u.title, u.department, u.credential].some((v) => (v || '').toLowerCase().includes(q)))
+      && (!role || u.role === role) && (ap === '' || !!u.login_approved === (ap === '1')) && (st === '' || !!u.needs_profile_setup === (st === '1')));
+  }
+  function renderUsers() {
+    const rows = filteredUsers(); qs('#uCount').textContent = `${rows.length} of ${users.length} users`;
+    const body = qs('#usersBody');
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="8">${empty('No users match.')}</td></tr>`; return; }
+    body.innerHTML = rows.map((u) => `<tr data-id="${esc(u.id)}">
+      <td><span class="row-link" data-open="${esc(u.id)}">${esc(u.name || '(no name)')}</span>${u.credential ? `<div class="xs muted">${esc(u.credential)}</div>` : ''}</td>
+      <td class="small">${esc(u.email)}</td>
+      <td><select class="input" data-f="role">${ROLES.map((r) => `<option ${r === u.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></td>
+      <td><input class="input" data-f="title" value="${esc(u.title || '')}"></td>
+      <td><input class="input" data-f="department" value="${esc(u.department || '')}"></td>
+      <td><label class="check"><input type="checkbox" data-f="login_approved" ${u.login_approved ? 'checked' : ''}></label></td>
+      <td>${u.needs_profile_setup ? '<span class="tag tag-warn">Needs setup</span>' : '<span class="tag tag-ok">Done</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm btn-icon" title="Open" data-open="${esc(u.id)}">${SL.icons.edit}</button></td></tr>`).join('');
+    qsa('[data-open]', body).forEach((b) => b.onclick = () => openProfileEditor(b.dataset.open));
+    qsa('[data-f]', body).forEach((el) => el.onchange = async () => {
+      const id = el.closest('tr').dataset.id, f = el.dataset.f, val = el.type === 'checkbox' ? el.checked : el.value.trim();
+      const u = users.find((x) => x.id === id); if (!u) return;
+      if (id === me.id && f === 'role' && val !== 'Admin' && !await SL.confirm('You are removing your own Admin role. Continue?', 'Yes, change')) { el.value = u.role; return; }
+      const { error } = await sb.from('profiles').update({ [f]: val }).eq('id', id);
+      if (error) { err(error); el.type === 'checkbox' ? (el.checked = !!u[f]) : (el.value = u[f] || ''); return; }
+      u[f] = val; SL.audit('updated', 'profile', id, `${f} → ${val} for ${u.email}`); SL.toast('Saved', 'ok');
+    });
+  }
+  ['#uSearch', '#uRole', '#uApproved', '#uSetup'].forEach((s) => qs(s).oninput = SL.debounce(renderUsers, 150));
+  qs('#btnUsersCsv').onclick = () => SL.download(`users_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv(filteredUsers(), ['name', 'email', 'role', 'title', 'credential', 'department', 'phone', 'login_approved', 'needs_profile_setup', 'created_at']), 'text/csv');
+
+  // ---------- profile + faculty editor (side modal) ----------
+  const FP_FIELDS = ['bio', 'research_interests', 'education', 'clinical_focus', 'lab_website', 'orcid', 'google_scholar', 'office_location', 'slug'];
+  const slugify = (s) => (s || '').toLowerCase().replace(/,.*$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  async function openProfileEditor(id) {
+    SL.modal(`<div class="modal-body">${skel(5)}</div>`, { size: 'lg' });
+    const [{ data: p }, { data: fp }] = await Promise.all([sb.from('profiles').select('*').eq('id', id).maybeSingle(), sb.from('faculty_profiles').select('*').eq('user_id', id).maybeSingle()]);
+    if (!p) { SL.closeModal(); return SL.toast('Profile not found', 'err'); }
+    const f = fp || {};
+    const inp = (name, label, val, type, ph) => `<div class="field"><label>${label}</label><input class="input" name="${name}" type="${type || 'text'}" value="${esc(val || '')}" placeholder="${esc(ph || '')}"></div>`;
+    const ta = (name, label, val, rows) => `<div class="field"><label>${label}</label><textarea class="input" name="${name}" rows="${rows || 3}">${esc(val || '')}</textarea></div>`;
+    SL.modal(`<div class="modal-head"><h3>${esc(p.name || 'Profile')}</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="peForm"><div class="modal-body side-modal">
+      <div>
+        <div class="photo-box" id="pePhoto">${f.photo_url ? `<img src="${esc(f.photo_url)}" alt="">` : esc(p.initials || SL.initials(p.name))}</div>
+        <label class="btn btn-outline btn-sm mt-2" style="width:160px;justify-content:center">${SL.icons.upload} Photo<input type="file" id="pePhotoFile" accept="image/*" hidden></label>
+        <input type="hidden" name="photo_url" value="${esc(f.photo_url || '')}">
+        <div class="xs muted mt-1">JPG/PNG, square works best. Stored in the public bucket.</div>
+        <hr class="rule" style="margin:18px 0">
+        <div class="xs muted">ID <span class="mono">${esc(p.id)}</span><br>Joined ${SL.fmtDate(p.created_at)}</div>
+      </div>
+      <div>
+        <h4>Account</h4>
+        <div class="form-row">${inp('p_name', 'Name', p.name)}${inp('p_credential', 'Credential', p.credential, 'text', 'MD, PhD')}</div>
+        <div class="form-row">${inp('p_title', 'Title', p.title)}${inp('p_department', 'Department', p.department)}</div>
+        <div class="form-row">${inp('p_phone', 'Phone', p.phone, 'tel')}<div class="field"><label>Role</label><select class="input" name="p_role">${ROLES.map((r) => `<option ${r === p.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></div></div>
+        <div class="flex wrap mb-2"><label class="check"><input type="checkbox" name="p_login_approved" ${p.login_approved ? 'checked' : ''}> Login approved</label><label class="check"><input type="checkbox" name="p_needs_profile_setup" ${p.needs_profile_setup ? 'checked' : ''}> Needs profile setup</label></div>
+        <h4 class="mt-3">Public profile (faculty_profiles)</h4>
+        ${ta('bio', 'Biography', f.bio, 4)}${ta('research_interests', 'Research interests', f.research_interests, 2)}${ta('education', 'Education', f.education, 2)}
+        ${inp('clinical_focus', 'Clinical focus', f.clinical_focus)}
+        <div class="form-row">${inp('lab_website', 'Lab website', f.lab_website, 'url', 'https://')}${inp('orcid', 'ORCID', f.orcid, 'text', '0000-0000-0000-0000')}</div>
+        <div class="form-row">${inp('google_scholar', 'Google Scholar URL', f.google_scholar, 'url')}${inp('office_location', 'Office location', f.office_location)}</div>
+        <div class="form-row">${inp('specialties', 'Specialties (comma separated)', (f.specialties || []).join(', '))}${inp('slug', 'Public URL slug', f.slug || slugify(p.name), 'text', 'jane-doe')}</div>
+        <div class="flex wrap"><label class="check"><input type="checkbox" name="accepting_students" ${f.accepting_students ? 'checked' : ''}> Accepting students</label><label class="check"><input type="checkbox" name="show_on_site" ${f.show_on_site ? 'checked' : ''}> Show on public site</label></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button type="submit" class="btn btn-primary" id="peSave">Save changes</button></div></form>`, { size: 'lg' });
+    qs('#pePhotoFile').onchange = async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      if (file.size > 5 * 1024 * 1024) return SL.toast('Photo must be under 5 MB', 'err');
+      try { const url = await SL.upload('public-assets', 'photos', file); qs('[name=photo_url]').value = url; qs('#pePhoto').innerHTML = `<img src="${esc(url)}" alt="">`; SL.toast('Photo uploaded', 'ok'); } catch (ex) { err(ex, 'Upload failed'); }
+    };
+    qs('#peForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const btn = qs('#peSave'); btn.disabled = true;
+      const prof = { name: fd.get('p_name').trim(), credential: fd.get('p_credential').trim() || null, title: fd.get('p_title').trim() || null, department: fd.get('p_department').trim() || null, phone: fd.get('p_phone').trim() || null, role: fd.get('p_role'), login_approved: fd.get('p_login_approved') === 'on', needs_profile_setup: fd.get('p_needs_profile_setup') === 'on' };
+      prof.initials = SL.initials(prof.name);
+      const fac = { user_id: id, accepting_students: fd.get('accepting_students') === 'on', show_on_site: fd.get('show_on_site') === 'on', photo_url: fd.get('photo_url') || null, specialties: String(fd.get('specialties') || '').split(',').map((s) => s.trim()).filter(Boolean) };
+      FP_FIELDS.forEach((k) => fac[k] = (fd.get(k) || '').trim() || null);
+      if (fac.slug) fac.slug = slugify(fac.slug);
+      try {
+        let r = await sb.from('profiles').update(prof).eq('id', id); if (r.error) throw r.error;
+        r = await sb.from('faculty_profiles').upsert(fac, { onConflict: 'user_id' }); if (r.error) throw r.error;
+        SL.audit('updated', 'profile', id, `Profile edited for ${p.email}`);
+        SL.toast('Profile saved', 'ok'); SL.closeModal(); loadUsers();
+      } catch (ex) { err(ex, 'Save failed'); btn.disabled = false; }
+    };
+  }
+
+  // ============ ANNOUNCEMENTS ============
+  let anns = [], nameById = {};
+  async function loadAnn() {
+    const body = qs('#annBody'); body.innerHTML = `<tr><td colspan="7">${skel(3)}</td></tr>`;
+    const [{ data, error }, { data: profs }] = await Promise.all([sb.from('announcements').select('*').order('pinned', { ascending: false }).order('created_at', { ascending: false }), sb.from('profiles').select('id,name')]);
+    if (error) { body.innerHTML = rowErr(7, error); return; }
+    (profs || []).forEach((p) => nameById[p.id] = p.name); anns = data || []; renderAnn();
+  }
+  const byName = (v) => isUuid(v) ? (nameById[v] || 'Unknown') : (v || '');
+  function renderAnn() {
+    const q = qs('#aSearch').value.trim().toLowerCase(), vis = qs('#aVis').value;
+    const rows = anns.filter((a) => (!q || (a.title + ' ' + a.content).toLowerCase().includes(q)) && (!vis || a.visibility === vis));
+    const body = qs('#annBody');
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="7">${empty('No announcements yet.')}</td></tr>`; return; }
+    const pr = { high: 'tag-danger', medium: 'tag-warn', low: 'tag-ok' };
+    body.innerHTML = rows.map((a) => `<tr><td>${a.image_url ? `<img class="ann-img" src="${esc(a.image_url)}" alt="">` : ''}</td><td><div style="font-weight:600">${a.pinned ? '📌 ' : ''}${esc(a.title)}</div><div class="xs muted truncate">${esc(a.content)}</div></td><td><span class="tag ${pr[a.priority] || ''}">${esc(a.priority || 'normal')}</span></td><td><span class="tag ${a.visibility === 'public' ? 'tag-teal' : 'tag-outline'}">${esc(a.visibility || 'internal')}</span></td><td class="small muted">${SL.fmtDate(a.created_at)}</td><td class="small">${esc(byName(a.created_by))}</td>
+      <td><div class="flex" style="gap:4px"><button class="btn btn-ghost btn-sm btn-icon" data-edit="${a.id}" title="Edit">${SL.icons.edit}</button><button class="btn btn-ghost btn-sm btn-icon" data-del="${a.id}" title="Delete">${SL.icons.trash}</button></div></td></tr>`).join('');
+    qsa('[data-edit]', body).forEach((b) => b.onclick = () => annForm(anns.find((a) => String(a.id) === b.dataset.edit)));
+    qsa('[data-del]', body).forEach((b) => b.onclick = async () => {
+      const a = anns.find((x) => String(x.id) === b.dataset.del);
+      if (!await SL.confirm(`Delete "${a.title}"?`, 'Delete')) return;
+      const { error } = await sb.from('announcements').delete().eq('id', a.id); if (error) return err(error);
+      SL.audit('deleted', 'announcement', a.id, a.title); SL.toast('Deleted', 'ok'); loadAnn();
+    });
+  }
+  qs('#aSearch').oninput = SL.debounce(renderAnn, 150); qs('#aVis').onchange = renderAnn;
+  qs('#btnNewAnn').onclick = () => annForm(null);
+  function annForm(a) {
+    a = a || {};
+    SL.modal(`<div class="modal-head"><h3>${a.id ? 'Edit' : 'New'} announcement</h3><button class="btn btn-ghost btn-icon" data-close>${SL.icons.close}</button></div>
+    <form id="annForm"><div class="modal-body">
+      <div class="field"><label>Title</label><input class="input" name="title" required value="${esc(a.title || '')}"></div>
+      <div class="field"><label>Content</label><textarea class="input" name="content" rows="5" required>${esc(a.content || '')}</textarea></div>
+      <div class="form-row">
+        <div class="field"><label>Priority</label><select class="input" name="priority">${['low', 'medium', 'high'].map((p) => `<option ${(a.priority || 'medium') === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+        <div class="field"><label>Visibility</label><select class="input" name="visibility"><option value="internal" ${a.visibility !== 'public' ? 'selected' : ''}>Internal (Hub only)</option><option value="public" ${a.visibility === 'public' ? 'selected' : ''}>Public (news page)</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Image</label><input class="input" type="file" id="annImg" accept="image/*"><input type="hidden" name="image_url" value="${esc(a.image_url || '')}"><div class="help" id="annImgHelp">${a.image_url ? 'Current image kept unless replaced.' : 'Optional. Uploaded to public-assets/news.'}</div></div>
+        <div class="field"><label>Options</label><label class="check mt-1"><input type="checkbox" name="pinned" ${a.pinned ? 'checked' : ''}> Pin to top</label></div>
+      </div>
+    </div><div class="modal-foot"><button type="button" class="btn btn-outline" data-close>Cancel</button><button class="btn btn-primary" type="submit" id="annSave">${a.id ? 'Save' : 'Post'}</button></div></form>`);
+    qs('#annForm').onsubmit = async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const btn = qs('#annSave'); btn.disabled = true;
+      try {
+        let image_url = fd.get('image_url') || null; const file = qs('#annImg').files[0];
+        if (file) image_url = await SL.upload('public-assets', 'news', file);
+        const title = fd.get('title').trim();
+        const row = { title, content: fd.get('content').trim(), priority: fd.get('priority'), visibility: fd.get('visibility'), pinned: fd.get('pinned') === 'on', image_url };
+        if (!a.id) { row.created_by = me.id; row.slug = slugify(title) + '-' + Date.now().toString(36); }
+        const r = a.id ? await sb.from('announcements').update(row).eq('id', a.id) : await sb.from('announcements').insert(row);
+        if (r.error) throw r.error;
+        SL.audit(a.id ? 'updated' : 'created', 'announcement', a.id || '', title);
+        if (!a.id && row.visibility === 'internal') { const { data: all } = await sb.from('profiles').select('email').eq('login_approved', true); const to = (all || []).map((p) => p.email).filter(Boolean); if (to.length) SL.notify(to, 'announcement', `New announcement: ${title}`); }
+        SL.toast(a.id ? 'Announcement updated' : 'Announcement posted', 'ok'); SL.closeModal(); loadAnn();
+      } catch (ex) { err(ex, 'Save failed'); btn.disabled = false; }
+    };
+  }
+
+  // ============ AUDIT LOG ============
+  const PAGE = 100; let logs = [], logOffset = 0, logDone = false;
+  function auditQuery() {
+    let q = sb.from('audit_log').select('*').order('created_at', { ascending: false });
+    const a = qs('#lAction').value, u = qs('#lUser').value.trim(), en = qs('#lEntity').value, s = qs('#lSearch').value.trim().replace(/[,()%]/g, ' ');
+    if (a) q = q.eq('action', a); if (en) q = q.eq('entity_type', en);
+    if (u) q = q.ilike('user_name', `%${u}%`);
+    if (s) q = q.or(`details.ilike.%${s}%,entity_type.ilike.%${s}%,entity_id.ilike.%${s}%,action.ilike.%${s}%`);
+    return q;
+  }
+  async function loadAudit(reset) {
+    const body = qs('#auditBody');
+    if (reset) { logs = []; logOffset = 0; logDone = false; body.innerHTML = `<tr><td colspan="7">${skel(4)}</td></tr>`; }
+    qs('#btnAuditMore').disabled = true;
+    const { data, error } = await auditQuery().range(logOffset, logOffset + PAGE - 1);
+    if (error) { body.innerHTML = rowErr(7, error); return; }
+    logs = logs.concat(data || []); logOffset += (data || []).length; logDone = (data || []).length < PAGE;
+    renderAudit(); fillAuditFilters();
+  }
+  function fillAuditFilters() {
+    [['#lAction', 'action'], ['#lEntity', 'entity_type']].forEach(([sel, k]) => {
+      const el = qs(sel), cur = el.value, have = new Set(qsa('option', el).map((o) => o.value));
+      logs.forEach((l) => { if (l[k] && !have.has(l[k])) { have.add(l[k]); el.insertAdjacentHTML('beforeend', `<option>${esc(l[k])}</option>`); } }); el.value = cur;
+    });
+  }
+  function renderAudit() {
+    const body = qs('#auditBody');
+    const col = (a) => ({ created: 'tag-ok', approved: 'tag-teal', deleted: 'tag-danger', denied: 'tag-danger', updated: 'tag-warn' }[a] || '');
+    body.innerHTML = logs.length ? logs.map((l) => `<tr><td class="small muted" style="white-space:nowrap">${SL.fmtDateTime(l.created_at)}</td><td><span class="tag ${col(l.action)}">${esc(l.action)}</span></td><td class="small">${esc(l.entity_type || '')}</td><td class="xs mono">${esc(l.entity_id || '')}</td><td class="small truncate" title="${esc(l.details || '')}">${esc(l.details || '')}</td><td class="small">${esc(l.user_name || '')}</td><td class="xs muted">${esc(l.user_role || '')}</td></tr>`).join('') : `<tr><td colspan="7">${empty('No audit entries match.')}</td></tr>`;
+    qs('#auditCount').textContent = `${logs.length} loaded${logDone ? ' · end of log' : ''}`;
+    qs('#btnAuditMore').disabled = logDone; qs('#btnAuditMore').classList.toggle('hidden', logDone);
+  }
+  qs('#btnAuditMore').onclick = () => loadAudit(false);
+  ['#lSearch', '#lUser'].forEach((s) => qs(s).oninput = SL.debounce(() => loadAudit(true), 350));
+  ['#lAction', '#lEntity'].forEach((s) => qs(s).onchange = () => loadAudit(true));
+  qs('#btnAuditCsv').onclick = async () => {
+    const { data, error } = await auditQuery().limit(5000); if (error) return err(error);
+    SL.download(`audit_log_${new Date().toISOString().slice(0, 10)}.csv`, SL.csv(data || [], ['created_at', 'action', 'entity_type', 'entity_id', 'details', 'user_name', 'user_role', 'user_id']), 'text/csv');
+  };
+
+  // ============ PUBMED SYNC ============
+  qs('#syncNow').innerHTML = SL.icons.upload + ' Sync now';
+  async function loadSync() {
+    const [logR, facR, cntR] = await Promise.all([
+      sb.from('pubmed_sync_log').select('*').order('started_at', { ascending: false }).limit(10),
+      sb.from('faculty_profiles').select('id,user_id,pubmed_enabled,pubmed_author_terms,pubmed_affiliation_filter,pubmed_extra_query,last_pubmed_sync,profiles(name,role)').order('user_id'),
+      sb.from('publications').select('id', { count: 'exact', head: true }).eq('source', 'pubmed'),
+    ]);
+    if (logR.error) { qs('#syncLog').innerHTML = `<div class="alert alert-danger mb-0">${esc(logR.error.message)}</div>`; }
+    const logs = logR.data || [], fac = (facR.data || []).sort((a, b) => ((a.profiles && a.profiles.name) || '').localeCompare((b.profiles && b.profiles.name) || ''));
+    const last = logs[0];
+    qs('#syncStats').innerHTML = [[last ? SL.fmtDateTime(last.started_at) : '—', 'Last sync'], [last ? (last.status || 'running') : '—', 'Status'], [fac.filter((f) => f.pubmed_enabled).length + ' / ' + fac.length, 'Faculty enabled'], [cntR.count == null ? '—' : cntR.count.toLocaleString(), 'PubMed records']].map(([n, l]) => `<div class="card stat"><div class="n" style="font-size:${String(n).length > 8 ? '1.1rem' : '2.1rem'};padding-top:${String(n).length > 8 ? '8px' : 0}">${esc(n)}</div><div class="l">${l}</div></div>`).join('');
+    if (!logR.error) qs('#syncLog').innerHTML = logs.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Started</th><th>Status</th><th class="num">Found</th><th class="num">New</th><th class="num">Upd.</th></tr></thead><tbody>${logs.map((l) => `<tr title="${esc(l.error || '')}"><td class="xs" style="white-space:nowrap">${SL.fmtDateTime(l.started_at)}${l.finished_at ? `<div class="muted">${Math.round((new Date(l.finished_at) - new Date(l.started_at)) / 1000)}s</div>` : ''}</td><td><span class="tag ${l.status === 'ok' ? 'tag-ok' : l.status === 'error' ? 'tag-danger' : 'tag-warn'}">${esc(l.status || 'running')}</span>${l.error ? `<div class="xs truncate" style="color:var(--danger);max-width:200px">${esc(l.error)}</div>` : ''}</td><td class="num">${l.found ?? ''}</td><td class="num">${l.inserted ?? ''}</td><td class="num">${l.updated ?? ''}</td></tr>`).join('')}</tbody></table></div>` : empty('No sync runs logged yet.');
+    qs('#facTable').innerHTML = facR.error ? `<div class="alert alert-danger mb-0">${esc(facR.error.message)}</div>` : fac.length ? `<div class="table-wrap"><table class="table fac"><thead><tr><th>Faculty</th><th>On</th><th>Author terms (comma-separated)</th><th title="Require Saint Luke's / Kansas City affiliation">Affil.</th><th>Extra query</th><th>Last sync</th><th></th></tr></thead><tbody>${fac.map((f) => `<tr data-uid="${esc(f.user_id)}"><td><strong>${esc(f.profiles && f.profiles.name || f.user_id)}</strong><div class="xs muted">${esc(f.profiles && f.profiles.role || '')}</div></td><td><input type="checkbox" name="en" ${f.pubmed_enabled ? 'checked' : ''}></td><td><input class="input" name="terms" value="${esc((f.pubmed_author_terms || []).join(', '))}" placeholder="Smith JA, Smith J" style="min-width:180px"></td><td><input type="checkbox" name="aff" ${f.pubmed_affiliation_filter ? 'checked' : ''}></td><td><input class="input" name="xq" value="${esc(f.pubmed_extra_query || '')}" placeholder="e.g. neurosurgery[ad]" style="min-width:140px"></td><td class="xs muted" style="white-space:nowrap">${f.last_pubmed_sync ? SL.fmtDate(f.last_pubmed_sync) : '—'}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-save="${f.id}">Save</button> <button class="btn btn-ghost btn-sm btn-icon" data-one="${esc(f.user_id)}" title="Sync this faculty only">${SL.icons.upload}</button></td></tr>`).join('')}</tbody></table></div>` : empty('No faculty profiles found.');
+    qsa('[data-save]').forEach((b) => b.onclick = async () => {
+      const tr = b.closest('tr'); const terms = tr.querySelector('[name=terms]').value.split(',').map((s) => s.trim()).filter(Boolean);
+      const upd = { pubmed_enabled: tr.querySelector('[name=en]').checked, pubmed_author_terms: terms, pubmed_affiliation_filter: tr.querySelector('[name=aff]').checked, pubmed_extra_query: tr.querySelector('[name=xq]').value.trim() || null };
+      b.disabled = true; const { error } = await sb.from('faculty_profiles').update(upd).eq('id', b.dataset.save); b.disabled = false;
+      if (error) return err(error); SL.audit('updated', 'faculty_profile', b.dataset.save, { pubmed: upd }); SL.toast('Settings saved', 'ok');
+    });
+    qsa('[data-one]').forEach((b) => b.onclick = () => runSync([b.dataset.one], b));
+  }
+  async function runSync(ids, btn) {
+    const main = qs('#syncNow'), st = qs('#syncStatus'), out = qs('#syncResult');
+    if (main.disabled) return SL.toast('A sync is already running', 'warn');
+    main.disabled = true; main.innerHTML = '<span class="spin"></span> Syncing…'; if (btn) btn.disabled = true;
+    st.textContent = ids ? 'Syncing one faculty member…' : 'Querying PubMed for all enabled faculty (about 60 s)…'; out.innerHTML = '';
+    const t0 = Date.now();
+    try {
+      const { data, error } = await sb.functions.invoke('sync-pubmed', { body: ids ? { faculty_ids: ids } : {} });
+      if (error) throw error;
+      const secs = Math.round((Date.now() - t0) / 1000);
+      if (data && data.ok) { out.innerHTML = `<div class="alert alert-ok mb-0"><strong>Sync complete in ${secs}s.</strong> ${esc(data.faculty)} faculty · ${esc(data.found)} records found · ${esc(data.inserted)} new · ${esc(data.updated)} updated.${(data.details || []).length ? `<details class="mt-1"><summary class="xs">Per-faculty detail</summary><ul class="xs" style="margin:6px 0 0;padding-left:18px">${data.details.map((d) => `<li>${esc(d.faculty || '?')}: ${d.error ? '<span style="color:var(--danger)">' + esc(d.error) + '</span>' : esc(d.count) + ' PMIDs'}</li>`).join('')}</ul></details>` : ''}</div>`; SL.toast('PubMed sync finished', 'ok'); }
+      else out.innerHTML = `<div class="alert alert-danger mb-0">Sync failed: ${esc((data && data.error) || 'unknown error')}</div>`;
+      SL.audit('pubmed_sync', 'publications', '', { faculty_ids: ids || 'all', result: data });
+    } catch (e) { out.innerHTML = `<div class="alert alert-danger mb-0">${esc(e.message || String(e))}</div>`; }
+    main.disabled = false; main.innerHTML = SL.icons.upload + ' Sync now'; st.textContent = ''; if (btn) btn.disabled = false;
+    loadSync();
+  }
+  qs('#syncNow').onclick = () => runSync(null);
+
+  // ============ ROLES ============
+  function renderRoles() {
+    const R = ['Admin', 'IRB', 'Faculty', 'Resident', 'Medical Student', 'APP / NP / PA / RN', 'Research Fellow', 'CRC', 'Statistician', 'Budget & Contracts'];
+    const Y = '<span class="yes">✓</span>', N = '<span class="no">—</span>', S = '<span class="yes" title="Own rows only">own</span>';
+    const all = R.map(() => Y);
+    const rows = [
+      ['Access the Hub (after login approval)', all],
+      ['Read registries (BTR / TBI / FNR)', all],
+      ['Insert registry records', R.map((r) => r === 'Medical Student' ? N : Y)],
+      ['Update registry records', R.map((r) => ['Admin', 'Faculty'].includes(r) ? Y : N)],
+      ['Delete registry records', R.map((r) => r === 'Admin' ? Y : N)],
+      ['Create projects / IRB submissions', all],
+      ['See all projects (not only own / listed personnel)', R.map((r) => ['Admin', 'IRB'].includes(r) ? Y : N)],
+      ['Update any project (IRB decisions)', R.map((r) => ['Admin', 'IRB'].includes(r) ? Y : S)],
+      ['Approve / delete projects', R.map((r) => r === 'Admin' ? Y : N)],
+      ['Author documents (SOPs, guides)', R.map((r) => ['Admin', 'Faculty', 'Research Fellow', 'CRC'].includes(r) ? Y : N)],
+      ['Edit / delete any document', R.map((r) => r === 'Admin' ? Y : S)],
+      ['Read internal documents', all],
+      ['Read admin-only documents', R.map((r) => r === 'Admin' ? Y : N)],
+      ['Add grants, deadlines, meetings', all],
+      ['Edit grants / deadlines / meetings', R.map((r) => r === 'Admin' ? Y : S)],
+      ['Delete grants / deadlines / meetings', R.map((r) => r === 'Admin' ? Y : N)],
+      ['Publications: add manual entries', all],
+      ['Publications: edit / hide any entry, run PubMed sync', R.map((r) => r === 'Admin' ? Y : S)],
+      ['Forum: post threads and replies', all],
+      ['Forum: pin threads, delete any post', R.map((r) => r === 'Admin' ? Y : S)],
+      ['Requests: update status / assign', R.map((r) => ['Admin', 'Statistician'].includes(r) ? Y : S)],
+      ['Service requests: submit', all],
+      ['Service requests: triage (status, assignee, notes)', R.map((r) => ['Admin', 'Statistician', 'CRC', 'Research Fellow'].includes(r) ? Y : N)],
+      ['Edit own profile and public faculty profile', all],
+      ['Edit any profile, change roles', R.map((r) => r === 'Admin' ? Y : N)],
+      ['Approve login requests', R.map((r) => r === 'Admin' ? Y : N)],
+      ['Post announcements', R.map((r) => r === 'Admin' ? Y : N)],
+      ['View audit log', R.map((r) => r === 'Admin' ? Y : S)],
+      ['CITI / CME records', R.map((r) => r === 'Admin' ? Y : S)],
+      ['Student records & onboarding checklist', R.map((r) => r === 'Admin' ? Y : r === 'Medical Student' ? S : N)],
+      ['Student assessments', R.map((r) => r === 'Admin' ? Y : r === 'Medical Student' ? S : ['Faculty', 'Research Fellow'].includes(r) ? '<span class="yes" title="Submit; read what you submitted">submit</span>' : N)],
+      ['Notifications (read any)', R.map((r) => r === 'Admin' ? Y : S)],
+    ];
+    qs('#rolesTable').innerHTML = `<thead><tr><th>Capability</th>${R.map((r) => `<th>${esc(r)}</th>`).join('')}</tr></thead><tbody>${rows.map(([c, v]) => `<tr><td style="font-weight:500">${c}</td>${v.map((x) => `<td class="text-center">${x}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  }
+
+  // ============ SYSTEM ============
+  const TABLES = ['profiles', 'faculty_profiles', 'projects', 'publications', 'documents', 'announcements', 'grants', 'deadlines', 'meetings', 'forum_posts', 'forum_requests', 'service_requests', 'notifications', 'audit_log', 'btr_patients', 'tbi_patients', 'fnr_patients'];
+  async function runSystem() {
+    const h = qs('#sysHealth'), c = qs('#sysCounts');
+    h.innerHTML = skel(2); c.innerHTML = skel(2);
+    const checks = [
+      ['Auth session', async () => { const s = await SL.session(); if (!s) throw new Error('No session'); return 'valid'; }],
+      ['Database (profiles)', async () => { const { error } = await sb.from('profiles').select('id', { head: true, count: 'exact' }); if (error) throw error; return 'ok'; }],
+      ['Storage (public-assets)', async () => { const { error } = await sb.storage.from('public-assets').list('', { limit: 1 }); if (error) throw error; return 'ok'; }],
+      ['Storage (research-files)', async () => { const { error } = await sb.storage.from('research-files').list('', { limit: 1 }); if (error) throw error; return 'ok'; }],
+      ['Last PubMed sync', async () => { const { data, error } = await sb.from('pubmed_sync_log').select('started_at,status').order('started_at', { ascending: false }).limit(1); if (error) throw error; return data && data[0] ? `${data[0].status} · ${SL.fmtDateTime(data[0].started_at)}` : 'never'; }],
+    ];
+    const res = await Promise.all(checks.map(async ([label, fn]) => { const t = performance.now(); try { const v = await fn(); return { label, ok: true, v, ms: Math.round(performance.now() - t) }; } catch (e) { return { label, ok: false, v: e.message, ms: Math.round(performance.now() - t) }; } }));
+    h.innerHTML = res.map((r) => `<div class="card stat"><div class="l">${esc(r.label)}</div><div class="${r.ok ? 'health-ok' : 'health-bad'}" style="font-weight:600">${r.ok ? '● ' : '✕ '}${esc(r.v)}</div><div class="xs muted">${r.ms} ms</div></div>`).join('');
+    const counts = await Promise.all(TABLES.map(async (t) => { const t0 = performance.now(); const { count, error } = await sb.from(t).select('*', { head: true, count: 'exact' }); return { t, count, error, ms: Math.round(performance.now() - t0) }; }));
+    c.innerHTML = counts.map((r) => `<div class="card stat"><div class="n" style="font-size:1.6rem">${r.error ? '—' : (r.count == null ? '?' : r.count.toLocaleString())}</div><div class="l mono">${esc(r.t)}</div><div class="xs ${r.error ? 'health-bad' : 'muted'}">${r.error ? esc(r.error.message) : r.ms + ' ms'}</div></div>`).join('');
+  }
+  qs('#btnSysRun').onclick = runSystem;
+
+  const initial = (location.hash || '#approvals').slice(1);
+  showTab(initial in loaders ? initial : 'approvals');
+  window.addEventListener('hashchange', () => { const k = location.hash.slice(1); if (k in loaders) showTab(k); });
+})();
+</script>
+</body></html>

@@ -1,0 +1,374 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trauma / TBI Registry | Saint Luke's Neuroscience Research</title>
+<meta name="description" content="Trauma / TBI Registry — TBI, subdural and epidural haematoma, skull fracture: GCS, CT scores, ICP monitoring, ICU course and GOS / GOS-E outcomes.">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<link rel="stylesheet" href="/hub/registries/registry.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="/assets/js/sl.js"></script>
+<script src="/hub/registries/registry-common.js"></script>
+</head><body>
+<main class="main" id="main"></main>
+<script>
+(async () => {
+  const T = 'tbi_patients', PREFIX = 'TBI', esc = SL.esc;
+
+  /* ---------------- field dictionaries (kept from legacy) ---------------- */
+  const CATEGORIES = [['TBI', 'TBI (general)'], ['SDH', 'Subdural hematoma'], ['EDH', 'Epidural hematoma'], ['SAH-Traumatic', 'Traumatic SAH'], ['Skull Fracture', 'Skull fracture'], ['Penetrating', 'Penetrating injury'], ['Polytrauma', 'Polytrauma']];
+  const CAT_KEYS = CATEGORIES.map((c) => c[0]);
+  const SEX = ['Male', 'Female', 'Other'], RACE = [['White', 'White'], ['Black', 'Black or African American'], ['Asian', 'Asian'], ['AIAN', 'American Indian / Alaska Native'], ['NHPI', 'Native Hawaiian / Pacific Islander'], ['Other', 'Other'], ['Unknown', 'Unknown']], ETH = [['Hispanic', 'Hispanic or Latino'], ['Non-Hispanic', 'Not Hispanic or Latino'], ['Unknown', 'Unknown']];
+  const MECH = [['MVC', 'Motor vehicle collision'], ['Motorcycle', 'Motorcycle crash'], ['Pedestrian', 'Pedestrian struck'], ['Fall', 'Fall'], ['Assault', 'Assault'], ['Sports', 'Sports injury'], ['GSW', 'Gunshot wound'], ['Bicycle', 'Bicycle'], ['Other', 'Other']];
+  const ANTICOAG = ['Warfarin', 'Apixaban', 'Rivaroxaban', 'Dabigatran', 'Enoxaparin', 'Aspirin', 'Clopidogrel', 'Dual Antiplatelet', 'Other'];
+  const PUPILS = [['Equal Reactive', 'Equal, reactive'], ['Unequal Reactive', 'Unequal but reactive'], ['Unilateral Fixed', 'Unilateral fixed / dilated'], ['Bilateral Fixed', 'Bilateral fixed / dilated']];
+  const MARSHALL = [['I', 'I — no visible pathology'], ['II', 'II — cisterns present, shift <5 mm'], ['III', 'III — cisterns compressed/absent, shift <5 mm'], ['IV', 'IV — shift >5 mm, no mass'], ['V', 'V — evacuated mass lesion'], ['VI', 'VI — non-evacuated mass >25 cc']];
+  const HERNIATION = ['None', 'Uncal', 'Subfalcine', 'Tonsillar', 'Upward', 'Multiple'];
+  const SDH_TYPES = [['Acute', 'Acute'], ['Subacute', 'Subacute'], ['Chronic', 'Chronic'], ['Mixed', 'Mixed density']];
+  const FRACTURES = ['Linear', 'Depressed', 'Basilar', 'Comminuted', 'Open/Compound'];
+  const SURGERY = [['None', 'None (conservative)'], ['Craniotomy', 'Craniotomy for evacuation'], ['Decompressive Craniectomy', 'Decompressive craniectomy'], ['Burr Hole', 'Burr hole drainage'], ['Cranioplasty', 'Cranioplasty'], ['Elevation', 'Fracture elevation'], ['EVD', 'EVD placement'], ['Other', 'Other']];
+  const GOS = [['1', '1 — Dead'], ['2', '2 — Vegetative state'], ['3', '3 — Severe disability'], ['4', '4 — Moderate disability'], ['5', '5 — Good recovery']];
+  const GOSE = [['1', '1 — Dead'], ['2', '2 — Vegetative state'], ['3', '3 — Lower severe disability'], ['4', '4 — Upper severe disability'], ['5', '5 — Lower moderate disability'], ['6', '6 — Upper moderate disability'], ['7', '7 — Lower good recovery'], ['8', '8 — Upper good recovery']];
+  const RANCHO = [['I', 'I — No response'], ['II', 'II — Generalized response'], ['III', 'III — Localized response'], ['IV', 'IV — Confused-agitated'], ['V', 'V — Confused-inappropriate'], ['VI', 'VI — Confused-appropriate'], ['VII', 'VII — Automatic-appropriate'], ['VIII', 'VIII — Purposeful-appropriate']];
+  const DISPO = [['Home', 'Home'], ['Rehab', 'Acute rehab'], ['SNF', 'Skilled nursing'], ['LTAC', 'LTAC'], ['Deceased', 'Deceased'], ['Other', 'Other']];
+  const COMPS = ['DVT', 'PE', 'Pneumonia', 'UTI', 'Seizure', 'Hydrocephalus', 'Wound Infection', 'Meningitis', 'CSF Leak', 'Coagulopathy'];
+  const GOS_LABEL = { 1: 'Dead', 2: 'Vegetative', 3: 'Severe disability', 4: 'Moderate disability', 5: 'Good recovery' };
+  const GOSE_LABEL = { 1: 'Dead', 2: 'VS', 3: 'L-SD', 4: 'U-SD', 5: 'L-MD', 6: 'U-MD', 7: 'L-GR', 8: 'U-GR' };
+  const GOS_COLOR = { 'Dead': REG.NEUTRAL, 'Vegetative': REG.STATUS.danger, 'Severe disability': REG.STATUS.warn, 'Moderate disability': REG.SERIES[6], 'Good recovery': REG.STATUS.ok };
+  const SEV_LABEL = { Severe: 'Severe (3-8)', Moderate: 'Moderate (9-12)', Mild: 'Mild (13-15)' };
+
+  const STEPS = [
+    { title: 'Category & demographics', fields: [
+      { key: 'study_id', label: 'Study ID', type: 'text', placeholder: 'Leave blank to auto-generate (TBI-0001)', help: 'Auto-generated on save when blank. Never use an MRN.' },
+      { key: 'category', label: 'Injury category', type: 'select', options: CATEGORIES, required: true },
+      { key: 'age', label: 'Age', type: 'number', min: 0, max: 120 }, { key: 'sex', label: 'Sex', type: 'select', options: SEX }, { key: 'race', label: 'Race', type: 'select', options: RACE }, { key: 'ethnicity', label: 'Ethnicity', type: 'select', options: ETH },
+      { key: 'injury_date', label: 'Injury date', type: 'date' }, { key: 'mechanism', label: 'Mechanism of injury', type: 'select', options: MECH }, { key: 'anticoagulation', label: 'Anticoagulation / antiplatelet', type: 'select', options: ANTICOAG, blank: 'None' } ] },
+    { title: 'Field / ED assessment', fields: [
+      { key: 'gcs_field', label: 'GCS (field)', type: 'number', min: 3, max: 15 }, { key: 'gcs_ed', label: 'GCS (ED)', type: 'number', min: 3, max: 15, help: 'Drives severity: 3-8 severe, 9-12 moderate, 13-15 mild.' },
+      { key: 'gcs_eye', label: 'GCS eye', type: 'number', min: 1, max: 4 }, { key: 'gcs_verbal', label: 'GCS verbal', type: 'number', min: 1, max: 5 }, { key: 'gcs_motor', label: 'GCS motor', type: 'number', min: 1, max: 6 },
+      { key: 'pupils', label: 'Pupils', type: 'select', options: PUPILS }, { key: 'intubated_field', label: 'Intubated in field', type: 'bool' },
+      { key: 'sbp', label: 'SBP (mmHg)', type: 'number', min: 0, max: 300 }, { key: 'heart_rate', label: 'Heart rate (bpm)', type: 'number', min: 0, max: 300 }, { key: 'spo2', label: 'SpO₂ (%)', type: 'number', min: 0, max: 100 },
+      { key: 'associated_injuries', label: 'Associated injuries', type: 'textarea', full: true, help: 'Clinical summary only — no identifiers.' } ] },
+    { title: 'CT findings', fields: [
+      { key: 'marshall_class', label: 'Marshall class', type: 'select', options: MARSHALL }, { key: 'rotterdam_score', label: 'Rotterdam score', type: 'number', min: 1, max: 6 },
+      { key: 'midline_shift', label: 'Midline shift (mm)', type: 'number', min: 0, step: '0.1' }, { key: 'herniation', label: 'Herniation', type: 'select', options: HERNIATION },
+      { key: 'sdh_type', label: 'SDH', type: 'select', options: SDH_TYPES, blank: 'None' }, { key: 'sdh_thickness', label: 'SDH thickness (mm)', type: 'number', min: 0, step: '0.1' },
+      { key: 'edh', label: 'EDH present', type: 'bool' }, { key: 'edh_volume', label: 'EDH volume (cc)', type: 'number', min: 0, step: '0.1' },
+      { key: 'contusion', label: 'Contusion', type: 'select', options: ['Single', 'Multiple', 'Hemorrhagic'], blank: 'None' }, { key: 'dai', label: 'Diffuse axonal injury', type: 'select', options: ['Grade 1', 'Grade 2', 'Grade 3'], blank: 'None' },
+      { key: 'traumatic_sah', label: 'Traumatic SAH', type: 'bool' }, { key: 'ivh', label: 'IVH', type: 'bool' },
+      { key: 'fracture_type', label: 'Skull fracture type', type: 'select', options: FRACTURES, blank: 'None' }, { key: 'fracture_location', label: 'Fracture location', type: 'text', placeholder: 'e.g. Right temporal' } ] },
+    { title: 'Surgery & ICP management', fields: [
+      { key: 'surgery', label: 'Surgery', type: 'select', options: SURGERY }, { key: 'surgery_date', label: 'Surgery date', type: 'date' }, { key: 'surgeon', label: 'Surgeon', type: 'text' },
+      { key: 'time_to_surgery', label: 'Time to surgery (hours)', type: 'number', min: 0, step: '0.1' }, { key: 'surgical_complications', label: 'Surgical complications', type: 'text', placeholder: 'None' },
+      { key: 'evd', label: 'EVD placed', type: 'bool' }, { key: 'icp_monitor_type', label: 'ICP monitor', type: 'select', options: [['EVD', 'EVD'], ['Bolt', 'Parenchymal bolt'], ['Both', 'Both']], blank: 'None' },
+      { key: 'hyperosmolar', label: 'Hyperosmolar therapy', type: 'select', options: [['Mannitol', 'Mannitol'], ['HTS', 'Hypertonic saline'], ['Both', 'Both']], blank: 'None' }, { key: 'decompressive_craniectomy', label: 'Decompressive craniectomy', type: 'bool' },
+      { key: 'barbiturate_coma', label: 'Barbiturate coma', type: 'bool' }, { key: 'therapeutic_hypothermia', label: 'Therapeutic hypothermia', type: 'bool' } ] },
+    { title: 'ICU course & outcomes', fields: [
+      { key: 'icu_days', label: 'ICU days', type: 'number', min: 0 }, { key: 'ventilator_days', label: 'Ventilator days', type: 'number', min: 0 },
+      { key: 'tracheostomy', label: 'Tracheostomy', type: 'bool' }, { key: 'peg_tube', label: 'PEG tube', type: 'bool' }, { key: 'vp_shunt', label: 'VP shunt', type: 'bool' },
+      { key: 'complications', label: 'In-hospital complications', type: 'checks', full: true, options: COMPS },
+      { key: 'gos', label: 'GOS', type: 'select', options: GOS }, { key: 'gos_e', label: 'GOS-E', type: 'select', options: GOSE }, { key: 'drs', label: 'DRS (0-29)', type: 'number', min: 0, max: 29 }, { key: 'rancho_level', label: 'Rancho level', type: 'select', options: RANCHO },
+      { key: 'mortality', label: 'Mortality', type: 'bool' }, { key: 'brain_death', label: 'Brain death', type: 'bool' }, { key: 'organ_donor', label: 'Organ donor', type: 'bool' }, { key: 'discharge_disposition', label: 'Discharge disposition', type: 'select', options: DISPO } ] },
+  ];
+  const ALL_FIELDS = STEPS.flatMap((s) => s.fields);
+  const ALL_COLS = ALL_FIELDS.map((f) => f.key);
+  const OUTCOME_FIELDS = STEPS[4].fields.filter((f) => ['gos', 'gos_e', 'drs', 'rancho_level', 'mortality', 'brain_death', 'organ_donor', 'discharge_disposition'].includes(f.key));
+  const INT_SELECTS = ['gos', 'gos_e'];
+  /** Local helper: select-typed fields that map to integer columns are coerced before insert/update. */
+  const coerce = (vals) => { INT_SELECTS.forEach((k) => { if (vals[k] != null && vals[k] !== '') vals[k] = parseInt(vals[k], 10); }); return vals; };
+
+  /* ---------------- derived values & badges ---------------- */
+  const severity = (g) => { if (g == null || g === '') return 'Unknown'; const v = +g; return v <= 8 ? 'Severe' : v <= 12 ? 'Moderate' : 'Mild'; };
+  const sevTone = { Severe: 'danger', Moderate: 'warn', Mild: 'ok', Unknown: 'outline' };
+  const gcsTag = (g) => g == null || g === '' ? REG.tag('—', 'outline') : REG.tag('GCS ' + g, sevTone[severity(g)]);
+  const sevTag = (g) => { const s = severity(g); return REG.tag(s === 'Unknown' ? 'Unknown' : SEV_LABEL[s], sevTone[s]); };
+  const marshall = (m) => m ? REG.tag('Marshall ' + m, { I: 'ok', II: 'ok', III: 'warn', IV: 'warn', V: 'danger', VI: 'danger' }[m] || 'outline') : REG.tag('—', 'outline');
+  const gosTag = (g) => { if (g == null || g === '') return REG.tag('—', 'outline'); const v = +g; return REG.tag('GOS ' + v + ' · ' + (GOS_LABEL[v] || ''), v === 5 ? 'ok' : v === 4 ? 'teal' : v === 3 ? 'warn' : 'danger'); };
+  const goseTag = (g) => { if (g == null || g === '') return REG.tag('—', 'outline'); const v = +g; return REG.tag('GOS-E ' + v + ' · ' + (GOSE_LABEL[v] || ''), v >= 7 ? 'ok' : v >= 5 ? 'teal' : v >= 3 ? 'warn' : 'danger'); };
+  const catTag = (c) => c ? REG.tag(c, { TBI: 'info', SDH: 'teal', EDH: 'teal', 'Skull Fracture': 'outline', Penetrating: 'danger', Polytrauma: 'warn', 'SAH-Traumatic': 'info' }[c] || 'outline') : REG.tag('—', 'outline');
+  const pupilTag = (p) => p ? REG.tag(p, p === 'Equal Reactive' ? 'ok' : p === 'Unequal Reactive' ? 'warn' : 'danger') : REG.tag('—', 'outline');
+  const icpTag = (v) => v == null ? '—' : REG.tag(v + ' mmHg', v > 25 ? 'danger' : v > 20 ? 'warn' : 'ok');
+  const died = (p) => p.mortality === 'Yes' || +p.gos === 1;
+  const hadSurgery = (p) => !!p.surgery && p.surgery !== 'None';
+  const unit = (v, u) => v == null || v === '' ? null : v + ' ' + u;
+
+  const LIST_COLS = [
+    { key: 'study_id', label: 'Study ID', render: (p) => REG.studyLink(p.study_id) }, { key: 'age', label: 'Age', num: true }, { key: 'sex', label: 'Sex' }, { key: 'category', label: 'Category', render: (p) => catTag(p.category) }, { key: 'mechanism', label: 'Mechanism' },
+    { key: 'gcs_ed', label: 'GCS (ED)', render: (p) => gcsTag(p.gcs_ed), sortKey: (p) => p.gcs_ed == null ? 99 : +p.gcs_ed }, { key: 'marshall_class', label: 'CT', render: (p) => marshall(p.marshall_class) }, { key: 'surgery', label: 'Surgery', render: (p) => REG.val(p.surgery || 'None') },
+    { key: 'gos', label: 'GOS', render: (p) => gosTag(p.gos), sortKey: (p) => p.gos == null ? 0 : +p.gos }, { key: 'mortality', label: 'Mortality', render: (p) => died(p) ? REG.tag('Yes', 'danger') : p.mortality === 'No' ? REG.tag('No', 'ok') : REG.tag('—', 'outline') },
+  ];
+  const CSV_COLS = ['study_id', 'category', 'age', 'sex', 'race', 'ethnicity', 'injury_date', 'mechanism', 'anticoagulation', 'gcs_field', 'gcs_ed', 'pupils', 'intubated_field', 'marshall_class', 'rotterdam_score', 'midline_shift', 'sdh_type', 'sdh_thickness', 'edh', 'edh_volume', 'fracture_type', 'fracture_location', 'surgery', 'surgery_date', 'surgeon', 'evd', 'icp_monitor_type', 'decompressive_craniectomy', 'icu_days', 'ventilator_days', 'complications', 'gos', 'gos_e', 'drs', 'rancho_level', 'mortality', 'discharge_disposition'];
+  const openDetail = (p) => REG.go('detail', { id: p.study_id });
+  const patients = (force) => REG.fetchAll(T, { force, order: 'study_id' });
+
+  /* ---------------- related tables (detail) ---------------- */
+  const ICP_FIELDS = [{ key: 'reading_time', label: 'Reading date / time', type: 'datetime', required: true }, { key: 'icp_value', label: 'ICP (mmHg)', type: 'number', min: 0, max: 120, required: true }, { key: 'map', label: 'MAP (mmHg)', type: 'number', min: 0, max: 250 }, { key: 'cpp', label: 'CPP (mmHg)', type: 'number', min: 0, max: 200, help: 'Left blank = MAP − ICP.' }, { key: 'interventions', label: 'Interventions', type: 'text', full: true, placeholder: 'e.g. Mannitol 20%, HOB elevation, CSF drainage' }];
+  const icpChart = (el, rows) => REG.line(el, [{ label: 'ICP', color: REG.STATUS.danger, points: rows.filter((r) => r.reading_time && r.icp_value != null).map((r) => ({ x: new Date(r.reading_time), y: +r.icp_value })) }], { xTime: true, threshold: 20, thresholdLabel: 'ICP 20 mmHg', zones: [{ from: 0, to: 15, color: REG.STATUS.ok }, { from: 15, to: 20, color: REG.STATUS.warn }, { from: 20, to: 60, color: REG.STATUS.danger }], yMax: 40, yLabel: 'ICP (mmHg)', unit: 'mmHg', height: 240 });
+  const REL = {
+    icp: { table: 'tbi_icp_readings', title: 'ICP readings', order: 'reading_time', cols: [{ key: 'reading_time', label: 'Time', render: (r) => REG.dt(r.reading_time) }, { key: 'icp_value', label: 'ICP', num: true, render: (r) => icpTag(r.icp_value) }, { key: 'map', label: 'MAP', num: true }, { key: 'cpp', label: 'CPP', num: true, render: (r) => r.cpp == null ? '—' : (+r.cpp < 60 ? REG.tag(r.cpp, 'warn') : esc(r.cpp)) }, { key: 'interventions', label: 'Interventions' }], fields: ICP_FIELDS, chart: icpChart },
+    imaging: { table: 'tbi_imaging', title: 'Imaging timeline', order: 'study_date', asc: false, cols: [{ key: 'study_date', label: 'Date', render: (r) => REG.date(r.study_date) }, { key: 'study_type', label: 'Study' }, { key: 'findings', label: 'Findings' }, { key: 'changes', label: 'Interval change' }],
+      fields: [{ key: 'study_date', label: 'Study date', type: 'date', required: true }, { key: 'study_type', label: 'Study type', type: 'select', options: [['CT Head', 'CT head'], ['CT Angio', 'CT angiography'], ['MRI Brain', 'MRI brain'], ['MRA', 'MRA'], ['CTA', 'CTA']], required: true }, { key: 'findings', label: 'Findings', type: 'textarea', full: true }, { key: 'changes', label: 'Changes from prior', type: 'textarea', full: true }] },
+    outcomes: { table: 'tbi_outcome_assessments', title: 'Outcome assessments', order: 'assessment_date', asc: false, cols: [{ key: 'assessment_date', label: 'Date', render: (r) => REG.date(r.assessment_date) }, { key: 'assessment_type', label: 'Instrument' }, { key: 'score', label: 'Score', render: (r) => `<strong>${REG.val(r.score)}</strong>` }, { key: 'timepoint', label: 'Timepoint' }, { key: 'notes', label: 'Notes' }],
+      fields: [{ key: 'assessment_type', label: 'Instrument', type: 'select', options: [['GOS', 'GOS'], ['GOS-E', 'GOS-E'], ['DRS', 'DRS'], ['Rancho', 'Rancho Los Amigos'], ['FIM', 'FIM'], ['Other', 'Other']], required: true }, { key: 'score', label: 'Score / value', type: 'text', required: true }, { key: 'assessment_date', label: 'Assessment date', type: 'date', required: true }, { key: 'timepoint', label: 'Timepoint', type: 'select', options: ['Discharge', '3 months', '6 months', '12 months', '24 months'] }, { key: 'notes', label: 'Notes', type: 'textarea', full: true }] },
+    complications: { table: 'tbi_complications', title: 'Complication log', order: 'onset_date', asc: false, cols: [{ key: 'onset_date', label: 'Onset', render: (r) => REG.date(r.onset_date) }, { key: 'complication_type', label: 'Type', render: (r) => r.complication_type ? REG.tag(r.complication_type, 'warn') : '—' }, { key: 'details', label: 'Details' }, { key: 'treatment', label: 'Treatment' }],
+      fields: [{ key: 'complication_type', label: 'Complication', type: 'select', options: COMPS.concat(['Other']), required: true }, { key: 'onset_date', label: 'Onset date', type: 'date', required: true }, { key: 'details', label: 'Details', type: 'textarea', full: true }, { key: 'treatment', label: 'Treatment', type: 'textarea', full: true }] },
+    followups: { table: 'tbi_follow_ups', title: 'Follow-up visits', order: 'visit_date', asc: false, cols: [{ key: 'visit_date', label: 'Date', render: (r) => REG.date(r.visit_date) }, { key: 'visit_type', label: 'Type' }, { key: 'gos_at_visit', label: 'GOS at visit', render: (r) => gosTag(r.gos_at_visit) }, { key: 'return_to_work', label: 'Return to work', render: (r) => r.return_to_work ? REG.tag(r.return_to_work, { Full: 'ok', Partial: 'warn', Unable: 'danger' }[r.return_to_work] || 'outline') : '—' }, { key: 'notes', label: 'Notes' }],
+      fields: [{ key: 'visit_date', label: 'Visit date', type: 'date', required: true }, { key: 'visit_type', label: 'Visit type', type: 'select', options: [['Routine', 'Routine'], ['Neurosurgery', 'Neurosurgery clinic'], ['Rehab', 'Rehab follow-up'], ['Neuropsych', 'Neuropsychology'], ['Emergency', 'Emergency']] }, { key: 'gos_at_visit', label: 'GOS at visit', type: 'select', options: GOS }, { key: 'return_to_work', label: 'Return to work', type: 'select', options: ['Full', 'Partial', 'Unable', 'Not Applicable'] }, { key: 'notes', label: 'Notes', type: 'textarea', full: true }],
+      chart: (el, rows) => { const pts = rows.filter((r) => r.visit_date && r.gos_at_visit != null).map((r) => ({ x: new Date(r.visit_date), y: +r.gos_at_visit })).sort((a, b) => a.x - b.x); if (pts.length > 1) REG.line(el, [{ label: 'GOS at visit', color: REG.TEAL, points: pts }], { xTime: true, yMin: 1, yMax: 5, yPad: false, yLabel: 'GOS', height: 180, xFormat: d3.timeFormat('%b %Y') }); else el.remove(); } },
+  };
+
+  /* ---------------- local helper: rectangular heatmap (REG.heatmap is square-only) ---------------- */
+  function heatmapRect(el, matrix, rowLabels, colLabels, opts) {
+    opts = opts || {};
+    const max = d3.max(matrix.flat()) || 0; if (!max) { REG.chartEmpty(el, opts.empty); return; }
+    const cell = 54, m = { top: 96, left: 118 }; const W = m.left + colLabels.length * cell + 90, H = m.top + rowLabels.length * cell + 8;
+    const color = REG.heatScale(max);
+    const svg = d3.select(el).html('').append('svg').attr('viewBox', `0 0 ${W} ${H}`).attr('width', '100%').style('max-width', W + 'px').attr('role', 'img');
+    const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
+    matrix.forEach((row, i) => row.forEach((v, j) => {
+      const c = g.append('g'); c.append('rect').attr('x', j * cell).attr('y', i * cell).attr('width', cell - 3).attr('height', cell - 3).attr('rx', 4).attr('fill', v ? color(v) : REG.HEAT_EMPTY).attr('stroke', 'rgba(148,163,184,.12)');
+      c.append('text').attr('class', 'cell').attr('x', j * cell + (cell - 3) / 2).attr('y', i * cell + (cell - 3) / 2).attr('text-anchor', 'middle').attr('dominant-baseline', 'middle').attr('fill', REG.heatText(v, max)).text(opts.format ? opts.format(v, i, j) : v);
+      c.append('title').text(`${rowLabels[i]} × ${colLabels[j]}: ${v} patient${v === 1 ? '' : 's'}`);
+    }));
+    rowLabels.forEach((l, i) => g.append('text').attr('class', 'axis-label').attr('x', -8).attr('y', i * cell + cell / 2 - 1).attr('text-anchor', 'end').attr('dominant-baseline', 'middle').text(l));
+    colLabels.forEach((l, j) => g.append('text').attr('class', 'axis-label').attr('x', j * cell + cell / 2 - 1).attr('y', -10).attr('text-anchor', 'start').attr('transform', `rotate(-35 ${j * cell + cell / 2 - 1} -10)`).text(l));
+  }
+
+  /* ---------------- pages ---------------- */
+  const PAGES = [
+    { key: 'dashboard', label: 'Dashboard', icon: 'home' }, { key: 'acute', label: 'Acute TBI', icon: 'brain' }, { key: 'subdural', label: 'Subdural', icon: 'doc' }, { key: 'fracture', label: 'Skull fracture', icon: 'shield' },
+    { key: 'query', label: 'Query builder', icon: 'search' }, { key: 'add', label: 'Add patient', icon: 'plus', write: true }, { key: 'detail', label: 'Patient detail', icon: 'doc', hidden: true },
+    { key: 'icp', label: 'ICP monitor', icon: 'chart' }, { key: 'outcomes', label: 'Outcomes', icon: 'award' }, { key: 'quality', label: 'Data quality', icon: 'shield' },
+  ];
+
+  /* ---------- dashboard ---------- */
+  async function dashboard(el) {
+    const pts = await patients();
+    const severe = pts.filter((p) => severity(p.gcs_ed) === 'Severe'); const deaths = REG.count(pts, died);
+    el.innerHTML = REG.stats([REG.statCard(pts.length, 'Total patients'), REG.statCard(severe.length, 'Severe TBI (GCS 3-8)', { tone: 'danger' }), REG.statCard(REG.count(pts, (p) => p.category === 'SDH'), 'SDH cases'), REG.statCard(REG.count(pts, (p) => p.category === 'Skull Fracture'), 'Skull fractures'), REG.statCard(REG.pct(deaths, pts.length), 'Mortality', { tone: 'danger', sub: `${deaths} deaths` }), REG.statCard(REG.count(pts, hadSurgery), 'Operated', { sub: REG.pct(REG.count(pts, hadSurgery), pts.length) + ' of cohort' })]) +
+      (pts.length ? '' : `<div class="alert alert-info">The registry is empty. ${REG.canWrite ? '<a href="?p=add" data-nav>Add the first patient</a> or import a CSV from the query page.' : 'Check back once data entry begins.'}</div>`) +
+      `<div class="chart-grid">
+        ${REG.section('Cases by category', '<div class="chart" id="cCat"></div>')}
+        ${REG.section('Severity (GCS at ED)', '<div class="chart" id="cSev"></div>')}
+        ${REG.section('GCS distribution', '<div class="chart" id="cGcs"></div>')}
+        ${REG.section('Mechanism of injury', '<div class="chart" id="cMech"></div>')}
+        ${REG.section('GOS outcomes', '<div class="chart" id="cGos"></div>')}
+        ${REG.section('Mortality by severity', '<div class="chart" id="cMort"></div>' + REG.note('Deaths = mortality recorded as Yes or GOS 1. Rates are descriptive only.'))}
+      </div>
+      ${REG.section('Recent admissions', '<div id="recent"></div>', `<a class="btn btn-outline btn-sm" href="?p=query" data-nav>${SL.icons.search}Query all</a>`)}`;
+    REG.donut(el.querySelector('#cCat'), CAT_KEYS.map((c) => ({ label: c, value: REG.count(pts, (p) => p.category === c) })), { empty: 'No patients' });
+    const sevCounts = ['Severe', 'Moderate', 'Mild'].map((s) => ({ label: SEV_LABEL[s], value: REG.count(pts, (p) => severity(p.gcs_ed) === s) }));
+    REG.donut(el.querySelector('#cSev'), sevCounts, { empty: 'No GCS data' });
+    const gcsData = []; for (let g = 3; g <= 15; g++) gcsData.push({ label: String(g), value: REG.count(pts, (p) => +p.gcs_ed === g) });
+    REG.bar(el.querySelector('#cGcs'), gcsData, { colorFor: (l) => REG.STATUS[sevTone[severity(+l)]], empty: 'No GCS data', height: 220 });
+    REG.bar(el.querySelector('#cMech'), REG.toData(REG.tally(pts, 'mechanism'), 'desc'), { horizontal: true, color: REG.NAVY, empty: 'No mechanism data' });
+    REG.bar(el.querySelector('#cGos'), [1, 2, 3, 4, 5].map((g) => ({ label: GOS_LABEL[g], value: REG.count(pts, (p) => +p.gos === g) })), { colorFor: (l) => GOS_COLOR[l], empty: 'No GOS data', height: 220 });
+    REG.bar(el.querySelector('#cMort'), ['Mild', 'Moderate', 'Severe'].map((s) => { const grp = pts.filter((p) => severity(p.gcs_ed) === s); return { label: `${s} (n=${grp.length})`, value: grp.length ? Math.round(REG.count(grp, died) / grp.length * 100) : 0 }; }), { colorFor: (l) => REG.STATUS[sevTone[l.split(' ')[0]]], max: 100, format: (v) => v + '%', empty: 'No patients', height: 220 });
+    const recent = pts.slice().sort((a, b) => String(b.injury_date || b.created_at || '').localeCompare(String(a.injury_date || a.created_at || ''))).slice(0, 8);
+    REG.table(el.querySelector('#recent'), [LIST_COLS[0], { key: 'injury_date', label: 'Injury date', render: (p) => REG.date(p.injury_date) }, LIST_COLS[3], LIST_COLS[4], LIST_COLS[5], LIST_COLS[6], LIST_COLS[7], LIST_COLS[8]], recent, { onRow: openDetail, empty: 'No patients yet.', sticky: false });
+  }
+
+  /* ---------- category lists (acute / subdural / fracture) ---------- */
+  function listPage(el, cfg) {
+    const { rows, stats, charts, cols, csvName, intro, filters } = cfg;
+    el.innerHTML = (intro ? `<p class="muted small" style="margin:0 0 14px">${intro}</p>` : '') + REG.stats(stats) + `<div class="chart-grid">${charts.map((c) => REG.section(c.title, `<div class="chart" id="${c.id}"></div>` + (c.note ? REG.note(c.note) : ''))).join('')}</div>
+      <div class="mt-3">${REG.listToolbar({ placeholder: 'Search study ID, mechanism, surgeon…', extra: filters || '' })}<div id="listTable"></div></div>`;
+    charts.forEach((c) => c.draw(el.querySelector('#' + c.id)));
+    const tbl = REG.table(el.querySelector('#listTable'), cols, rows, { onRow: openDetail, empty: cfg.empty || 'No patients match.' });
+    const cnt = el.querySelector('#listCount'); cnt.textContent = `${rows.length} patients`;
+    const apply = () => { const q = (el.querySelector('#listSearch').value || '').toLowerCase(); const extra = cfg.filterFn ? cfg.filterFn(el) : () => true; const f = rows.filter((p) => extra(p) && (!q || [p.study_id, p.mechanism, p.surgeon, p.category, p.sdh_type, p.fracture_type, p.fracture_location].join(' ').toLowerCase().includes(q))); tbl.redraw(f); cnt.textContent = `${f.length} of ${rows.length} patients`; };
+    el.querySelector('#listSearch').oninput = SL.debounce(apply); SL.qsa('select[data-filter]', el).forEach((s) => s.onchange = apply);
+    el.querySelector('[data-export]').onclick = () => REG.csvDownload(csvName, rows, CSV_COLS);
+  }
+  async function acute(el) {
+    const all = await patients(); const tbiCat = all.filter((p) => p.gcs_ed != null);
+    const severe = tbiCat.filter((p) => severity(p.gcs_ed) === 'Severe');
+    const icpMgmt = { 'EVD': REG.count(severe, (p) => p.evd === 'Yes'), 'Mannitol': REG.count(severe, (p) => p.hyperosmolar === 'Mannitol' || p.hyperosmolar === 'Both'), 'Hypertonic saline': REG.count(severe, (p) => p.hyperosmolar === 'HTS' || p.hyperosmolar === 'Both'), 'Decompressive craniectomy': REG.count(severe, (p) => p.decompressive_craniectomy === 'Yes' || p.surgery === 'Decompressive Craniectomy'), 'Barbiturate coma': REG.count(severe, (p) => p.barbiturate_coma === 'Yes'), 'Hypothermia': REG.count(severe, (p) => p.therapeutic_hypothermia === 'Yes') };
+    listPage(el, { rows: tbiCat, csvName: 'tbi_acute.csv', intro: 'Acute traumatic brain injury stratified by GCS at ED arrival. Stats and charts describe the <strong>severe</strong> (GCS 3-8) subgroup; the table can be filtered to any severity band.',
+      stats: [REG.statCard(severe.length, 'Severe TBI (GCS 3-8)', { tone: 'danger' }), REG.statCard(REG.count(severe, (p) => p.evd === 'Yes'), 'EVD placed'), REG.statCard(REG.count(severe, (p) => p.icp_monitor_type), 'ICP monitored'), REG.statCard(icpMgmt['Decompressive craniectomy'], 'Decompressive craniectomy'), REG.statCard(REG.pct(REG.count(severe, died), severe.length), 'Severe mortality', { tone: 'danger' }), REG.statCard(REG.mean(severe.map((p) => p.icu_days)), 'Mean ICU days (severe)')],
+      charts: [
+        { id: 'aGcs', title: 'GCS distribution — severe cohort', draw: (c) => { const d = []; for (let g = 3; g <= 8; g++) d.push({ label: 'GCS ' + g, value: REG.count(severe, (p) => +p.gcs_ed === g) }); REG.bar(c, d, { color: REG.STATUS.danger, empty: 'No severe TBI patients', height: 220 }); } },
+        { id: 'aIcp', title: 'ICP management — severe cohort', draw: (c) => REG.bar(c, REG.toData(icpMgmt), { horizontal: true, color: REG.TEAL, empty: 'No severe TBI patients' }) },
+        { id: 'aPup', title: 'Pupillary response by severity', draw: (c) => REG.groupedBar(c, ['Severe', 'Moderate', 'Mild'].map((s) => ({ group: s, series: Object.fromEntries(PUPILS.map(([k]) => [k, REG.count(tbiCat, (p) => severity(p.gcs_ed) === s && p.pupils === k)])) })), PUPILS.map((x) => x[0]), { height: 240, empty: 'No pupil data' }) },
+        { id: 'aMech', title: 'Mechanism by severity', draw: (c) => { const mechs = REG.toData(REG.tally(tbiCat, 'mechanism'), 'desc').slice(0, 6).map((d) => d.label); REG.groupedBar(c, mechs.map((m) => ({ group: m, series: { Severe: REG.count(tbiCat, (p) => p.mechanism === m && severity(p.gcs_ed) === 'Severe'), Moderate: REG.count(tbiCat, (p) => p.mechanism === m && severity(p.gcs_ed) === 'Moderate'), Mild: REG.count(tbiCat, (p) => p.mechanism === m && severity(p.gcs_ed) === 'Mild') } })), ['Severe', 'Moderate', 'Mild'], { height: 240, empty: 'No mechanism data' }); } },
+      ],
+      filters: `<select class="input" data-filter id="sevFilter"><option value="Severe">Severe (GCS 3-8)</option><option value="Moderate">Moderate (9-12)</option><option value="Mild">Mild (13-15)</option><option value="">All severities</option></select>`,
+      filterFn: (root) => { const s = root.querySelector('#sevFilter').value; return (p) => !s || severity(p.gcs_ed) === s; },
+      cols: [LIST_COLS[0], LIST_COLS[1], LIST_COLS[4], { key: 'gcs_field', label: 'GCS field', render: (p) => gcsTag(p.gcs_field), sortKey: (p) => +p.gcs_field || 99 }, LIST_COLS[5], { key: 'pupils', label: 'Pupils', render: (p) => pupilTag(p.pupils) }, LIST_COLS[6], { key: 'icp_monitor_type', label: 'ICP monitor', render: (p) => REG.val(p.icp_monitor_type || 'None') }, LIST_COLS[7], LIST_COLS[8]] });
+    // default table view = severe
+    el.querySelector('#sevFilter').dispatchEvent(new Event('change'));
+  }
+  async function subdural(el) {
+    const all = await patients(); const rows = all.filter((p) => p.category === 'SDH' || p.sdh_type);
+    const surgical = REG.count(rows, hadSurgery);
+    listPage(el, { rows, csvName: 'tbi_subdural.csv', intro: 'Patients in the SDH category or with a subdural hematoma recorded on CT.',
+      stats: [REG.statCard(rows.length, 'Total SDH'), REG.statCard(REG.count(rows, (p) => p.sdh_type === 'Acute'), 'Acute', { tone: 'danger' }), REG.statCard(REG.count(rows, (p) => p.sdh_type === 'Chronic'), 'Chronic'), REG.statCard(surgical, 'Surgical', { sub: REG.pct(surgical, rows.length) }), REG.statCard(REG.count(rows, (p) => p.anticoagulation), 'On anticoagulant / antiplatelet', { tone: 'warn' }), REG.statCard(REG.mean(rows.map((p) => p.sdh_thickness)), 'Mean thickness (mm)')],
+      charts: [
+        { id: 'sType', title: 'SDH type', draw: (c) => REG.donut(c, REG.toData(REG.tally(rows, 'sdh_type'), 'desc'), { empty: 'No SDH data' }) },
+        { id: 'sSurg', title: 'Management by SDH type', draw: (c) => REG.groupedBar(c, ['Acute', 'Subacute', 'Chronic', 'Mixed'].map((t) => ({ group: t, series: { Surgical: REG.count(rows, (p) => p.sdh_type === t && hadSurgery(p)), Conservative: REG.count(rows, (p) => p.sdh_type === t && !hadSurgery(p)) } })), ['Surgical', 'Conservative'], { height: 230, empty: 'No SDH data' }) },
+        { id: 'sProc', title: 'Procedure', draw: (c) => REG.bar(c, REG.toData(REG.tally(rows, (p) => p.surgery || 'None'), 'desc'), { horizontal: true, color: REG.NAVY, empty: 'No data' }) },
+        { id: 'sShift', title: 'Midline shift vs outcome', note: 'Mean midline shift (mm) per GOS category.', draw: (c) => REG.bar(c, [1, 2, 3, 4, 5].map((g) => ({ label: GOS_LABEL[g], value: +REG.mean(rows.filter((p) => +p.gos === g).map((p) => p.midline_shift)) || 0 })), { colorFor: (l) => GOS_COLOR[l], format: (v) => v + ' mm', empty: 'No midline-shift data', height: 230 }) },
+      ],
+      cols: [LIST_COLS[0], LIST_COLS[1], { key: 'sdh_type', label: 'SDH type', render: (p) => p.sdh_type ? REG.tag(p.sdh_type, p.sdh_type === 'Acute' ? 'danger' : p.sdh_type === 'Chronic' ? 'info' : 'warn') : '—' }, { key: 'sdh_thickness', label: 'Thickness (mm)', num: true }, LIST_COLS[5], { key: 'midline_shift', label: 'Shift (mm)', num: true }, { key: 'anticoagulation', label: 'Anticoagulation', render: (p) => REG.val(p.anticoagulation || 'None') }, LIST_COLS[7], LIST_COLS[8]] });
+  }
+  async function fracture(el) {
+    const all = await patients(); const rows = all.filter((p) => p.category === 'Skull Fracture' || p.fracture_type);
+    listPage(el, { rows, csvName: 'tbi_fractures.csv', intro: 'Patients in the skull-fracture category or with a fracture recorded on CT.',
+      stats: [REG.statCard(rows.length, 'Total fractures'), REG.statCard(REG.count(rows, (p) => p.fracture_type === 'Linear'), 'Linear', { tone: 'ok' }), REG.statCard(REG.count(rows, (p) => p.fracture_type === 'Depressed'), 'Depressed', { tone: 'warn' }), REG.statCard(REG.count(rows, (p) => p.fracture_type === 'Basilar'), 'Basilar'), REG.statCard(REG.count(rows, (p) => p.fracture_type === 'Open/Compound'), 'Open / compound', { tone: 'danger' }), REG.statCard(REG.pct(REG.count(rows, hadSurgery), rows.length), 'Operated')],
+      charts: [
+        { id: 'fType', title: 'Fracture type', draw: (c) => REG.donut(c, REG.toData(REG.tally(rows, 'fracture_type'), 'desc'), { empty: 'No fracture data' }) },
+        { id: 'fSurg', title: 'Surgical vs conservative by type', draw: (c) => REG.groupedBar(c, FRACTURES.map((t) => ({ group: t, series: { Surgical: REG.count(rows, (p) => p.fracture_type === t && hadSurgery(p)), Conservative: REG.count(rows, (p) => p.fracture_type === t && !hadSurgery(p)) } })), ['Surgical', 'Conservative'], { height: 230, empty: 'No fracture data' }) },
+        { id: 'fMech', title: 'Mechanism', draw: (c) => REG.bar(c, REG.toData(REG.tally(rows, 'mechanism'), 'desc'), { horizontal: true, color: REG.NAVY, empty: 'No mechanism data' }) },
+        { id: 'fAssoc', title: 'Associated intracranial findings', draw: (c) => REG.bar(c, [{ label: 'EDH', value: REG.count(rows, (p) => p.edh === 'Yes') }, { label: 'SDH', value: REG.count(rows, (p) => p.sdh_type) }, { label: 'Contusion', value: REG.count(rows, (p) => p.contusion) }, { label: 'tSAH', value: REG.count(rows, (p) => p.traumatic_sah === 'Yes') }, { label: 'IVH', value: REG.count(rows, (p) => p.ivh === 'Yes') }, { label: 'DAI', value: REG.count(rows, (p) => p.dai) }], { color: REG.TEAL, empty: 'No data', height: 230 }) },
+      ],
+      cols: [LIST_COLS[0], LIST_COLS[1], LIST_COLS[4], { key: 'fracture_type', label: 'Fracture', render: (p) => p.fracture_type ? REG.tag(p.fracture_type, { Linear: 'ok', Depressed: 'warn', Basilar: 'info', Comminuted: 'warn', 'Open/Compound': 'danger' }[p.fracture_type] || 'outline') : '—' }, { key: 'fracture_location', label: 'Location' }, LIST_COLS[5], { key: 'edh', label: 'EDH', render: (p) => REG.yesNo(p.edh) }, LIST_COLS[7], LIST_COLS[8]] });
+  }
+
+  /* ---------- query builder ---------- */
+  function query(el) {
+    el.innerHTML = `<div class="flex between wrap mb-2"><p class="muted small" style="margin:0">Build AND-combined conditions against <code>tbi_patients</code>. Severity and "had surgery" are evaluated client-side.</p><div class="flex">${REG.canWrite ? `<button class="btn btn-outline btn-sm" id="qImport">${SL.icons.upload}Import CSV</button>` : ''}</div></div><div id="qb"></div>`;
+    const qb = REG.queryBuilder(el.querySelector('#qb'), { table: T, cols: LIST_COLS, onRow: openDetail, csvName: 'tbi_query.csv', csvCols: CSV_COLS, fields: [
+      { key: 'category', label: 'Category', type: 'select', options: CATEGORIES }, { key: 'severity', label: 'Severity (GCS ED)', type: 'select', options: [['Severe', 'Severe (3-8)'], ['Moderate', 'Moderate (9-12)'], ['Mild', 'Mild (13-15)']], client: true }, { key: 'gcs_ed', label: 'GCS (ED)', type: 'number' }, { key: 'gcs_field', label: 'GCS (field)', type: 'number' },
+      { key: 'age', label: 'Age', type: 'number' }, { key: 'sex', label: 'Sex', type: 'select', options: SEX }, { key: 'mechanism', label: 'Mechanism', type: 'select', options: MECH }, { key: 'injury_date', label: 'Injury date', type: 'date' }, { key: 'anticoagulation', label: 'Anticoagulation', type: 'select', options: ANTICOAG },
+      { key: 'pupils', label: 'Pupils', type: 'select', options: PUPILS }, { key: 'marshall_class', label: 'Marshall class', type: 'select', options: MARSHALL.map((m) => m[0]) }, { key: 'rotterdam_score', label: 'Rotterdam score', type: 'number' }, { key: 'midline_shift', label: 'Midline shift (mm)', type: 'number' }, { key: 'sdh_type', label: 'SDH type', type: 'select', options: SDH_TYPES }, { key: 'fracture_type', label: 'Fracture type', type: 'select', options: FRACTURES },
+      { key: 'had_surgery', label: 'Had surgery', type: 'select', options: [['Yes', 'Yes'], ['No', 'No (conservative)']], client: true }, { key: 'surgery', label: 'Surgery type', type: 'select', options: SURGERY }, { key: 'surgeon', label: 'Surgeon', type: 'text' }, { key: 'evd', label: 'EVD', type: 'select', options: ['Yes', 'No'] }, { key: 'icp_monitor_type', label: 'ICP monitor', type: 'select', options: ['EVD', 'Bolt', 'Both'] }, { key: 'decompressive_craniectomy', label: 'Decompressive craniectomy', type: 'select', options: ['Yes', 'No'] },
+      { key: 'icu_days', label: 'ICU days', type: 'number' }, { key: 'ventilator_days', label: 'Ventilator days', type: 'number' }, { key: 'gos', label: 'GOS', type: 'select', options: GOS }, { key: 'gos_e', label: 'GOS-E', type: 'select', options: GOSE }, { key: 'drs', label: 'DRS', type: 'number' }, { key: 'mortality', label: 'Mortality', type: 'select', options: [['Yes', 'Deceased'], ['No', 'Alive']] }, { key: 'discharge_disposition', label: 'Discharge disposition', type: 'select', options: DISPO }, { key: 'study_id', label: 'Study ID', type: 'text' } ],
+      clientFilter: (rows, rules) => rows.filter((p) => rules.every((r) => { if (!r.value) return true; const neg = r.op === 'neq'; let hit = true; if (r.key === 'severity') hit = severity(p.gcs_ed) === r.value; else if (r.key === 'had_surgery') hit = hadSurgery(p) === (r.value === 'Yes'); return neg ? !hit : hit; })) });
+    if (REG.canWrite) el.querySelector('#qImport').onclick = () => REG.importDialog(T, PREFIX, ALL_COLS, () => { REG.invalidate(T); qb.run(); });
+  }
+
+  /* ---------- add wizard ---------- */
+  function add(el) {
+    el.innerHTML = `<div id="wiz"></div>`;
+    REG.wizard(el.querySelector('#wiz'), STEPS, { onSubmit: async (vals) => {
+      coerce(vals);
+      if (vals.mortality == null && +vals.gos === 1) vals.mortality = 'Yes';
+      try { const saved = await REG.insertWithStudyId(T, PREFIX, vals); REG.invalidate(T); SL.audit('registry_insert', T, saved.study_id, { category: saved.category }); SL.toast(`Patient ${saved.study_id} saved`, 'ok'); REG.go('detail', { id: saved.study_id }); }
+      catch (e) { SL.toast('Save failed: ' + (e.message || e), 'err'); }
+    } });
+  }
+
+  /* ---------- detail ---------- */
+  async function detail(el, params) {
+    const p = await REG.loadPatient(T, params.id); if (!p) { REG.notFound(el); return; }
+    const rel = {}; for (const k of Object.keys(REL)) rel[k] = await REG.relatedSection(REL[k], p, () => REG.refresh());
+    const f = REG.detailField;
+    const overview = REG.section('Demographics', REG.detailGrid([f('Age', p.age), f('Sex', p.sex), f('Race', p.race), f('Ethnicity', p.ethnicity)])) +
+      REG.section('Injury summary', REG.detailGrid([f('Category', catTag(p.category), { html: true }), f('Injury date', REG.date(p.injury_date), { html: true }), f('Mechanism', p.mechanism), f('Anticoagulation', p.anticoagulation || 'None'), f('GCS (ED)', gcsTag(p.gcs_ed) + ' ' + sevTag(p.gcs_ed), { html: true }), f('Pupils', pupilTag(p.pupils), { html: true }), f('Marshall class', marshall(p.marshall_class), { html: true }), f('Surgery', p.surgery || 'None'), f('GOS', gosTag(p.gos), { html: true }), f('Discharge', p.discharge_disposition)]));
+    const injury = REG.section('Field assessment', REG.detailGrid([f('GCS (field)', gcsTag(p.gcs_field), { html: true }), f('Intubated in field', REG.yesNo(p.intubated_field), { html: true })])) +
+      REG.section('ED assessment', REG.detailGrid([f('GCS (ED)', gcsTag(p.gcs_ed), { html: true }), f('Eye', p.gcs_eye), f('Verbal', p.gcs_verbal), f('Motor', p.gcs_motor), f('Pupils', pupilTag(p.pupils), { html: true }), f('SBP', unit(p.sbp, 'mmHg')), f('Heart rate', unit(p.heart_rate, 'bpm')), f('SpO₂', unit(p.spo2, '%')), f('Associated injuries', p.associated_injuries, { full: true })]));
+    const imaging = REG.section('Initial CT findings', REG.detailGrid([f('Marshall class', marshall(p.marshall_class), { html: true }), f('Rotterdam score', p.rotterdam_score), f('Midline shift', unit(p.midline_shift, 'mm')), f('Herniation', p.herniation), f('SDH', p.sdh_type || 'None'), f('SDH thickness', unit(p.sdh_thickness, 'mm')), f('EDH', REG.yesNo(p.edh), { html: true }), f('EDH volume', unit(p.edh_volume, 'cc')), f('Contusion', p.contusion || 'None'), f('DAI', p.dai || 'None'), f('Traumatic SAH', REG.yesNo(p.traumatic_sah), { html: true }), f('IVH', REG.yesNo(p.ivh), { html: true }), f('Fracture type', p.fracture_type || 'None'), f('Fracture location', p.fracture_location)])) + rel.imaging.html;
+    const surgery = REG.section('Surgery', REG.detailGrid([f('Procedure', p.surgery || 'None'), f('Date', REG.date(p.surgery_date), { html: true }), f('Surgeon', p.surgeon), f('Time to surgery', unit(p.time_to_surgery, 'h')), f('Surgical complications', p.surgical_complications, { full: true })])) +
+      REG.section('ICP management', REG.detailGrid([f('EVD', REG.yesNo(p.evd), { html: true }), f('ICP monitor', p.icp_monitor_type || 'None'), f('Hyperosmolar therapy', p.hyperosmolar || 'None'), f('Decompressive craniectomy', REG.yesNo(p.decompressive_craniectomy), { html: true }), f('Barbiturate coma', REG.yesNo(p.barbiturate_coma), { html: true }), f('Therapeutic hypothermia', REG.yesNo(p.therapeutic_hypothermia), { html: true })]), `<a class="btn btn-sm btn-outline" href="?p=icp&id=${encodeURIComponent(p.study_id)}" data-nav>${SL.icons.chart}Open in ICP monitor</a>`) + rel.icp.html;
+    const icu = REG.section('ICU course', REG.detailGrid([f('ICU days', p.icu_days), f('Ventilator days', p.ventilator_days), f('Tracheostomy', REG.yesNo(p.tracheostomy), { html: true }), f('PEG tube', REG.yesNo(p.peg_tube), { html: true }), f('VP shunt', REG.yesNo(p.vp_shunt), { html: true }), f('Complications (summary)', p.complications ? String(p.complications).split(',').map((c) => REG.tag(c.trim(), 'warn')).join(' ') : '—', { html: true, full: true })])) + rel.complications.html;
+    const outcomes = REG.section('Outcome summary', REG.detailGrid([f('GOS', gosTag(p.gos), { html: true }), f('GOS-E', goseTag(p.gos_e), { html: true }), f('DRS', p.drs), f('Rancho level', p.rancho_level), f('Mortality', died(p) ? REG.tag('Yes', 'danger') : REG.yesNo(p.mortality), { html: true }), f('Brain death', REG.yesNo(p.brain_death), { html: true }), f('Organ donor', REG.yesNo(p.organ_donor), { html: true }), f('Discharge disposition', p.discharge_disposition)]), REG.canWrite ? `<button class="btn btn-sm btn-outline" id="editOutcome">${SL.icons.edit}Update outcome</button>` : '') + rel.outcomes.html;
+    const followup = rel.followups.html;
+    REG.detailLayout(el, p, { badges: `${catTag(p.category)}${sevTag(p.gcs_ed)}${p.mechanism ? REG.tag(p.mechanism) : ''}${died(p) ? REG.tag('Deceased', 'danger') : ''}`, actions: REG.canWrite ? `<button class="btn btn-outline btn-sm" id="editPt">${SL.icons.edit}Edit record</button><button class="btn btn-accent btn-sm" id="addOutcome">${SL.icons.plus}Add assessment</button>` : '',
+      tabs: [{ key: 'overview', label: 'Overview', html: overview }, { key: 'injury', label: 'Injury / ED', html: injury }, { key: 'imaging', label: 'Imaging', html: imaging, mount: (r) => rel.imaging.mount(r) }, { key: 'surgery', label: 'Surgery / ICP', html: surgery, mount: (r) => rel.icp.mount(r) }, { key: 'icu', label: 'ICU course', html: icu, mount: (r) => rel.complications.mount(r) }, { key: 'outcomes', label: 'Outcomes', html: outcomes, mount: (r) => rel.outcomes.mount(r) }, { key: 'followup', label: 'Follow-up', html: followup, mount: (r) => rel.followups.mount(r) }] });
+    if (REG.canWrite) {
+      const onSaved = () => { REG.invalidate(T); REG.refresh(); };
+      const editWith = (title, fields) => async () => { const vals = await REG.modalForm(title, fields, p); if (!vals) return; try { await REG.updateLoose(T, p.id, coerce(vals)); SL.closeModal(); SL.audit('registry_update', T, p.study_id, { fields: Object.keys(vals) }); SL.toast('Updated', 'ok'); onSaved(); } catch (e) { SL.closeModal(); SL.toast('Update failed: ' + (e.message || e), 'err'); } };
+      el.querySelector('#editOutcome').onclick = editWith('Update outcome — ' + p.study_id, OUTCOME_FIELDS);
+      el.querySelector('#editPt').onclick = editWith('Edit record — ' + p.study_id, ALL_FIELDS.filter((x) => x.key !== 'study_id'));
+      el.querySelector('#addOutcome').onclick = () => REG.addRelated('tbi_outcome_assessments', p.id, 'Add assessment — ' + p.study_id, REL.outcomes.fields, () => REG.refresh());
+    }
+    SL.audit('registry_view', T, p.study_id);
+  }
+
+  /* ---------- ICP monitor ---------- */
+  async function icp(el, params) {
+    const pts = await patients();
+    const eligible = pts.filter((p) => p.evd === 'Yes' || p.icp_monitor_type || severity(p.gcs_ed) === 'Severe');
+    const sel = params.id || '';
+    el.innerHTML = `<div class="filters"><label class="small muted" for="icpPt" style="white-space:nowrap">Patient</label><select class="input" id="icpPt" style="min-width:260px"><option value="">Select a monitored patient…</option>${eligible.map((p) => `<option value="${esc(p.study_id)}" ${p.study_id === sel ? 'selected' : ''}>${esc(p.study_id)} · GCS ${esc(p.gcs_ed == null ? '?' : p.gcs_ed)} · ${esc(p.icp_monitor_type || (p.evd === 'Yes' ? 'EVD' : 'no monitor'))}</option>`).join('')}</select><span class="muted small">${eligible.length} patients with EVD, ICP monitor or severe TBI</span><span class="grow"></span>${REG.canWrite ? `<button class="btn btn-primary btn-sm" id="addIcp" ${sel ? '' : 'disabled'}>${SL.icons.plus}Add reading</button>` : ''}${REG.exportBtn()}</div><div id="icpBody" class="mt-2"></div>`;
+    el.querySelector('#icpPt').onchange = (e) => REG.go('icp', { id: e.target.value }, { replace: true });
+    const body = el.querySelector('#icpBody');
+    const p = pts.find((x) => x.study_id === sel);
+    if (!p) {
+      const monitored = pts.filter((x) => x.icp_monitor_type);
+      body.innerHTML = REG.stats([REG.statCard(monitored.length, 'Patients with ICP monitor'), REG.statCard(REG.count(monitored, (x) => x.icp_monitor_type === 'EVD'), 'EVD'), REG.statCard(REG.count(monitored, (x) => x.icp_monitor_type === 'Bolt'), 'Parenchymal bolt'), REG.statCard(REG.count(monitored, (x) => x.icp_monitor_type === 'Both'), 'Both')]) + `<div class="chart-grid">${REG.section('Monitor type by severity', '<div class="chart" id="iType"></div>')}${REG.section('Mortality: monitored vs not (severe TBI)', '<div class="chart" id="iMort"></div>')}</div>` + REG.empty('Select a patient above to view the ICP / CPP trend and readings.', 'chart');
+      REG.groupedBar(body.querySelector('#iType'), ['Severe', 'Moderate', 'Mild'].map((s) => ({ group: s, series: { EVD: REG.count(pts, (x) => severity(x.gcs_ed) === s && x.icp_monitor_type === 'EVD'), Bolt: REG.count(pts, (x) => severity(x.gcs_ed) === s && x.icp_monitor_type === 'Bolt'), Both: REG.count(pts, (x) => severity(x.gcs_ed) === s && x.icp_monitor_type === 'Both'), None: REG.count(pts, (x) => severity(x.gcs_ed) === s && !x.icp_monitor_type) } })), ['EVD', 'Bolt', 'Both', 'None'], { height: 230, empty: 'No data' });
+      const sev = pts.filter((x) => severity(x.gcs_ed) === 'Severe'); const mon = sev.filter((x) => x.icp_monitor_type), non = sev.filter((x) => !x.icp_monitor_type);
+      REG.bar(body.querySelector('#iMort'), [{ label: `Monitored (n=${mon.length})`, value: mon.length ? Math.round(REG.count(mon, died) / mon.length * 100) : 0 }, { label: `Not monitored (n=${non.length})`, value: non.length ? Math.round(REG.count(non, died) / non.length * 100) : 0 }], { color: REG.NAVY, max: 100, format: (v) => v + '%', height: 230, empty: 'No severe TBI patients' });
+      el.querySelector('[data-export]').onclick = () => REG.csvDownload('tbi_icp_monitored.csv', monitored, ['study_id', 'category', 'gcs_ed', 'icp_monitor_type', 'evd', 'hyperosmolar', 'decompressive_craniectomy', 'gos', 'mortality']);
+      return;
+    }
+    const { rows, error } = await REG.related('tbi_icp_readings', p.id, 'reading_time');
+    const icpVals = rows.filter((r) => r.icp_value != null).map((r) => +r.icp_value), cppVals = rows.filter((r) => r.cpp != null).map((r) => +r.cpp);
+    const peak = icpVals.length ? Math.max(...icpVals) : null; const crises = icpVals.filter((v) => v > 20).length;
+    const hours = rows.length > 1 ? (new Date(rows[rows.length - 1].reading_time) - new Date(rows[0].reading_time)) / 36e5 : 0;
+    body.innerHTML = `<div class="flex wrap mb-2" style="align-items:center"><h3 style="margin:0">${REG.studyLink(p.study_id)}</h3>${catTag(p.category)}${gcsTag(p.gcs_ed)}${marshall(p.marshall_class)}<span class="muted small">${esc(p.icp_monitor_type || '—')} · EVD ${esc(p.evd || '—')} · ${esc(p.hyperosmolar ? p.hyperosmolar : 'no hyperosmolar')} · DC ${esc(p.decompressive_craniectomy || '—')}</span></div>` +
+      REG.stats([REG.statCard(rows.length, 'Readings', { sub: hours ? `${hours.toFixed(0)} h monitored` : '' }), REG.statCard(peak, 'Peak ICP (mmHg)', { tone: peak > 20 ? 'danger' : 'ok' }), REG.statCard(REG.mean(icpVals), 'Mean ICP (mmHg)'), REG.statCard(crises, 'Readings > 20 mmHg', { tone: crises ? 'danger' : 'ok', sub: REG.pct(crises, icpVals.length) + ' of readings' }), REG.statCard(REG.mean(cppVals, 0), 'Mean CPP (mmHg)', { tone: cppVals.length && +REG.mean(cppVals, 0) < 60 ? 'warn' : 'ok' }), REG.statCard(REG.count(rows, (r) => r.interventions), 'Interventions')]) +
+      `${error ? `<div class="alert alert-danger">${esc(error.message)}</div>` : ''}${REG.section('ICP trend', '<div class="chart" id="cIcp"></div>' + REG.note('Dashed line = 20 mmHg treatment threshold. Shaded bands: green <15, amber 15-20, red >20 mmHg. Points above threshold are highlighted.'))}
+      <div class="chart-grid">${REG.section('CPP trend', '<div class="chart" id="cCpp"></div>' + REG.note('Target CPP 60-70 mmHg; dashed line = 60 mmHg.'))}${REG.section('Interventions', '<div class="chart" id="cInt"></div>')}</div>
+      ${REG.section('Readings', '<div id="icpTable"></div>')}`;
+    if (rows.length) {
+      icpChart(body.querySelector('#cIcp'), rows);
+      REG.line(body.querySelector('#cCpp'), [{ label: 'CPP', color: REG.TEAL, points: rows.filter((r) => r.reading_time && r.cpp != null).map((r) => ({ x: new Date(r.reading_time), y: +r.cpp })) }], { xTime: true, threshold: 60, thresholdLabel: 'CPP 60 mmHg', yMax: 120, yLabel: 'CPP (mmHg)', unit: 'mmHg', height: 220, empty: 'No CPP data' });
+      const ints = {}; rows.forEach((r) => String(r.interventions || '').split(/[;,]/).map((s) => s.trim()).filter(Boolean).forEach((s) => ints[s] = (ints[s] || 0) + 1));
+      REG.bar(body.querySelector('#cInt'), REG.toData(ints, 'desc').slice(0, 8), { horizontal: true, color: REG.NAVY, empty: 'No interventions recorded' });
+    } else { REG.chartEmpty(body.querySelector('#cIcp'), 'No ICP readings for this patient'); REG.chartEmpty(body.querySelector('#cCpp'), 'No CPP data'); REG.chartEmpty(body.querySelector('#cInt'), 'No interventions'); }
+    REG.table(body.querySelector('#icpTable'), REL.icp.cols, rows, { empty: 'No ICP readings yet.', sort: { key: 'reading_time', asc: false } });
+    el.querySelector('[data-export]').onclick = () => REG.csvDownload(`tbi_icp_${p.study_id}.csv`, rows.map((r) => Object.assign({ study_id: p.study_id }, r)), ['study_id', 'reading_time', 'icp_value', 'map', 'cpp', 'interventions']);
+    const addBtn = el.querySelector('#addIcp'); if (addBtn) addBtn.onclick = async () => {
+      const v = await REG.modalForm('Add ICP reading — ' + p.study_id, ICP_FIELDS); if (!v) return;
+      if (v.cpp == null && v.map != null && v.icp_value != null) v.cpp = v.map - v.icp_value;
+      try { const row = await REG.insertLoose('tbi_icp_readings', Object.assign({ patient_id: p.id }, v)); SL.closeModal(); SL.audit('registry_insert', 'tbi_icp_readings', row.id || p.study_id, { patient_id: p.id }); SL.toast('Reading saved', 'ok'); REG.refresh(); }
+      catch (e) { SL.closeModal(); SL.toast('Save failed: ' + (e.message || e), 'err'); }
+    };
+  }
+
+  /* ---------- outcomes ---------- */
+  async function outcomes(el) {
+    const [pts, { data: fu }] = await Promise.all([patients(), SL.sb.from('tbi_follow_ups').select('*')]);
+    const follow = fu || []; const withGos = pts.filter((p) => p.gos != null); const deaths = REG.count(pts, died);
+    const sevs = ['Mild', 'Moderate', 'Severe'];
+    el.innerHTML = REG.stats([REG.statCard(REG.pct(REG.count(withGos, (p) => +p.gos === 5), withGos.length), 'Good recovery (GOS 5)', { tone: 'ok', sub: `of ${withGos.length} with GOS` }), REG.statCard(REG.pct(REG.count(withGos, (p) => +p.gos >= 4), withGos.length), 'Favourable (GOS 4-5)', { tone: 'ok' }), REG.statCard(REG.pct(deaths, pts.length), 'Mortality', { tone: 'danger', sub: `${deaths} of ${pts.length}` }), REG.statCard(withGos.length, 'With GOS data'), REG.statCard(REG.count(pts, (p) => p.gos_e != null), 'With GOS-E data'), REG.statCard(REG.count(follow, (f) => f.return_to_work === 'Full'), 'Returned to work (full)', { sub: `${follow.length} follow-up visits` })]) +
+      `<div class="chart-grid">
+        ${REG.section('GOS distribution', '<div class="chart" id="oGos"></div>')}
+        ${REG.section('GOS-E distribution', '<div class="chart" id="oGose"></div>' + REG.note('1 Dead · 2 VS · 3 lower / 4 upper severe disability · 5 lower / 6 upper moderate disability · 7 lower / 8 upper good recovery.'))}
+        ${REG.section('Mortality by severity', '<div class="chart" id="oMort"></div>')}
+        ${REG.section('Severity × outcome (GOS)', '<div class="chart" id="oHeat"></div>' + REG.note('Cell = number of patients. Rows: GCS severity at ED; columns: Glasgow Outcome Scale.'))}
+        ${REG.section('Discharge disposition', '<div class="chart" id="oDispo"></div>')}
+        ${REG.section('Return to work (follow-up visits)', '<div class="chart" id="oRtw"></div>')}
+      </div>
+      <div class="chart-grid">
+        ${REG.section('Favourable outcome (GOS 4-5) by category', '<div class="chart" id="oCat"></div>')}
+        ${REG.section('Favourable outcome by Marshall class', '<div class="chart" id="oMarsh"></div>')}
+      </div>
+      ${REG.section('Outcome by severity', '<div id="oTable"></div>')}`;
+    REG.donut(el.querySelector('#oGos'), [1, 2, 3, 4, 5].map((g) => ({ label: GOS_LABEL[g], value: REG.count(withGos, (p) => +p.gos === g) })), { colorFor: (l) => GOS_COLOR[l], empty: 'No GOS data' });
+    REG.bar(el.querySelector('#oGose'), [1, 2, 3, 4, 5, 6, 7, 8].map((g) => ({ label: String(g), value: REG.count(pts, (p) => +p.gos_e === g) })), { colorFor: (l) => { const v = +l; return v >= 7 ? REG.STATUS.ok : v >= 5 ? REG.SERIES[6] : v >= 3 ? REG.STATUS.warn : v === 2 ? REG.STATUS.danger : REG.NEUTRAL; }, empty: 'No GOS-E data', height: 240 });
+    REG.bar(el.querySelector('#oMort'), sevs.map((s) => { const grp = pts.filter((p) => severity(p.gcs_ed) === s); return { label: `${s} (n=${grp.length})`, value: grp.length ? Math.round(REG.count(grp, died) / grp.length * 100) : 0 }; }), { colorFor: (l) => REG.STATUS[sevTone[l.split(' ')[0]]], max: 100, format: (v) => v + '%', empty: 'No patients', height: 240 });
+    heatmapRect(el.querySelector('#oHeat'), sevs.map((s) => [1, 2, 3, 4, 5].map((g) => REG.count(pts, (p) => severity(p.gcs_ed) === s && +p.gos === g))), sevs.map((s) => SEV_LABEL[s]), [1, 2, 3, 4, 5].map((g) => 'GOS ' + g + ' ' + GOS_LABEL[g]), { empty: 'No outcome data' });
+    REG.donut(el.querySelector('#oDispo'), REG.toData(REG.tally(pts.filter((p) => p.discharge_disposition), 'discharge_disposition'), 'desc'), { colorFor: (l) => ({ Home: REG.STATUS.ok, Rehab: REG.SERIES[0], SNF: REG.SERIES[3], LTAC: REG.SERIES[1], Deceased: REG.STATUS.danger }[l] || REG.NEUTRAL), empty: 'No disposition data' });
+    REG.donut(el.querySelector('#oRtw'), ['Full', 'Partial', 'Unable', 'Not Applicable'].map((k) => ({ label: k, value: REG.count(follow, (f) => f.return_to_work === k) })), { colorFor: (l) => ({ Full: REG.STATUS.ok, Partial: REG.STATUS.warn, Unable: REG.STATUS.danger }[l] || REG.NEUTRAL), empty: 'No return-to-work data' });
+    const byCat = CAT_KEYS.map((c) => { const grp = withGos.filter((p) => p.category === c); return { label: `${c} (n=${grp.length})`, value: grp.length ? Math.round(REG.count(grp, (p) => +p.gos >= 4) / grp.length * 100) : 0 }; }).filter((d) => !d.label.includes('(n=0)'));
+    REG.bar(el.querySelector('#oCat'), byCat, { color: REG.TEAL, max: 100, format: (v) => v + '%', empty: 'No GOS data by category', height: 240 });
+    REG.bar(el.querySelector('#oMarsh'), ['I', 'II', 'III', 'IV', 'V', 'VI'].map((m) => { const grp = withGos.filter((p) => p.marshall_class === m); return { label: `${m} (n=${grp.length})`, value: grp.length ? Math.round(REG.count(grp, (p) => +p.gos >= 4) / grp.length * 100) : 0 }; }), { color: REG.NAVY, max: 100, format: (v) => v + '%', empty: 'No Marshall data', height: 240 });
+    const tRows = sevs.concat(['Unknown']).map((s) => { const grp = pts.filter((p) => severity(p.gcs_ed) === s); const g = grp.filter((p) => p.gos != null); return { sev: s === 'Unknown' ? 'Unknown GCS' : SEV_LABEL[s], n: grp.length, dead: REG.count(grp, died), fav: REG.count(g, (p) => +p.gos >= 4), gosN: g.length, icu: REG.mean(grp.map((p) => p.icu_days)), vent: REG.mean(grp.map((p) => p.ventilator_days)), surg: REG.count(grp, hadSurgery) }; });
+    REG.table(el.querySelector('#oTable'), [{ key: 'sev', label: 'Severity' }, { key: 'n', label: 'Patients', num: true }, { key: 'surg', label: 'Operated', num: true, render: (r) => `${r.surg} (${REG.pct(r.surg, r.n)})` }, { key: 'icu', label: 'Mean ICU days', num: true }, { key: 'vent', label: 'Mean ventilator days', num: true }, { key: 'dead', label: 'Deaths', num: true, render: (r) => `${r.dead} (${REG.pct(r.dead, r.n)})` }, { key: 'fav', label: 'Favourable (GOS 4-5)', num: true, render: (r) => `${r.fav} of ${r.gosN} (${REG.pct(r.fav, r.gosN)})` }], tRows, { sticky: false });
+  }
+
+  /* ---------- data quality ---------- */
+  async function quality(el) {
+    const pts = await patients();
+    const cats = { Demographics: ['age', 'sex', 'race', 'ethnicity'], Injury: ['category', 'injury_date', 'mechanism', 'anticoagulation'], 'ED assessment': ['gcs_ed', 'gcs_field', 'pupils', 'sbp', 'heart_rate', 'spo2'], 'CT findings': ['marshall_class', 'rotterdam_score', 'midline_shift', 'herniation'], 'Surgery & ICP': ['surgery', 'surgery_date', 'surgeon', 'evd', 'icp_monitor_type'], 'ICU course': ['icu_days', 'ventilator_days', 'tracheostomy', 'peg_tube'], Outcomes: ['gos', 'gos_e', 'drs', 'mortality', 'discharge_disposition'] };
+    const c = REG.completeness(pts, cats); const catVals = Object.values(c.catScores);
+    el.innerHTML = REG.stats([REG.statCard(c.total, 'Patients'), REG.statCard(c.avg + '%', 'Average completeness', { tone: REG.scoreTone(c.avg) }), REG.statCard(catVals.filter((v) => v >= 80).length, 'Categories ≥ 80%', { tone: 'ok' }), REG.statCard(catVals.filter((v) => v < 50).length, 'Categories < 50%', { tone: 'danger' })]) +
+      `<div class="chart-grid">${REG.section('Completeness by category', Object.keys(c.catScores).map((k) => `<div class="qrow"><span>${esc(k)}</span>${REG.progressBar(c.catScores[k])}<span class="pct">${c.catScores[k]}%</span></div>`).join(''))}${REG.section('Patients by completeness band', '<div class="chart" id="qPie"></div>')}</div>
+      <div class="chart-grid">${REG.section('Fields below 50% coverage', '<div id="qCrit"></div>')}${REG.section('Least complete records', '<div id="qWorst"></div>')}</div>`;
+    const bands = { 'Excellent (≥80%)': 0, 'Good (60–79%)': 0, 'Fair (40–59%)': 0, 'Poor (<40%)': 0 }; c.perPatient.forEach((x) => { if (x.pct >= 80) bands['Excellent (≥80%)']++; else if (x.pct >= 60) bands['Good (60–79%)']++; else if (x.pct >= 40) bands['Fair (40–59%)']++; else bands['Poor (<40%)']++; });
+    REG.donut(el.querySelector('#qPie'), REG.toData(bands), { colorFor: (l) => l.startsWith('Exc') ? REG.STATUS.ok : l.startsWith('Good') ? REG.STATUS.info : l.startsWith('Fair') ? REG.STATUS.warn : REG.STATUS.danger, empty: 'No patients' });
+    const crit = Object.keys(c.fieldScores).filter((f) => c.fieldScores[f] < 50).sort((a, b) => c.fieldScores[a] - c.fieldScores[b]);
+    REG.table(el.querySelector('#qCrit'), [{ key: 'field', label: 'Field', render: (r) => `<code>${esc(r.field)}</code>` }, { key: 'pct', label: 'Coverage', num: true, render: (r) => r.pct + '%' }, { key: 'bar', label: '', sortable: false, render: (r) => REG.progressBar(r.pct) }], crit.map((f) => ({ field: f, pct: c.fieldScores[f] })), { empty: pts.length ? 'All fields are above 50% coverage.' : 'No patients yet.', sticky: false });
+    REG.table(el.querySelector('#qWorst'), [{ key: 'study_id', label: 'Study ID', render: (r) => REG.studyLink(r.row.study_id) }, { key: 'pct', label: 'Complete', num: true, render: (r) => r.pct + '%' }, { key: 'missing', label: 'Missing', sortable: false, render: (r) => `<span class="xs muted">${esc(r.missing.slice(0, 5).join(', '))}${r.missing.length > 5 ? ` +${r.missing.length - 5}` : ''}</span>` }], c.perPatient.slice().sort((a, b) => a.pct - b.pct).slice(0, 15), { empty: 'No patients yet.', sticky: false });
+  }
+
+  await REG.init({ registry: 'tbi', title: 'Trauma / TBI Registry', subtitle: 'TBI · subdural & epidural hematoma · skull fracture · ICP monitoring · GOS / GOS-E outcomes', prefix: PREFIX, table: T, pages: PAGES, defaultPage: 'dashboard',
+    render: (page, params, el) => ({ dashboard, acute, subdural, fracture, query, add, detail, icp, outcomes, quality })[page](el, params) });
+})();
+</script>
+</body></html>
